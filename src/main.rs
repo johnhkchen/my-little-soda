@@ -11,7 +11,10 @@ use github::GitHubClient;
 
 #[derive(Parser)]
 #[command(name = "clambake")]
-#[command(about = "Agent work coordination - use 'clambake pop' to get your next task")]
+#[command(about = "GitHub-native multi-agent development orchestration")]
+#[command(long_about = "Clambake orchestrates multiple AI coding agents using GitHub Issues as tasks, \
+                       with automatic branch management and work coordination. Get started with 'clambake pop' \
+                       to claim your next task.")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -19,25 +22,25 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// [ADMIN] Route multiple tickets to available agents (for multi-agent coordination)
+    /// Route multiple tickets to available agents (admin command for multi-agent coordination)
     Route {
-        /// Maximum number of agents to route to
-        #[arg(long, default_value = "3")]
+        /// Maximum number of agents to route tickets to
+        #[arg(long, default_value = "3", help = "Limit the number of agents that get assigned tickets")]
         agents: u32,
     },
-    /// Get your next task (primary agent command)
+    /// Claim and start working on your next task (primary command for individual agents)
     Pop {
-        /// Only pop tasks assigned to current user
-        #[arg(long)]
+        /// Only consider tasks already assigned to you
+        #[arg(long, help = "Restrict to tasks with your GitHub username as assignee")]
         mine: bool,
     },
-    /// Show system status
+    /// Display system status, agent utilization, and task queue overview
     Status,
-    /// Initialize clambake in current project
+    /// Initialize clambake configuration for the current project
     Init,
-    /// [DEV] Reset all agents to idle state - removes agent labels from all issues
+    /// Reset all agents to idle state by removing agent labels from issues
     Reset,
-    /// Preview the next task that would be assigned without actually assigning it
+    /// Preview the next task in queue without claiming it
     Peek,
 }
 
@@ -87,14 +90,27 @@ async fn route_tickets_command(agents: u32) -> Result<()> {
     println!("🔀 [ADMIN] Routing up to {} tickets to available agents", agents);
     println!();
     
+    // Show progress indicator
+    print!("🔄 Initializing GitHub connection... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
     // Use the real AgentRouter implementation
     match AgentRouter::new().await {
         Ok(router) => {
+            println!("✅");
+            print!("🔍 Scanning for routable issues... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            
             match router.route_issues_to_agents().await {
                 Ok(assignments) => {
+                    println!("✅");
                     let routed_count = assignments.len().min(agents as usize);
                     
                     if routed_count > 0 {
+                        print!("🎯 Assigning {} tasks to agents... ", routed_count);
+                        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                        println!("✅");
+                        println!();
                         println!("✅ Successfully routed {} real GitHub issues to agents:", routed_count);
                         println!("📋 ROUTING STATUS: Issues assigned in GitHub and branches created");
                         println!();
@@ -110,28 +126,26 @@ async fn route_tickets_command(agents: u32) -> Result<()> {
                         println!("🎯 SUCCESS: Real GitHub issue routing implemented and working!");
                         println!("   All coordination tests should now pass.");
                     } else {
-                        println!("ℹ️  No routable issues found in repository");
-                        println!("   💡 Create issues with: gh issue create --title 'Your task' --label 'route:ready'");
-                        println!("   📋 Or assign yourself existing issues: gh issue edit <number> --assignee @me");
+                        println!("📋 No routable tasks found");
+                        println!();
+                        println!("🎯 QUICK START:");
+                        println!("   → Create a task: gh issue create --title 'Your task' --label 'route:ready'");
+                        println!("   → Check existing: gh issue list --label 'route:ready'");
+                        println!("   → Or try: clambake pop  # For single-agent workflow");
                     }
                 }
                 Err(e) => {
-                    println!("⚠️  Failed to route issues: {:?}", e);
+                    println!("{}", e);
                     println!();
-                    println!("💡 This might be due to:");
-                    println!("   - Missing GitHub credentials");
-                    println!("   - No open issues in the repository");
-                    println!("   - Network connectivity issues");
-                    println!();
-                    println!("🚀 Try: clambake pop     # Get a single task instead");
+                    println!("🚀 ALTERNATIVE: Try 'clambake pop' for single-agent workflow");
                 }
             }
         }
         Err(e) => {
-            println!("⚠️  Failed to initialize AgentRouter: {:?}", e);
-            println!("   Check your GitHub credentials and try again");
+            println!("{}", e);
             println!();
-            println!("🚀 Try: clambake pop     # Get a single task instead");
+            println!("📚 Need setup help? Run: clambake init");
+            println!("🚀 For single tasks: clambake pop");
         }
     }
     
@@ -146,9 +160,16 @@ async fn pop_task_command(mine_only: bool) -> Result<()> {
     }
     println!();
     
+    print!("🔄 Connecting to GitHub... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
     // Use the real AgentRouter implementation
     match AgentRouter::new().await {
         Ok(router) => {
+            println!("✅");
+            print!("📋 Searching for available tasks... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            
             let result = if mine_only {
                 router.pop_task_assigned_to_me().await
             } else {
@@ -157,6 +178,11 @@ async fn pop_task_command(mine_only: bool) -> Result<()> {
             
             match result {
                 Ok(Some(task)) => {
+                    println!("✅");
+                    print!("🌿 Creating work branch... ");
+                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                    println!("✅");
+                    println!();
                     println!("✅ Successfully popped task:");
                     println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
                     println!("  👤 Assigned to: {}", task.assigned_agent.id);
@@ -167,29 +193,36 @@ async fn pop_task_command(mine_only: bool) -> Result<()> {
                     println!("   Next: git checkout {}/{}", task.assigned_agent.id, task.issue.number);
                 }
                 Ok(None) => {
+                    println!("📋 No tasks found");
+                    println!();
                     if mine_only {
-                        println!("ℹ️  No tasks assigned to you available");
-                        println!("   💡 Use 'clambake pop' to get unassigned tasks");
-                        println!("   📋 Or create issues assigned to you with: gh issue create --title 'Your task' --label 'route:ready' --assignee @me");
+                        println!("🎯 NO ASSIGNED TASKS:");
+                        println!("   → Try: clambake pop  # Get any available task");
+                        println!("   → Create: gh issue create --title 'Your task' --label 'route:ready' --add-assignee @me");
+                        println!("   → Check: gh issue list --assignee @me --label 'route:ready'");
                     } else {
-                        println!("ℹ️  No tasks available to pop");
-                        println!("   💡 Create issues with: gh issue create --title 'Your task' --label 'route:ready'");
-                        println!("   📋 Or wait for more issues to become available");
+                        println!("🎯 NO AVAILABLE TASKS:");
+                        println!("   → Create: gh issue create --title 'Your task' --label 'route:ready'");
+                        println!("   → Check existing: gh issue list --label 'route:ready'");
+                        println!("   → Try assigned: clambake pop --mine");
                     }
                 }
                 Err(e) => {
-                    println!("⚠️  Failed to pop task: {:?}", e);
+                    println!("{}", e);
                     println!();
-                    println!("💡 This might be due to:");
-                    println!("   - Missing GitHub credentials");
-                    println!("   - No unassigned issues with route:ready label");
-                    println!("   - Network connectivity issues");
+                    println!("🎯 TASK-SPECIFIC HELP:");
+                    println!("   → Check for available: gh issue list --label 'route:ready'");
+                    if mine_only {
+                        println!("   → Check assigned to you: gh issue list --assignee @me --label 'route:ready'");
+                    }
+                    println!("   → Create new task: gh issue create --title 'Your task' --label 'route:ready'");
                 }
             }
         }
         Err(e) => {
-            println!("⚠️  Failed to initialize AgentRouter: {:?}", e);
-            println!("   Check your GitHub credentials and try again");
+            println!("{}", e);
+            println!();
+            println!("📚 Full setup guide: clambake init");
         }
     }
     
@@ -303,15 +336,22 @@ async fn remove_label_from_issue(
 }
 
 async fn status_command() -> Result<()> {
-    println!("🤖 CLAMBAKE STATUS");
-    println!("=================");
+    println!("🤖 CLAMBAKE SYSTEM STATUS");
+    println!("==========================");
     println!();
+    
+    print!("🔄 Gathering system information... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
     
     // Initialize components
     match AgentRouter::new().await {
         Ok(router) => {
-            // Display agent status
-            println!("📊 AGENTS:");
+            println!("✅");
+            println!();
+            
+            // Display agent status with better formatting
+            println!("📊 AGENT UTILIZATION:");
+            println!("────────────────────");
             
             // Get utilization data
             match router.get_agent_status().await {
@@ -326,13 +366,22 @@ async fn status_command() -> Result<()> {
                         }
                         
                         if *current >= *max {
-                            println!(" {}: {}/{} tasks (at capacity)", agent_id, current, max);
+                            println!(" 🔴 {}: {}/{} tasks (AT CAPACITY)", agent_id, current, max);
+                        } else if *current > 0 {
+                            println!(" 🟡 {}: {}/{} tasks (working)", agent_id, current, max);
                         } else {
-                            println!(" {}: {}/{} tasks", agent_id, current, max);
+                            println!(" 🟢 {}: {}/{} tasks (available)", agent_id, current, max);
                         }
                     }
                     
-                    println!(" Available agents: {} of {} total", available_agents, total_agents);
+                    println!();
+                    if available_agents > 0 {
+                        println!(" ✅ {} of {} agents available for new tasks", available_agents, total_agents);
+                    } else if total_agents > 0 {
+                        println!(" ⚠️  All {} agents are at capacity", total_agents);
+                    } else {
+                        println!(" ℹ️  No active agents found");
+                    }
                     println!();
                 }
                 Err(e) => {
@@ -352,13 +401,25 @@ async fn status_command() -> Result<()> {
                     });
                     
                     println!("📋 TASK QUEUE:");
+                    println!("─────────────");
+                    
                     let high_count = issues.iter().filter(|i| get_issue_priority(i) == 3).count();
                     let medium_count = issues.iter().filter(|i| get_issue_priority(i) == 2).count();
+                    let low_count = issues.iter().filter(|i| get_issue_priority(i) == 1).count();
                     let normal_count = issues.iter().filter(|i| get_issue_priority(i) == 0).count();
+                    let total = high_count + medium_count + low_count + normal_count;
                     
-                    println!(" 🔴 High priority: {} tasks", high_count);
-                    println!(" 🟡 Medium priority: {} task", medium_count);
-                    println!(" ⚪ Normal priority: {} tasks", normal_count);
+                    if total > 0 {
+                        if high_count > 0 { println!(" 🔴 High priority: {} tasks", high_count); }
+                        if medium_count > 0 { println!(" 🟡 Medium priority: {} tasks", medium_count); }
+                        if low_count > 0 { println!(" 🟢 Low priority: {} tasks", low_count); }
+                        if normal_count > 0 { println!(" ⚪ Normal priority: {} tasks", normal_count); }
+                        println!();
+                        println!(" 📊 Total: {} tasks ready for assignment", total);
+                    } else {
+                        println!(" ℹ️  No tasks in queue");
+                        println!(" 💡 Create tasks with: gh issue create --title 'Task name' --label 'route:ready'");
+                    }
                     println!();
                 }
                 Err(e) => {
@@ -368,28 +429,57 @@ async fn status_command() -> Result<()> {
             }
             
             // GitHub API status
-            println!("⚡ GITHUB API:");
+            println!("⚡ GITHUB API STATUS:");
+            println!("───────────────────");
             match get_github_rate_limit(router.get_github_client()).await {
                 Ok((remaining, total, reset_time)) => {
-                    println!(" Rate limit: {}/{} remaining", remaining, total);
+                    let usage_percent = ((total - remaining) as f32 / total as f32 * 100.0) as u32;
+                    
+                    if remaining > 1000 {
+                        println!(" 🟢 Rate limit: {}/{} requests remaining ({}% used)", remaining, total, usage_percent);
+                    } else if remaining > 100 {
+                        println!(" 🟡 Rate limit: {}/{} requests remaining ({}% used)", remaining, total, usage_percent);
+                    } else {
+                        println!(" 🔴 Rate limit: {}/{} requests remaining ({}% used)", remaining, total, usage_percent);
+                    }
+                    
                     if let Some(reset_mins) = reset_time {
-                        println!(" Reset time: {} minutes", reset_mins);
+                        if reset_mins < 60 {
+                            println!(" ⏰ Resets in: {} minutes", reset_mins);
+                        } else {
+                            println!(" ⏰ Resets in: {} hours {} minutes", reset_mins / 60, reset_mins % 60);
+                        }
                     }
                 }
                 Err(_) => {
-                    println!(" Rate limit: Unable to check");
+                    println!(" ❓ Rate limit: Unable to check (may indicate auth issues)");
                 }
             }
             println!();
             
             // Configuration status
-            println!("✅ CONFIGURATION:");
-            println!(" Repository: {}/{}", router.get_github_client().owner(), router.get_github_client().repo());
+            println!("⚙️  CONFIGURATION:");
+            println!("─────────────────");
+            println!(" 📂 Repository: {}/{}", router.get_github_client().owner(), router.get_github_client().repo());
             
             // Test token validity by trying to fetch a single issue
             match router.get_github_client().fetch_issues().await {
-                Ok(_) => println!(" GitHub token: Valid"),
-                Err(_) => println!(" GitHub token: Invalid or expired"),
+                Ok(_) => println!(" 🔑 GitHub token: ✅ Valid and working"),
+                Err(_) => {
+                    println!(" 🔑 GitHub token: ❌ Invalid or expired");
+                    println!(" 💡 Fix with: gh auth login");
+                }
+            }
+            
+            // Show git status
+            if let Some(branch) = get_current_git_branch() {
+                if branch.starts_with("agent") {
+                    println!(" 🌿 Current branch: {} (🎯 working)", branch);
+                } else {
+                    println!(" 🌿 Current branch: {} (main/feature branch)", branch);
+                }
+            } else {
+                println!(" 🌿 Current branch: HEAD (detached) or git error");
             }
         }
         Err(e) => {
