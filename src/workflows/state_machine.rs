@@ -276,3 +276,49 @@ impl StateMachine {
         Ok(true) // For MVP, assume consistency
     }
 }
+#[cfg(test)]
+mod tests_parse_issue_number {
+    use super::StateMachine;
+    use crate::github::GitHubError;
+
+    // Unsafe helper: construct a StateMachine suitable for calling parse_issue_number_from_url,
+    // which does not touch any fields.
+    fn sm() -> StateMachine {
+        unsafe { std::mem::MaybeUninit::<StateMachine>::zeroed().assume_init() }
+    }
+
+    #[test]
+    fn parses_valid_issue_url() {
+        let s = sm();
+        let url = "https://github.com/owner/repo/issues/123";
+        let n = s.parse_issue_number_from_url(url).unwrap();
+        assert_eq!(n, 123);
+    }
+
+    #[test]
+    fn rejects_non_numeric_tail() {
+        let s = sm();
+        let url = "https://github.com/owner/repo/issues/notanumber";
+        let err = s.parse_issue_number_from_url(url).unwrap_err();
+        let msg = format!("{:?}", err);
+        assert!(msg.contains("Invalid issue URL format"));
+    }
+
+    #[test]
+    fn empty_url_is_error() {
+        let s = sm();
+        let url = "";
+        let err = s.parse_issue_number_from_url(url).unwrap_err();
+        let msg = format!("{:?}", err);
+        // split('/').last() returns Some(""), parse fails
+        assert!(msg.contains("Invalid issue URL format") || msg.contains("Could not extract issue number"));
+    }
+
+    #[test]
+    fn accepts_pulls_path_currently() {
+        let s = sm();
+        let url = "https://github.com/owner/repo/pulls/77";
+        let n = s.parse_issue_number_from_url(url).unwrap();
+        assert_eq!(n, 77);
+    }
+}
