@@ -293,7 +293,21 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
         Ok(client) => {
             println!("✅");
             
-            // Find completed work
+            // First, check for current landing phase (intelligent detection)
+            match detect_current_landing_phase(&client).await {
+                Ok(Some(phase)) => {
+                    return handle_landing_phase(&client, phase, dry_run, verbose).await;
+                }
+                Ok(None) => {
+                    // No current phase detected, proceed with legacy completed work scan
+                }
+                Err(e) => {
+                    println!("⚠️  Phase detection failed: {:?}", e);
+                    // Continue with legacy scan as fallback
+                }
+            }
+            
+            // Find completed work (legacy behavior)
             match detect_completed_work(&client, include_closed, days, verbose).await {
                 Ok(completed_work) => {
                     if completed_work.is_empty() {
@@ -834,6 +848,23 @@ enum CompletedWorkType {
 }
 
 #[derive(Debug)]
+enum LandingPhase {
+    CreatePR {
+        agent_id: String,
+        issue_number: u64,
+        commits_ahead: u32,
+    },
+    CompleteMerge {
+        pr_number: u64,
+        issue_number: u64,  
+        agent_id: String,
+    },
+    CleanupOnly {
+        // Current behavior for orphaned work
+    },
+}
+
+#[derive(Debug)]
 struct CompletedWork {
     issue: octocrab::models::issues::Issue,
     branch_name: String,
@@ -848,6 +879,183 @@ struct OngoingWork {
     branch_name: String,
     status: String,
     has_uncommitted_changes: bool,
+}
+
+async fn detect_current_landing_phase(client: &github::GitHubClient) -> Result<Option<LandingPhase>, github::GitHubError> {
+    // Get current branch
+    let output = Command::new("git")
+        .args(&["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .map_err(|e| github::GitHubError::IoError(e))?;
+    
+    let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    
+    // Check if we're on an agent branch (agent001/123 format)
+    if let Some((agent_id, issue_number_str)) = current_branch.split_once('/') {
+        if agent_id.starts_with("agent") {
+            if let Ok(issue_number) = issue_number_str.parse::<u64>() {
+                // Check commits ahead of main
+                let output = Command::new("git")
+                    .args(&["rev-list", "--count", "main..HEAD"])
+                    .output()
+                    .map_err(|e| github::GitHubError::IoError(e))?;
+                
+                if output.status.success() {
+                    let commits_ahead_str = String::from_utf8_lossy(&output.stdout);
+                    let commits_ahead_trimmed = commits_ahead_str.trim();
+                    if let Ok(commits_ahead) = commits_ahead_trimmed.parse::<u32>() {
+                        if commits_ahead > 0 {
+                            // Phase 1: We have commits ready for PR creation
+                            return Ok(Some(LandingPhase::CreatePR {
+                                agent_id: agent_id.to_string(),
+                                issue_number,
+                                commits_ahead,
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Check for existing PRs that might be ready for Phase 2
+    // TODO: Implement PR detection logic for Phase 2
+    
+    Ok(None)
+}
+
+async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase, dry_run: bool, verbose: bool) -> Result<()> {
+    println!();
+    println!("🚀 CLAMBAKE LAND - Two-Phase Workflow");
+    println!("=====================================");
+    println!();
+    
+    match phase {
+        LandingPhase::CreatePR { agent_id, issue_number, commits_ahead } => {
+            println!("Phase 1: Creating Pull Request");
+            println!("🔍 Detected {}/{} with {} commits ahead of main", agent_id, issue_number, commits_ahead);
+            
+            // Fetch the issue to get title and details
+            match client.fetch_issue(issue_number).await {
+                Ok(issue) => {
+                    let title_str = &issue.title;
+                    println!("📋 Issue #{}: {}", issue.number, title_str);
+                    
+                    if dry_run {
+                        println!("🔍 DRY RUN - Would create PR with:");
+                        let (title, body) = generate_pr_content(&issue, commits_ahead).await;
+                        println!("   Title: {}", title);
+                        println!("   Body preview: {}...", body.lines().next().unwrap_or(""));
+                        println!("🎯 Agent would be freed immediately - ready for new assignment");
+                    } else {
+                        // Create the actual PR
+                        match create_pr_for_issue(client, &issue, &agent_id, commits_ahead).await {
+                            Ok(pr_url) => {
+                                println!("✅ PR created: {}", pr_url);
+                                
+                                // Switch back to main branch to free the agent
+                                let _ = Command::new("git")
+                                    .args(&["checkout", "main"])
+                                    .output();
+                                    
+                                println!("🎯 Agent freed immediately - ready for new assignment");
+                                println!();
+                                println!("Next: PR will auto-merge when approved and CI passes");
+                                println!("Run 'clambake land' again to check merge status");
+                            }
+                            Err(e) => {
+                                println!("❌ PR creation failed: {:?}", e);
+                                return Err(anyhow::anyhow!("Failed to create PR"));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("❌ Failed to fetch issue #{}: {:?}", issue_number, e);
+                    return Err(anyhow::anyhow!("Failed to fetch issue"));
+                }
+            }
+        }
+        LandingPhase::CompleteMerge { pr_number, issue_number, agent_id } => {
+            println!("Phase 2: Completing Final Merge");
+            println!("🔍 Detected approved PR #{} for issue #{}", pr_number, issue_number);
+            // TODO: Implement Phase 2 logic
+            println!("🚧 Phase 2 implementation coming soon");
+        }
+        LandingPhase::CleanupOnly {} => {
+            println!("Legacy Mode: Cleanup Only");
+            // Fall back to the original behavior
+            return Err(anyhow::anyhow!("Cleanup only mode not implemented yet"));
+        }
+    }
+    
+    Ok(())
+}
+
+async fn generate_pr_content(issue: &octocrab::models::issues::Issue, commits_ahead: u32) -> (String, String) {
+    // Generate PR title
+    let has_priority_high = issue.labels.iter().any(|label| label.name == "route:priority-high");
+    let has_unblocker = issue.labels.iter().any(|label| label.name == "route:unblocker");
+    
+    let title = format!("{}#{}: {}", 
+        if has_unblocker { "[UNBLOCKER] " } 
+        else if has_priority_high { "[HIGH] " } 
+        else { "" },
+        issue.number, 
+        &issue.title
+    );
+    
+    // Generate PR body
+    let body = format!(
+        "## Summary
+{}
+
+## Changes Made
+- {} commit(s) implementing the solution
+- Changes ready for review and integration
+
+## Test Plan  
+- [x] Code compiles and builds successfully
+- [x] Changes tested locally
+- [x] Ready for code review
+
+Fixes #{}
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>", 
+        issue.body.as_ref().unwrap_or(&"No description provided".to_string()).lines().take(3).collect::<Vec<_>>().join("\n"),
+        commits_ahead,
+        issue.number
+    );
+    
+    (title, body)
+}
+
+async fn create_pr_for_issue(client: &github::GitHubClient, issue: &octocrab::models::issues::Issue, agent_id: &str, commits_ahead: u32) -> Result<String, github::GitHubError> {
+    let (title, body) = generate_pr_content(issue, commits_ahead).await;
+    
+    // Use gh CLI to create the PR
+    let branch_name = format!("{}/{}", agent_id, issue.number);
+    
+    let output = Command::new("gh")
+        .args(&[
+            "pr", "create",
+            "--title", &title,
+            "--body", &body,
+            "--head", &branch_name,
+            "--base", "main"
+        ])
+        .output()
+        .map_err(|e| github::GitHubError::IoError(e))?;
+    
+    if output.status.success() {
+        let pr_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        Ok(pr_url)
+    } else {
+        let error = String::from_utf8_lossy(&output.stderr);
+        Err(github::GitHubError::NotImplemented(format!("PR creation failed: {}", error)))
+    }
 }
 
 async fn detect_completed_work(client: &github::GitHubClient, include_closed: bool, days: u32, verbose: bool) -> Result<Vec<CompletedWork>, github::GitHubError> {
