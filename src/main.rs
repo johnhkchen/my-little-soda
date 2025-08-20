@@ -962,7 +962,51 @@ async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase
                             }
                             Err(e) => {
                                 println!("❌ PR creation failed: {:?}", e);
-                                return Err(anyhow::anyhow!("Failed to create PR"));
+                                
+                                // Check if this is due to already merged branch
+                                let error_msg = format!("{:?}", e);
+                                if error_msg.contains("already been merged") {
+                                    println!("🔍 Branch was already merged - checking for existing PR");
+                                    
+                                    // Look for existing PR for this branch
+                                    match find_existing_pr_for_branch(client, &agent_id, issue_number).await {
+                                        Ok(Some(pr_url)) => {
+                                            println!("✅ Found existing PR: {}", pr_url);
+                                            println!("📝 Work was completed via manual PR creation");
+                                            
+                                            // Clean up agent label since work is done
+                                            if let Err(e) = remove_label_from_issue(client, issue_number, &agent_id).await {
+                                                println!("⚠️  Warning: Failed to remove agent label: {:?}", e);
+                                            } else {
+                                                println!("🏷️  Removed agent label '{}' - agent freed", agent_id);
+                                            }
+                                            
+                                            println!("✅ Workflow violation resolved - agent freed");
+                                            return Ok(());
+                                        }
+                                        Ok(None) => {
+                                            println!("⚠️  No existing PR found for merged branch");
+                                        }
+                                        Err(_) => {
+                                            println!("⚠️  Could not check for existing PR");
+                                        }
+                                    }
+                                } else if error_msg.contains("Bundle creation failed") {
+                                    println!("🔄 Bundle creation failed - falling back to individual PR");
+                                    
+                                    // Try creating individual PR without bundling
+                                    match create_individual_pr_fallback(client, &issue, &agent_id, commits_ahead).await {
+                                        Ok(pr_url) => {
+                                            println!("✅ Created individual PR as fallback: {}", pr_url);
+                                            return Ok(());
+                                        }
+                                        Err(fallback_err) => {
+                                            println!("❌ Fallback PR creation also failed: {:?}", fallback_err);
+                                        }
+                                    }
+                                }
+                                
+                                return Err(anyhow::anyhow!("Failed to create PR and all fallbacks exhausted"));
                             }
                         }
                     }
@@ -1030,11 +1074,25 @@ Co-Authored-By: Claude <noreply@anthropic.com>",
 }
 
 async fn create_pr_for_issue(client: &github::GitHubClient, issue: &octocrab::models::issues::Issue, agent_id: &str, commits_ahead: u32) -> Result<String, github::GitHubError> {
+    let branch_name = format!("{}/{}", agent_id, issue.number);
+    
+    // Check if branch has already been merged to prevent "no commits" error
+    if is_branch_merged_to_main(&branch_name)? {
+        return Err(github::GitHubError::NotImplemented(format!(
+            "Branch {} has already been merged to main. Work was likely completed via manual PR creation.", 
+            branch_name
+        )));
+    }
+    
+    // Check for bundle opportunities before creating individual PR
+    let bundle_candidates = detect_bundle_candidates(client, &branch_name).await?;
+    if bundle_candidates.len() >= 2 { // Bundle threshold: 2+ branches
+        return create_bundled_pr(client, bundle_candidates).await;
+    }
+    
     let (title, body) = generate_pr_content(issue, commits_ahead).await;
     
     // Use gh CLI to create the PR
-    let branch_name = format!("{}/{}", agent_id, issue.number);
-    
     let output = Command::new("gh")
         .args(&[
             "pr", "create",
@@ -1051,7 +1109,267 @@ async fn create_pr_for_issue(client: &github::GitHubClient, issue: &octocrab::mo
         Ok(pr_url)
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
-        Err(github::GitHubError::NotImplemented(format!("PR creation failed: {}", error)))
+        
+        // Provide helpful error messages for common issues
+        if error.contains("No commits between") {
+            Err(github::GitHubError::NotImplemented(format!(
+                "PR creation failed: {}\n\n🔧 LIKELY CAUSE: Branch not pushed to GitHub\n   → Fix: git push origin {}\n   → Then retry: clambake land\n\n💡 TIP: clambake land requires branches to be pushed to GitHub first", 
+                error, 
+                branch_name
+            )))
+        } else if error.contains("already exists") {
+            Err(github::GitHubError::NotImplemented(format!(
+                "PR creation failed: {}\n\n🔧 LIKELY CAUSE: PR already exists for this branch\n   → Check: gh pr list --head {}\n   → Or use: gh pr view --web\n\n💡 TIP: Work may have been completed already", 
+                error,
+                branch_name
+            )))
+        } else {
+            Err(github::GitHubError::NotImplemented(format!("PR creation failed: {}", error)))
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct BundleCandidate {
+    branch_name: String,
+    issue_number: u64,
+    issue_title: String,
+    agent_id: String,
+    commits_ahead: u32,
+}
+
+async fn detect_bundle_candidates(client: &github::GitHubClient, current_branch: &str) -> Result<Vec<BundleCandidate>, github::GitHubError> {
+    let mut candidates = Vec::new();
+    
+    // Add current branch as candidate
+    if let Some((agent_id, issue_number_str)) = current_branch.split_once('/') {
+        if let Ok(issue_number) = issue_number_str.parse::<u64>() {
+            if let Ok(issue) = client.fetch_issue(issue_number).await {
+                if let Ok(commits_ahead) = get_commits_ahead_of_main(current_branch) {
+                    candidates.push(BundleCandidate {
+                        branch_name: current_branch.to_string(),
+                        issue_number,
+                        issue_title: issue.title,
+                        agent_id: agent_id.to_string(),
+                        commits_ahead,
+                    });
+                }
+            }
+        }
+    }
+    
+    // Look for other ready branches from different agents
+    let issues = client.fetch_issues().await?;
+    let ready_issues: Vec<_> = issues.into_iter()
+        .filter(|issue| {
+            issue.state == octocrab::models::IssueState::Open &&
+            issue.labels.iter().any(|label| label.name == "route:ready") &&
+            issue.labels.iter().any(|label| label.name.starts_with("agent"))
+        })
+        .collect();
+    
+    for issue in ready_issues {
+        if let Some(agent_label) = issue.labels.iter().find(|label| label.name.starts_with("agent")) {
+            let branch_name = format!("{}/{}", agent_label.name, issue.number);
+            
+            // Skip if this is the current branch (already added)
+            if branch_name == current_branch {
+                continue;
+            }
+            
+            // Check if branch is ready for PR
+            if is_branch_ready_for_pr(&branch_name)? {
+                if let Ok(commits_ahead) = get_commits_ahead_of_main(&branch_name) {
+                    candidates.push(BundleCandidate {
+                        branch_name,
+                        issue_number: issue.number,
+                        issue_title: issue.title,
+                        agent_id: agent_label.name.clone(),
+                        commits_ahead,
+                    });
+                }
+            }
+        }
+    }
+    
+    Ok(candidates)
+}
+
+fn get_commits_ahead_of_main(branch_name: &str) -> Result<u32, github::GitHubError> {
+    let output = Command::new("git")
+        .args(&["rev-list", "--count", &format!("main..{}", branch_name)])
+        .output()
+        .map_err(|e| github::GitHubError::IoError(e))?;
+    
+    if output.status.success() {
+        let count_str = String::from_utf8_lossy(&output.stdout);
+        let count: u32 = count_str.trim().parse().unwrap_or(0);
+        Ok(count)
+    } else {
+        Ok(0)
+    }
+}
+
+async fn create_bundled_pr(client: &github::GitHubClient, candidates: Vec<BundleCandidate>) -> Result<String, github::GitHubError> {
+    let total_commits: u32 = candidates.iter().map(|c| c.commits_ahead).sum();
+    let issue_numbers: Vec<u64> = candidates.iter().map(|c| c.issue_number).collect();
+    let branch_names: Vec<String> = candidates.iter().map(|c| c.branch_name.clone()).collect();
+    
+    // Create bundle branch name
+    let bundle_branch = format!("bundle/{}", issue_numbers.iter().map(|n| n.to_string()).collect::<Vec<_>>().join("-"));
+    
+    // Create bundle PR title and body
+    let title = format!("Bundle: {} issues ({} commits)", candidates.len(), total_commits);
+    let body = format!(
+        "## Bundle Summary
+This PR bundles multiple agent-completed tasks for efficient review and API rate limiting.
+
+## Bundled Issues
+{}
+
+## Bundle Details
+- **Total commits**: {}
+- **Bundled branches**: {}
+- **Agent work**: All work completed and ready for review
+
+## Auto-close
+{}
+
+🤖 Generated with [Clambake Bundle System](https://github.com/johnhkchen/clambake)
+
+Co-Authored-By: Multiple Agents <agents@clambake.dev>",
+        candidates.iter()
+            .map(|c| format!("- Fixes #{}: {} (Agent: {}, {} commits)", c.issue_number, c.issue_title, c.agent_id, c.commits_ahead))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        total_commits,
+        branch_names.join(", "),
+        issue_numbers.iter()
+            .map(|n| format!("Fixes #{}", n))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    
+    // Create bundle branch by merging all candidate branches
+    if let Err(e) = create_bundle_branch(&bundle_branch, &branch_names) {
+        // If bundling fails, fall back to individual PR for current branch
+        return Err(github::GitHubError::NotImplemented(format!(
+            "Bundle creation failed: {:?}. Recommend creating individual PR.", e
+        )));
+    }
+    
+    // Create bundle PR
+    let output = Command::new("gh")
+        .args(&[
+            "pr", "create",
+            "--title", &title,
+            "--body", &body,
+            "--head", &bundle_branch,
+            "--base", "main"
+        ])
+        .output()
+        .map_err(|e| github::GitHubError::IoError(e))?;
+    
+    if output.status.success() {
+        let pr_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        
+        // Remove route:ready labels from all bundled issues to free agents
+        for candidate in &candidates {
+            let _ = remove_label_from_issue(client, candidate.issue_number, "route:ready").await;
+            // Also remove agent labels to free agents immediately
+            let _ = remove_label_from_issue(client, candidate.issue_number, &candidate.agent_id).await;
+        }
+        
+        println!("✅ Created bundle PR for {} issues", candidates.len());
+        Ok(pr_url)
+    } else {
+        let error = String::from_utf8_lossy(&output.stderr);
+        Err(github::GitHubError::NotImplemented(format!("Bundle PR creation failed: {}", error)))
+    }
+}
+
+fn create_bundle_branch(bundle_branch: &str, branch_names: &[String]) -> Result<(), std::io::Error> {
+    // Create new bundle branch from main
+    Command::new("git")
+        .args(&["checkout", "-b", bundle_branch, "main"])
+        .output()?;
+    
+    // Merge each branch into the bundle
+    for branch_name in branch_names {
+        let output = Command::new("git")
+            .args(&["merge", "--no-ff", branch_name, "-m", &format!("Bundle: merge {}", branch_name)])
+            .output()?;
+        
+        if !output.status.success() {
+            // If merge fails, cleanup and return error
+            let _ = Command::new("git").args(&["checkout", "main"]).output();
+            let _ = Command::new("git").args(&["branch", "-D", bundle_branch]).output();
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to merge branch {} into bundle", branch_name)
+            ));
+        }
+    }
+    
+    // Push bundle branch
+    Command::new("git")
+        .args(&["push", "origin", bundle_branch])
+        .output()?;
+    
+    // Switch back to main
+    Command::new("git")
+        .args(&["checkout", "main"])
+        .output()?;
+    
+    Ok(())
+}
+
+async fn find_existing_pr_for_branch(client: &github::GitHubClient, agent_id: &str, issue_number: u64) -> Result<Option<String>, github::GitHubError> {
+    let open_prs = client.fetch_open_pull_requests().await?;
+    let branch_name = format!("{}/{}", agent_id, issue_number);
+    
+    for pr in open_prs {
+        if pr.head.ref_field == branch_name {
+            return Ok(pr.html_url.map(|url| url.to_string()));
+        }
+    }
+    
+    // Also check merged PRs by looking for issue references
+    match client.fetch_issue(issue_number).await {
+        Ok(issue) => {
+            // If issue is closed, it might have been auto-closed by a PR
+            if issue.state == octocrab::models::IssueState::Closed {
+                if let Some(closed_at) = issue.closed_at {
+                    // Issue was closed recently, likely by PR merge
+                    return Ok(Some(format!("Issue #{} was auto-closed by PR merge", issue_number)));
+                }
+            }
+        }
+        Err(_) => {}
+    }
+    
+    Ok(None)
+}
+
+async fn create_individual_pr_fallback(client: &github::GitHubClient, issue: &octocrab::models::issues::Issue, agent_id: &str, commits_ahead: u32) -> Result<String, github::GitHubError> {
+    // Create individual PR without bundle detection
+    let (title, body) = generate_pr_content(issue, commits_ahead).await;
+    let branch_name = format!("{}/{}", agent_id, issue.number);
+    
+    // Use GitHub client API instead of gh CLI for more control
+    match client.create_pull_request(&title, &branch_name, "main", &body).await {
+        Ok(pr) => {
+            // Clean up agent labels to free agent
+            let _ = remove_label_from_issue(client, issue.number, "route:ready").await;
+            let _ = remove_label_from_issue(client, issue.number, agent_id).await;
+            
+            if let Some(html_url) = pr.html_url {
+                Ok(html_url.to_string())
+            } else {
+                Ok(format!("PR #{} created", pr.number))
+            }
+        }
+        Err(e) => Err(e)
     }
 }
 
