@@ -581,17 +581,23 @@ impl GitHubClient {
         }
         
         // Analyze the latest reviews
+        let mut coderabbit_completed = false;
         for review in latest_reviews.values() {
             if let Some(user) = &review.user {
                 // Check if this is a CodeRabbit review
                 if user.login.to_lowercase().contains("coderabbit") {
                     has_coderabbit_review = true;
                     
-                    // For CodeRabbit, any substantial review indicates completion
-                    // Check if the review has actual content (not just initial comment)
-                    if let Some(body) = &review.body {
-                        if body.len() > 100 { // Substantial review content
-                            return Ok(true);
+                    // For CodeRabbit, check both review state and content
+                    if let Some(state) = &review.state {
+                        // CodeRabbit completes with state "COMMENTED" when it has provided feedback
+                        if matches!(state, octocrab::models::pulls::ReviewState::Commented) {
+                            // Also verify it has substantial content (not just initial comment)
+                            if let Some(body) = &review.body {
+                                if body.len() > 100 { // Substantial review content
+                                    coderabbit_completed = true;
+                                }
+                            }
                         }
                     }
                 } else {
@@ -607,9 +613,9 @@ impl GitHubClient {
             }
         }
         
-        // If we found CodeRabbit but no substantial review, it's still in progress
+        // If we found CodeRabbit, check if it completed its review
         if has_coderabbit_review {
-            return Ok(false);
+            return Ok(coderabbit_completed);
         }
         
         // For human PRs, require approval without pending changes
