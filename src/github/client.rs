@@ -341,6 +341,8 @@ impl GitHubClient {
         let pulls = self.octocrab
             .pulls(&self.owner, &self.repo)
             .list()
+            // Note: octocrab::params::State::Open is correct here, not octocrab::params::pulls::State::Open
+            // The .state() method expects octocrab::params::State, as verified by compilation
             .state(octocrab::params::State::Open)
             .send()
             .await?;
