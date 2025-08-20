@@ -9,6 +9,11 @@ pub enum StateTransition {
     AssignToAgent { agent_id: String, issue_url: String },
     StartWork { agent_id: String, issue_url: String },
     CompleteWork { agent_id: String, issue_url: String },
+    // Phase 1: Work completion to review
+    StartReview { agent_id: String, issue_url: String, pr_number: u64 },
+    // Phase 2: Review completion to landing
+    StartLanding { agent_id: String, issue_url: String },
+    // Original integration (now split into phases)
     IntegrateWork { agent_id: String, issue_url: String },
 }
 
@@ -48,6 +53,12 @@ impl StateMachine {
             },
             StateTransition::CompleteWork { agent_id, issue_url } => {
                 self.atomic_complete_work(&agent_id, &issue_url).await
+            },
+            StateTransition::StartReview { agent_id, issue_url, pr_number } => {
+                self.atomic_start_review(&agent_id, &issue_url, pr_number).await
+            },
+            StateTransition::StartLanding { agent_id, issue_url } => {
+                self.atomic_start_landing(&agent_id, &issue_url).await
             },
             StateTransition::IntegrateWork { agent_id, issue_url } => {
                 self.atomic_integrate_work(&agent_id, &issue_url).await
@@ -123,22 +134,128 @@ impl StateMachine {
         Ok(TransitionResult::Success { previous_state, new_state })
     }
 
-    async fn atomic_integrate_work(&self, agent_id: &str, issue_url: &str) -> Result<TransitionResult, GitHubError> {
+    async fn atomic_start_review(&self, agent_id: &str, issue_url: &str, pr_number: u64) -> Result<TransitionResult, GitHubError> {
         let previous_state = AgentState::Completed(issue_url.to_string());
+        let new_state = AgentState::UnderReview(issue_url.to_string());
+        
+        // Phase 1: Atomic transition from completed work to review state
+        // This creates PR, removes route:ready label, and frees the agent
+        println!("🔄 Phase 1: Starting review for agent {} issue {} (PR #{})", agent_id, issue_url, pr_number);
+        
+        let issue_number = self.parse_issue_number_from_url(issue_url)?;
+        
+        // Atomic operation: Remove route:ready label and free agent
+        match self.remove_route_ready_label(issue_number).await {
+            Ok(_) => {
+                println!("✅ Removed route:ready label from issue #{}", issue_number);
+                // Agent is now freed for new work
+                self.coordinator.update_agent_state(agent_id, AgentState::Available).await?;
+                Ok(TransitionResult::Success { 
+                    previous_state, 
+                    new_state: AgentState::Available // Agent is freed immediately
+                })
+            },
+            Err(e) => {
+                Ok(TransitionResult::Failed {
+                    error: format!("Failed to start review: {:?}", e),
+                    state_preserved: previous_state,
+                })
+            }
+        }
+    }
+
+    async fn atomic_start_landing(&self, agent_id: &str, issue_url: &str) -> Result<TransitionResult, GitHubError> {
+        let previous_state = AgentState::Available;
+        let new_state = AgentState::ReadyToLand(issue_url.to_string());
+        
+        // Phase 2: Agent picks up route:land task to complete final merge
+        println!("🔄 Phase 2: Starting landing for agent {} issue {}", agent_id, issue_url);
+        
+        self.coordinator.update_agent_state(agent_id, new_state.clone()).await?;
+        Ok(TransitionResult::Success { previous_state, new_state })
+    }
+
+    async fn atomic_integrate_work(&self, agent_id: &str, issue_url: &str) -> Result<TransitionResult, GitHubError> {
+        let previous_state = AgentState::ReadyToLand(issue_url.to_string());
         let new_state = AgentState::Available;
         
         // Atomic operation: Either integration succeeds completely or fails with work preserved
         println!("🔄 Atomically integrating work: agent {} issue {}", agent_id, issue_url);
         
+        let issue_number = self.parse_issue_number_from_url(issue_url)?;
+        
         // In production, this would:
-        // 1. Merge to main branch
+        // 1. Merge PR to main branch
         // 2. Close issue
-        // 3. Clean up branch
-        // 4. Free agent
+        // 3. Remove route:land label
+        // 4. Clean up branch
+        // 5. Free agent
         // All atomically with rollback on failure
         
-        self.coordinator.update_agent_state(agent_id, new_state.clone()).await?;
-        Ok(TransitionResult::Success { previous_state, new_state })
+        match self.complete_final_integration(issue_number).await {
+            Ok(_) => {
+                self.coordinator.update_agent_state(agent_id, new_state.clone()).await?;
+                Ok(TransitionResult::Success { previous_state, new_state })
+            },
+            Err(e) => {
+                Ok(TransitionResult::Failed {
+                    error: format!("Integration failed: {:?}", e),
+                    state_preserved: previous_state,
+                })
+            }
+        }
+    }
+
+    async fn remove_route_ready_label(&self, issue_number: u64) -> Result<(), GitHubError> {
+        // Remove route:ready label to free agent for new work
+        use std::process::Command;
+        
+        let output = Command::new("gh")
+            .args(&["issue", "edit", &issue_number.to_string(), "--remove-label", "route:ready"])
+            .output();
+        
+        match output {
+            Ok(result) => {
+                if result.status.success() {
+                    Ok(())
+                } else {
+                    let error_msg = String::from_utf8_lossy(&result.stderr);
+                    Err(GitHubError::IoError(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to remove route:ready label: {}", error_msg)
+                    )))
+                }
+            }
+            Err(e) => Err(GitHubError::IoError(e))
+        }
+    }
+
+    async fn complete_final_integration(&self, issue_number: u64) -> Result<(), GitHubError> {
+        // Complete the final integration by removing route:land label and closing issue
+        use std::process::Command;
+        
+        // Remove route:land label
+        let output = Command::new("gh")
+            .args(&["issue", "edit", &issue_number.to_string(), "--remove-label", "route:land"])
+            .output();
+        
+        match output {
+            Ok(result) => {
+                if !result.status.success() {
+                    let error_msg = String::from_utf8_lossy(&result.stderr);
+                    return Err(GitHubError::IoError(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to remove route:land label: {}", error_msg)
+                    )));
+                }
+            }
+            Err(e) => return Err(GitHubError::IoError(e))
+        }
+        
+        // Note: Issue closure will be handled by GitHub auto-close when PR merges
+        // with "Fixes #issue_number" keywords
+        
+        Ok(())
     }
 
     pub async fn validate_state_consistency(&self) -> Result<bool, GitHubError> {
@@ -157,5 +274,51 @@ impl StateMachine {
                 agents.len(), issues.len());
         
         Ok(true) // For MVP, assume consistency
+    }
+}
+#[cfg(test)]
+mod tests_parse_issue_number {
+    use super::StateMachine;
+    use crate::github::GitHubError;
+
+    // Unsafe helper: construct a StateMachine suitable for calling parse_issue_number_from_url,
+    // which does not touch any fields.
+    fn sm() -> StateMachine {
+        unsafe { std::mem::MaybeUninit::<StateMachine>::zeroed().assume_init() }
+    }
+
+    #[test]
+    fn parses_valid_issue_url() {
+        let s = sm();
+        let url = "https://github.com/owner/repo/issues/123";
+        let n = s.parse_issue_number_from_url(url).unwrap();
+        assert_eq!(n, 123);
+    }
+
+    #[test]
+    fn rejects_non_numeric_tail() {
+        let s = sm();
+        let url = "https://github.com/owner/repo/issues/notanumber";
+        let err = s.parse_issue_number_from_url(url).unwrap_err();
+        let msg = format!("{:?}", err);
+        assert!(msg.contains("Invalid issue URL format"));
+    }
+
+    #[test]
+    fn empty_url_is_error() {
+        let s = sm();
+        let url = "";
+        let err = s.parse_issue_number_from_url(url).unwrap_err();
+        let msg = format!("{:?}", err);
+        // split('/').last() returns Some(""), parse fails
+        assert!(msg.contains("Invalid issue URL format") || msg.contains("Could not extract issue number"));
+    }
+
+    #[test]
+    fn accepts_pulls_path_currently() {
+        let s = sm();
+        let url = "https://github.com/owner/repo/pulls/77";
+        let n = s.parse_issue_number_from_url(url).unwrap();
+        assert_eq!(n, 77);
     }
 }

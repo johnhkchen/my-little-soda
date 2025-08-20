@@ -12,6 +12,9 @@ pub enum AgentState {
     Assigned(String), // GitHub issue URL
     Working(String),  // GitHub issue URL
     Completed(String), // GitHub issue URL
+    UnderReview(String), // GitHub issue URL - CodeRabbit reviewing
+    AwaitingApproval(String), // GitHub issue URL - Human approval needed
+    ReadyToLand(String), // GitHub issue URL - Ready for final merge
 }
 
 #[derive(Debug, Clone)]
