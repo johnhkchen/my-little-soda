@@ -194,6 +194,22 @@ impl std::fmt::Display for GitHubError {
 
 impl std::error::Error for GitHubError {}
 
+#[derive(Debug, Clone)]
+pub struct RateLimitStatus {
+    pub remaining: usize,
+    pub limit: usize,
+    pub reset_time: u64,
+    pub used: usize,
+    pub percentage_used: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct PRCreationRate {
+    pub prs_last_hour: u32,
+    pub target_rate: u32,
+    pub is_over_target: bool,
+}
+
 #[derive(Debug)]
 pub struct GitHubClient {
     octocrab: Octocrab,
@@ -764,6 +780,66 @@ impl GitHubClient {
         // In a more sophisticated implementation, we could check if the number
         // of issues matches the number of suggestions
         Ok(!coderabbit_issues.is_empty())
+    }
+
+    /// Get the current GitHub API rate limit status
+    pub async fn get_rate_limit_status(&self) -> Result<RateLimitStatus, GitHubError> {
+        let rate_limit = self.octocrab
+            .ratelimit()
+            .get()
+            .await?;
+        
+        let core = &rate_limit.resources.core;
+        
+        Ok(RateLimitStatus {
+            remaining: core.remaining,
+            limit: core.limit,
+            reset_time: core.reset,
+            used: core.limit - core.remaining,
+            percentage_used: if core.limit > 0 {
+                (((core.limit - core.remaining) as f64 / core.limit as f64) * 100.0) as u32
+            } else {
+                0
+            },
+        })
+    }
+
+    /// Check if we're approaching GitHub API rate limits
+    pub async fn is_approaching_rate_limit(&self) -> Result<bool, GitHubError> {
+        let status = self.get_rate_limit_status().await?;
+        
+        // Consider approaching rate limit if >70% used or <1000 requests remaining
+        Ok(status.percentage_used > 70 || status.remaining < 1000)
+    }
+
+    /// Get the current PR creation rate (count PRs created in the last hour)
+    pub async fn get_pr_creation_rate(&self) -> Result<PRCreationRate, GitHubError> {
+        let now = chrono::Utc::now();
+        let one_hour_ago = now - chrono::Duration::hours(1);
+        
+        // Fetch recent PRs
+        let recent_prs = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list()
+            .state(octocrab::params::State::All)
+            .sort(octocrab::params::pulls::Sort::Created)
+            .direction(octocrab::params::Direction::Descending)
+            .per_page(100) // Get recent PRs
+            .send()
+            .await?;
+        
+        // Count PRs created in the last hour
+        let recent_pr_count = recent_prs.items.iter()
+            .filter(|pr| {
+                pr.created_at.map(|created| created > one_hour_ago).unwrap_or(false)
+            })
+            .count() as u32;
+        
+        Ok(PRCreationRate {
+            prs_last_hour: recent_pr_count,
+            target_rate: 6, // 6 PRs/hour max sustainable rate
+            is_over_target: recent_pr_count > 6,
+        })
     }
 }
 
