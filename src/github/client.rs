@@ -386,6 +386,49 @@ impl GitHubClient {
         
         Ok(false)
     }
+
+    /// Get the number of PRs created in the last hour
+    pub async fn get_pr_creation_rate(&self) -> Result<u32, GitHubError> {
+        use chrono::{Utc, Duration};
+        
+        let one_hour_ago = Utc::now() - Duration::hours(1);
+        
+        // Fetch both open and closed PRs
+        let mut all_prs = Vec::new();
+        
+        // Get open PRs
+        let open_pulls = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list()
+            .state(octocrab::params::State::Open)
+            .per_page(100)
+            .send()
+            .await?;
+        all_prs.extend(open_pulls.items);
+        
+        // Get closed PRs
+        let closed_pulls = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list()
+            .state(octocrab::params::State::Closed)
+            .per_page(100)
+            .send()
+            .await?;
+        all_prs.extend(closed_pulls.items);
+        
+        // Count PRs created in the last hour
+        let count = all_prs.iter()
+            .filter(|pr| {
+                if let Some(created_at) = pr.created_at {
+                    created_at >= one_hour_ago
+                } else {
+                    false
+                }
+            })
+            .count() as u32;
+            
+        Ok(count)
+    }
 }
 
 // Implement the trait for GitHubClient

@@ -696,6 +696,20 @@ async fn status_command() -> Result<()> {
                     println!(" ❓ Rate limit: Unable to check (may indicate auth issues)");
                 }
             }
+            
+            // PR creation rate
+            match router.get_github_client().get_pr_creation_rate().await {
+                Ok(pr_count) => {
+                    if pr_count <= 6 {
+                        println!(" 🟢 PRs created in last hour: {} (target ≤6)", pr_count);
+                    } else {
+                        println!(" 🟡 PRs created in last hour: {} (target ≤6)", pr_count);
+                    }
+                }
+                Err(_) => {
+                    println!(" ❓ PR creation rate: Unable to check");
+                }
+            }
             println!();
             
             // Configuration status
@@ -1092,7 +1106,23 @@ async fn create_pr_for_issue(client: &github::GitHubClient, issue: &octocrab::mo
     
     let (title, body) = generate_pr_content(issue, commits_ahead).await;
     
-    // Use gh CLI to create the PR
+    // First, push the local commits to remote branch
+    let branch_name = format!("{}/{}", agent_id, issue.number);
+    
+    println!("🔄 Pushing {} commits to remote branch...", commits_ahead);
+    let push_output = Command::new("git")
+        .args(&["push", "origin", &branch_name])
+        .output()
+        .map_err(|e| github::GitHubError::IoError(e))?;
+    
+    if !push_output.status.success() {
+        let error = String::from_utf8_lossy(&push_output.stderr);
+        return Err(github::GitHubError::NotImplemented(format!("Failed to push branch to remote: {}", error)));
+    }
+    
+    println!("✅ Pushed {} commits to origin/{}", commits_ahead, branch_name);
+    
+    // Now create the PR using gh CLI
     let output = Command::new("gh")
         .args(&[
             "pr", "create",
@@ -2276,3 +2306,4 @@ async fn show_how_to_get_work() -> Result<()> {
     Ok(())
 }
 
+// Test change for issue #77 fix
