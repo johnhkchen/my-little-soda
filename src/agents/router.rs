@@ -3,6 +3,7 @@
 
 use crate::github::{GitHubClient, GitHubError};
 use crate::agents::{Agent, AgentCoordinator};
+use crate::priority::Priority;
 use octocrab::models::issues::Issue;
 use std::collections::HashMap;
 
@@ -96,26 +97,10 @@ impl AgentRouter {
     }
 
     fn get_issue_priority(&self, issue: &Issue) -> u32 {
-        // Priority based on labels: higher number = higher priority
-        
-        // Absolute highest priority: route:unblocker (critical infrastructure issues)
-        if issue.labels.iter().any(|label| label.name == "route:unblocker") {
-            200 // Absolute maximum priority - system blockers
-        }
-        // Second highest priority: route:land tasks (Phase 2 completion)
-        else if issue.labels.iter().any(|label| label.name == "route:land") {
-            100 // High priority - merge-ready work
-        }
-        // Standard priority labels for route:ready tasks
-        else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
-            3 // High priority
-        } else if issue.labels.iter().any(|label| label.name == "route:priority-medium") {
-            2 // Medium priority
-        } else if issue.labels.iter().any(|label| label.name == "route:priority-low") {
-            1 // Low priority
-        } else {
-            0 // No priority label = lowest priority
-        }
+        let label_names: Vec<&str> = issue.labels.iter()
+            .map(|label| label.name.as_str())
+            .collect();
+        Priority::from_labels(&label_names).value()
     }
 
     pub async fn route_issues_to_agents(&self) -> Result<Vec<RoutingAssignment>, GitHubError> {
@@ -433,24 +418,7 @@ mod tests {
     
     // Helper function to test priority logic without constructing Issue structs
     fn get_priority_from_labels(label_names: &[&str]) -> u32 {
-        // Absolute highest priority: route:unblocker
-        if label_names.iter().any(|&name| name == "route:unblocker") {
-            200
-        }
-        // Second highest priority: route:land tasks
-        else if label_names.iter().any(|&name| name == "route:land") {
-            100
-        }
-        // Standard priority labels
-        else if label_names.iter().any(|&name| name == "route:priority-high") {
-            3
-        } else if label_names.iter().any(|&name| name == "route:priority-medium") {
-            2
-        } else if label_names.iter().any(|&name| name == "route:priority-low") {
-            1
-        } else {
-            0
-        }
+        Priority::from_labels(label_names).value()
     }
 
     // Because fetch_routable_issues and other functions depend on GitHubClient & AgentCoordinator,

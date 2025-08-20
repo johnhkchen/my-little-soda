@@ -7,10 +7,12 @@ use std::path::Path;
 mod github;
 mod agents;
 mod workflows;
+mod priority;
 
 use agents::AgentRouter;
 use std::process::Command;
 use github::GitHubClient;
+use priority::Priority;
 
 #[derive(Parser)]
 #[command(name = "clambake")]
@@ -753,16 +755,12 @@ async fn peek_command() -> Result<()> {
                     
                     let next_issue = &issues[0];
                     let priority = get_issue_priority(next_issue);
-                    let priority_label = match priority {
-                        3 => "HIGH",
-                        2 => "MEDIUM", 
-                        1 => "LOW",
-                        _ => "NORMAL",
-                    };
+                    let priority_enum = Priority::from_labels(&next_issue.labels.iter()
+                        .map(|l| l.name.as_str()).collect::<Vec<_>>());
                     
                     println!("🎯 NEXT TASK TO BE ASSIGNED:");
                     println!("   📋 Issue #{}: {}", next_issue.number, next_issue.title);
-                    println!("   🏷️  Priority: {} ({})", priority_label, priority);
+                    println!("   🏷️  Priority: {} ({})", priority_enum, priority);
                     
                     // Show labels for context
                     let labels: Vec<String> = next_issue.labels.iter()
@@ -815,22 +813,10 @@ async fn peek_command() -> Result<()> {
 
 // Helper function to get issue priority (mirrors router logic)
 fn get_issue_priority(issue: &octocrab::models::issues::Issue) -> u32 {
-    // Priority based on labels: higher number = higher priority
-    
-    // Highest priority: route:land tasks (Phase 2 completion)
-    if issue.labels.iter().any(|label| label.name == "route:land") {
-        100 // Maximum priority - merge-ready work
-    }
-    // Standard priority labels for route:ready tasks
-    else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
-        3 // High priority
-    } else if issue.labels.iter().any(|label| label.name == "route:priority-medium") {
-        2 // Medium priority
-    } else if issue.labels.iter().any(|label| label.name == "route:priority-low") {
-        1 // Low priority
-    } else {
-        0 // No priority label = lowest priority
-    }
+    let label_names: Vec<&str> = issue.labels.iter()
+        .map(|label| label.name.as_str())
+        .collect();
+    Priority::from_labels(&label_names).value()
 }
 
 // Removed: show_quick_system_status() - not needed for streamlined agent workflow

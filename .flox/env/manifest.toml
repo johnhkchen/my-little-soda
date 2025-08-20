@@ -86,6 +86,13 @@ on-activate = '''
   # Important: Unset conflicting GITHUB_TOKEN that interferes with gh CLI
   unset GITHUB_TOKEN
   
+  # Create symlink to debug build for development
+  if [ -f "$FLOX_ENV_PROJECT/target/debug/clambake" ]; then
+    mkdir -p "$FLOX_ENV_PROJECT/.clambake/bin"
+    ln -sf "$FLOX_ENV_PROJECT/target/debug/clambake" "$FLOX_ENV_PROJECT/.clambake/bin/clambake"
+    echo "🔗 Created symlink: clambake -> target/debug/clambake"
+  fi
+  
   # Warn about credential setup
   if [ -f "$GITHUB_TOKEN_FILE" ] && [ "$(cat "$GITHUB_TOKEN_FILE" | tr -d '\n')" = "YOUR_GITHUB_TOKEN_HERE" ]; then
     echo "⚠️  GitHub token is still a placeholder - run 'cargo run' for setup instructions"
@@ -126,6 +133,11 @@ common = '''
   
   # Ensure GITHUB_TOKEN doesn't interfere with gh CLI
   unset GITHUB_TOKEN
+  
+  # Add clambake debug build to PATH if symlink exists
+  if [ -f "$FLOX_ENV_PROJECT/.clambake/bin/clambake" ]; then
+    export PATH="$FLOX_ENV_PROJECT/.clambake/bin:$PATH"
+  fi
 '''
 ## Shell-specific customizations such as setting aliases go here:
 # bash = ...
