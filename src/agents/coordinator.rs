@@ -150,18 +150,19 @@ impl AgentCoordinator {
             }
         }
 
-        // Step 3: Create work branch - simplified since we only have 1 agent (this session)
-        let branch_name = format!("work-{}", issue_number);
-        println!("🌿 Creating work branch: {}", branch_name);
+        // Step 3: Create agent branch using proper naming scheme
+        let branch_name = format!("{}/{}", agent_id, issue_number);
+        println!("🌿 Creating agent branch: {}", branch_name);
         
         match self.github_client.create_branch(&branch_name, "main").await {
             Ok(_) => {
-                println!("✅ Created branch: {}", branch_name);
+                // Branch creation succeeded - the success message is already printed by the client
             },
             Err(e) => {
-                println!("⚠️  Branch creation failed but assignment succeeded: {:?}", e);
+                println!("⚠️  Branch creation failed: {}", e);
+                println!("   📝 Note: Branch may already exist, or you can create it manually");
                 // Don't rollback - the issue assignment is the important part
-                // Agent can still work without the branch
+                // Agent can still work without automatic branch creation
             }
         }
         

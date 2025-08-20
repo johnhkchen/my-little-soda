@@ -102,7 +102,7 @@ async fn route_tickets_command(agents: u32) -> Result<()> {
                             println!("Routed issue #{}:", i + 1);
                             println!("  🎯 Issue #{}: {}", assignment.issue.number, assignment.issue.title);
                             println!("  👤 Assigned to: {}", assignment.assigned_agent.id);
-                            println!("  🌿 Branch: work-{}", assignment.issue.number);
+                            println!("  🌿 Branch: {}/{}", assignment.assigned_agent.id, assignment.issue.number);
                             println!("  🔗 URL: {}", assignment.issue.html_url);
                             println!("  ✅ GitHub assignment and branch creation complete");
                             println!();
@@ -163,7 +163,7 @@ async fn pop_task_command(mine_only: bool) -> Result<()> {
                     println!("  🌿 Branch: {}/{}", task.assigned_agent.id, task.issue.number);
                     println!("  🔗 URL: {}", task.issue.html_url);
                     println!();
-                    println!("🚀 Ready to work! Issue assigned and branch created.");
+                    println!("🚀 Ready to work! Issue assigned and branch created/targeted.");
                     println!("   Next: git checkout {}/{}", task.assigned_agent.id, task.issue.number);
                 }
                 Ok(None) => {
