@@ -118,8 +118,13 @@ impl AgentRouter {
                     assigned_agent: agent.clone(),
                 };
                 
-                // Assign to GitHub user (human) and create work branch  
-                self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
+                // Check if this is a route:land task - if so, skip assignment
+                let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+                
+                if !is_route_land {
+                    // Only assign for non-route:land tasks
+                    self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
+                }
                 
                 assignments.push(assignment);
             }
@@ -187,10 +192,12 @@ impl AgentRouter {
             .into_iter()
             .filter(|issue| {
                 let is_open = issue.state == octocrab::models::IssueState::Open;
-                let has_route_label = issue.labels.iter()
+                let has_route_ready = issue.labels.iter()
                     .any(|label| label.name == "route:ready");
+                let has_route_land = issue.labels.iter()
+                    .any(|label| label.name == "route:land");
                 
-                if !is_open || !has_route_label {
+                if !is_open || (!has_route_ready && !has_route_land) {
                     return false;
                 }
                 
@@ -226,8 +233,16 @@ impl AgentRouter {
         // Get the first available agent and the highest priority issue
         let available_agents = self.coordinator.get_available_agents().await?;
         if let (Some(issue), Some(agent)) = (available_issues.first(), available_agents.first()) {
-            // If unassigned, assign it. If already assigned to me, just create branch
-            if issue.assignee.is_none() {
+            // Check if this is a route:land task - if so, skip assignment but still create branch
+            let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+            
+            if is_route_land {
+                // For route:land tasks, preserve original assignee and just create branch
+                let branch_name = format!("{}/{}", agent.id, issue.number);
+                println!("🌿 Creating agent branch: {}", branch_name);
+                let _ = self.github_client.create_branch(&branch_name, "main").await;
+            } else if issue.assignee.is_none() {
+                // For route:ready tasks, assign if unassigned
                 self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
             } else {
                 // Already assigned to me, just create branch
@@ -257,7 +272,12 @@ impl AgentRouter {
         let available_agents = self.coordinator.get_available_agents().await?;
         
         if let Some(agent) = available_agents.first() {
-            self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
+            // Check if this is a route:land task - if so, skip assignment
+            let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+            
+            if !is_route_land {
+                self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
+            }
             
             Ok(Some(RoutingAssignment {
                 issue,
