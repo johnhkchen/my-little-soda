@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
 
 mod github;
 mod agents;
@@ -36,8 +39,21 @@ enum Commands {
     },
     /// Display system status, agent utilization, and task queue overview
     Status,
-    /// Initialize clambake configuration for the current project
-    Init,
+    /// Initialize multi-agent development environment
+    Init {
+        /// Number of agents to configure
+        #[arg(long, default_value = "3", help = "Number of agents to configure (1-12)")]
+        agents: u32,
+        /// Project template to use
+        #[arg(long, help = "Project template: webapp, api, cli, microservices, library")]
+        template: Option<String>,
+        /// Force initialization even if .clambake exists
+        #[arg(long, help = "Force initialization, overwriting existing configuration")]
+        force: bool,
+        /// Show what would be created without making changes
+        #[arg(long, help = "Show what would be created without making changes")]
+        dry_run: bool,
+    },
     /// Reset all agents to idle state by removing agent labels from issues
     Reset,
     /// Complete agent lifecycle by detecting merged work and cleaning up issues
@@ -84,9 +100,10 @@ fn main() -> Result<()> {
                 status_command().await
             })
         },
-        Some(Commands::Init) => {
-            println!("Initializing clambake...");
-            Ok(())
+        Some(Commands::Init { agents, template, force, dry_run }) => {
+            tokio::runtime::Runtime::new()?.block_on(async {
+                init_command(agents, template, force, dry_run).await
+            })
         }
         Some(Commands::Reset) => {
             tokio::runtime::Runtime::new()?.block_on(async {
@@ -1186,6 +1203,293 @@ async fn get_github_rate_limit(client: &GitHubClient) -> Result<(u32, u32, Optio
             Ok((0, 5000, Some(60))) // Assume we're rate limited
         }
     }
+}
+
+// Configuration structures for clambake.toml (MVP version)
+#[derive(Serialize, Deserialize, Debug)]
+struct ClambakeConfig {
+    github: GitHubConfig,
+    routing: RoutingConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GitHubConfig {
+    owner: String,
+    repo: String,
+    token_env: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RoutingConfig {
+    max_agents: u32,
+    routing_label: String,
+    assignment_label_prefix: String,
+}
+
+async fn init_command(agents: u32, template: Option<String>, force: bool, dry_run: bool) -> Result<()> {
+    println!("🚀 CLAMBAKE INITIALIZATION (MVP)");
+    println!("=================================");
+    println!();
+    
+    // Validate agent count
+    if agents < 1 || agents > 12 {
+        println!("❌ Invalid agent count: {}. Must be between 1 and 12.", agents);
+        return Ok(());
+    }
+    
+    if dry_run {
+        println!("🔍 DRY RUN MODE - No changes will be made");
+        println!();
+    }
+    
+    println!("📋 Configuration:");
+    println!("   🤖 Agents: {}", agents);
+    if let Some(ref t) = template {
+        println!("   📦 Template: {} (templates not implemented in MVP)", t);
+    }
+    println!("   🔄 Force overwrite: {}", if force { "Yes" } else { "No" });
+    println!();
+    
+    // Step 1: Check if .clambake already exists
+    print!("🔍 Checking for existing configuration... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
+    if Path::new(".clambake").exists() && !force {
+        println!("❌");
+        println!();
+        println!("❌ .clambake directory already exists!");
+        println!("   💡 Use --force to overwrite existing configuration");
+        println!("   💡 Or run 'clambake status' to check current setup");
+        return Ok(());
+    }
+    println!("✅");
+    
+    // Step 2: Validate GitHub access and repository
+    print!("🔑 Validating GitHub access... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
+    let github_client = match GitHubClient::new() {
+        Ok(client) => {
+            // Test GitHub access by making a simple API call
+            match client.fetch_issues().await {
+                Ok(_) => {
+                    println!("✅");
+                    client
+                }
+                Err(e) => {
+                    println!("❌");
+                    println!();
+                    println!("❌ GitHub API access failed: {}", e);
+                    return Ok(());
+                }
+            }
+        }
+        Err(e) => {
+            println!("❌");
+            println!();
+            println!("❌ Failed to initialize GitHub client: {}", e);
+            return Ok(());
+        }
+    };
+    
+    let owner = github_client.owner().to_string();
+    let repo = github_client.repo().to_string();
+    println!("   📂 Repository: {}/{}", owner, repo);
+    
+    // Step 3: Create .clambake directory structure
+    if !dry_run {
+        print!("📁 Creating .clambake directory... ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        
+        // Remove existing .clambake if force is enabled
+        if Path::new(".clambake").exists() && force {
+            fs::remove_dir_all(".clambake")?;
+        }
+        
+        fs::create_dir_all(".clambake")?;
+        println!("✅");
+    } else {
+        println!("📁 Would create .clambake directory");
+    }
+    
+    // Step 4: Generate main configuration file
+    if !dry_run {
+        print!("⚙️  Generating configuration file... ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        
+        let config = ClambakeConfig {
+            github: GitHubConfig {
+                owner: owner.clone(),
+                repo: repo.clone(),
+                token_env: "GITHUB_TOKEN".to_string(),
+            },
+            routing: RoutingConfig {
+                max_agents: agents,
+                routing_label: "route:ready".to_string(),
+                assignment_label_prefix: "agent".to_string(),
+            },
+        };
+        
+        let config_toml = toml::to_string_pretty(&config)?;
+        fs::write(".clambake/config.toml", config_toml)?;
+        
+        println!("✅");
+    } else {
+        println!("⚙️  Would generate .clambake/config.toml");
+    }
+    
+    // Step 5: Setup GitHub repository labels
+    print!("🏷️  Setting up GitHub labels... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
+    if !dry_run {
+        match setup_github_labels(agents).await {
+            Ok(_) => println!("✅"),
+            Err(e) => {
+                println!("❌");
+                println!("   ⚠️  GitHub label setup failed: {}", e);
+                println!("   💡 You can create them manually or re-run init");
+            }
+        }
+    } else {
+        println!("✅ (dry run)");
+        println!("   📝 Would create route:ready label");
+        println!("   📝 Would create priority labels (high/medium/low)"); 
+        println!("   📝 Would create agent labels (agent001 - agent{:03})", agents);
+    }
+    
+    // Step 6: Create basic issue templates
+    print!("📋 Creating issue templates... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
+    if !dry_run {
+        match create_basic_issue_templates().await {
+            Ok(_) => println!("✅"),
+            Err(e) => {
+                println!("❌");
+                println!("   ⚠️  Issue template creation failed: {}", e);
+            }
+        }
+    } else {
+        println!("✅ (dry run)");
+        println!("   📝 Would create .github/ISSUE_TEMPLATE/task.md");
+        println!("   📝 Would create .github/ISSUE_TEMPLATE/bug.md");
+    }
+    
+    println!();
+    if dry_run {
+        println!("🎯 MVP DRY RUN COMPLETE");
+        println!("   📝 Run without --dry-run to create the basic configuration");
+    } else {
+        println!("🎯 MVP INITIALIZATION COMPLETE!");
+        println!();
+        println!("✅ Basic Clambake setup created for {}/{}", owner, repo);
+        println!();
+        println!("🚀 READY TO USE:");
+        println!("   → Check system: clambake status");
+        println!("   → Create task: gh issue create --title 'Your task' --label 'route:ready'");
+        println!("   → Start work: clambake pop");
+        println!();
+        println!("📈 ADVANCED FEATURES:");
+        println!("   → See issue #41 for templates, Phoenix, and advanced features");
+    }
+    
+    Ok(())
+}
+
+async fn setup_github_labels(agents: u32) -> Result<()> {
+    // Create essential labels using gh CLI
+    let labels_to_create = vec![
+        ("route:ready", "Ready for agent assignment", "0052cc"),
+        ("route:priority-high", "High priority task", "d73a49"),
+        ("route:priority-medium", "Medium priority task", "fbca04"),
+        ("route:priority-low", "Low priority task", "0e8a16"),
+    ];
+    
+    // Create routing and priority labels
+    for (name, description, color) in labels_to_create {
+        let output = Command::new("gh")
+            .args(&["label", "create", name, "--description", description, "--color", color, "--force"])
+            .output()?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            // Continue on errors - we'll report them but not fail
+            eprintln!("   Warning: Failed to create label '{}': {}", name, stderr);
+        }
+    }
+    
+    // Create agent labels
+    for i in 1..=agents {
+        let agent_label = format!("agent{:03}", i);
+        let description = format!("Assigned to {} chat session", agent_label);
+        
+        let output = Command::new("gh")
+            .args(&["label", "create", &agent_label, "--description", &description, "--color", "1f883d", "--force"])
+            .output()?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("   Warning: Failed to create agent label '{}': {}", agent_label, stderr);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn create_basic_issue_templates() -> Result<()> {
+    // Create .github/ISSUE_TEMPLATE directory
+    fs::create_dir_all(".github/ISSUE_TEMPLATE")?;
+    
+    let task_template = r#"---
+name: Task
+about: Create a task for agent assignment
+title: ''
+labels: ['route:ready']
+assignees: ''
+---
+
+## Description
+Brief description of what needs to be done
+
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+## Additional Context
+Any additional information or constraints
+"#;
+    
+    fs::write(".github/ISSUE_TEMPLATE/task.md", task_template)?;
+    
+    let bug_template = r#"---
+name: Bug Report
+about: Report a bug that needs fixing
+title: '[BUG] '
+labels: ['route:ready', 'route:priority-high']
+assignees: ''
+---
+
+## Bug Description
+Brief description of the bug
+
+## Steps to Reproduce
+1. Step 1
+2. Step 2
+3. Step 3
+
+## Expected vs Actual Behavior
+**Expected:** What should happen
+**Actual:** What actually happens
+
+## Additional Context
+Screenshots, logs, or other relevant information
+"#;
+    
+    fs::write(".github/ISSUE_TEMPLATE/bug_report.md", bug_template)?;
+    
+    Ok(())
 }
 
 async fn show_how_to_get_work() -> Result<()> {
