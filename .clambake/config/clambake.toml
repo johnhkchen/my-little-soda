@@ -1,0 +1,49 @@
+# Clambake Development Configuration
+# This file is created during Flox activation
+
+[environment]
+name = "development"
+log_level = "debug"
+
+[github]
+# These will be set from credential files during activation
+# owner = "loaded-from-file"
+# repo = "loaded-from-file" 
+# token = "loaded-from-environment"
+
+# GitHub API configuration
+api_base_url = "https://api.github.com"
+max_retries = 3
+timeout_seconds = 30
+
+[agents]
+# Development configuration for agent coordination
+max_concurrent = 3  # Conservative for development
+default_capacity_per_agent = 2
+naming_convention = "clambake-dev-agent-{id}"
+
+[routing]
+# Ticket routing configuration
+priority_labels = ["priority:high", "priority:medium", "priority:low"]
+routing_label = "clambake:route-ready"
+blocked_label = "clambake:blocked"
+
+[integration]
+# Work integration settings
+auto_merge = false  # Manual merge for development safety
+require_reviews = false  # No review requirement in dev
+merge_strategy = "squash"
+cleanup_merged_branches = true
+
+[observability]
+# Phoenix observability configuration
+phoenix_enabled = true
+phoenix_port = 6006
+trace_sampling_rate = 1.0  # 100% sampling in development
+metrics_collection = true
+
+[recovery]
+# Work recovery settings
+auto_create_recovery_prs = false  # Manual recovery in development
+preserve_work_timeout_minutes = 60
+recovery_branch_prefix = "clambake-recovery-"
