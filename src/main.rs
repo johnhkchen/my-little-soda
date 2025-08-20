@@ -674,7 +674,12 @@ async fn status_command() -> Result<()> {
             println!("───────────────────");
             match get_github_rate_limit(router.get_github_client()).await {
                 Ok((remaining, total, reset_time)) => {
-                    let usage_percent = ((total - remaining) as f32 / total as f32 * 100.0) as u32;
+                    let used = total.saturating_sub(remaining);
+                    let usage_percent = if total > 0 {
+                        (((used as f32 / total as f32) * 100.0).round() as u32).min(100)
+                    } else {
+                        0
+                    };
                     
                     if remaining > 1000 {
                         println!(" 🟢 Rate limit: {}/{} requests remaining ({}% used)", remaining, total, usage_percent);
