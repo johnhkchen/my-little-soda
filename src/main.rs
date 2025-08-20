@@ -869,12 +869,21 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
 async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedWork, dry_run: bool) -> Result<(), github::GitHubError> {
     match work.work_type {
         CompletedWorkType::OpenWithMergedBranch => {
-            // Issue is still open but branch was merged -> close issue + remove labels
+            // Issue should have been auto-closed by PR merge with "Fixes #N" keywords
+            // If still open, it means auto-close didn't work (PR may not have had keywords)
             if !dry_run {
                 remove_agent_labels_from_issue(client, &work.issue).await?;
-                close_issue_with_merge_reference(client, &work.issue, &work.branch_name).await?;
+                // Note: In the new system, GitHub should auto-close issues when PRs with 
+                // "Fixes #issue_number" keywords are merged. If the issue is still open,
+                // it indicates either:
+                // 1. PR was created before auto-close enhancement
+                // 2. PR didn't include proper keywords
+                // 3. Manual intervention is needed
+                // For safety, we'll add a completion comment but let humans handle closure
+                add_completion_comment_only(client, &work.issue, &work.branch_name).await?;
             } else {
-                println!("   📝 Would remove agent labels and close issue");
+                println!("   📝 Would remove agent labels and add completion comment");
+                println!("   📝 Note: Issue should auto-close when PR with 'Fixes #{}' merges", work.issue.number);
             }
         }
         CompletedWorkType::ClosedWithLabels => {
@@ -964,6 +973,44 @@ async fn remove_agent_labels_from_issue(client: &github::GitHubClient, issue: &o
     
     for agent_label in agent_labels {
         remove_label_from_issue(client, issue.number, &agent_label.name).await?;
+    }
+    
+    Ok(())
+}
+
+async fn add_completion_comment_only(_client: &github::GitHubClient, issue: &octocrab::models::issues::Issue, branch_name: &str) -> Result<(), github::GitHubError> {
+    // Add completion comment without closing the issue
+    // This is used when GitHub auto-close should have handled closure but didn't
+    let comment_body = format!(
+        "🎯 **Agent Work Completed**\n\n\
+         Agent work has been completed and merged:\n\
+         - Branch `{}` was successfully merged to main\n\
+         - Agent work has been integrated\n\
+         - Agent is now available for new assignments\n\n\
+         ℹ️  **Note**: This issue should have been auto-closed by GitHub when the PR was merged.\n\
+         If this issue is still open, it may need manual closure or the PR may not have\n\
+         included the proper 'Fixes #{}' keywords.\n\n\
+         ✅ Work completed successfully!",
+        branch_name, issue.number
+    );
+    
+    // Add completion comment only
+    let output = Command::new("gh")
+        .args(&["issue", "comment", &issue.number.to_string(), "--body", &comment_body])
+        .output();
+    
+    match output {
+        Ok(result) => {
+            if !result.status.success() {
+                let error_msg = String::from_utf8_lossy(&result.stderr);
+                println!("   ⚠️  Could not add completion comment: {}", error_msg);
+                // Don't fail the whole operation if comment fails
+            }
+        }
+        Err(e) => {
+            println!("   ⚠️  Could not add completion comment: {}", e);
+            // Don't fail the whole operation if comment fails
+        }
     }
     
     Ok(())
