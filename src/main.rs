@@ -953,6 +953,17 @@ async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase
                             Ok(pr_url) => {
                                 println!("✅ PR created: {}", pr_url);
                                 
+                                // Remove agent label from issue to free the agent in system status
+                                match remove_label_from_issue(client, issue_number, &agent_id).await {
+                                    Ok(_) => {
+                                        println!("🏷️  Removed agent label '{}' from issue #{}", agent_id, issue_number);
+                                    }
+                                    Err(e) => {
+                                        println!("⚠️  Failed to remove agent label '{}': {:?}", agent_id, e);
+                                        println!("   Agent still functionally freed, but status may show incorrect capacity");
+                                    }
+                                }
+                                
                                 // Switch back to main branch to free the agent
                                 let _ = Command::new("git")
                                     .args(&["checkout", "main"])
