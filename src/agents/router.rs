@@ -18,6 +18,22 @@ pub struct RoutingAssignment {
     pub assigned_agent: Agent,
 }
 
+#[derive(Debug, Clone)]
+pub struct BundleReadyBranch {
+    pub issue_number: u64,
+    pub agent_id: String,
+    pub branch_name: String,
+    pub commits_ahead: u32,
+}
+
+#[derive(Debug)]
+pub struct BundleThresholds {
+    pub min_branches: u32,
+    pub max_api_usage_percent: u32,
+    pub max_prs_per_hour: u32,
+    pub bundle_window_minutes: u32,
+}
+
 impl AgentRouter {
     pub async fn new() -> Result<Self, GitHubError> {
         let github_client = GitHubClient::new()?;
@@ -48,10 +64,13 @@ impl AgentRouter {
                 .any(|label| label.name == "route:land");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
+            let has_route_bundle = issue.labels.iter()
+                .any(|label| label.name == "route:bundle");
             
             // For route:ready - agent must NOT be assigned yet
             // For route:land - agent assignment doesn't matter (any agent can complete merge)
             // For route:unblocker - always routable (critical issues)
+            // For route:bundle - always routable (bundle opportunities)
             let has_agent_label = issue.labels.iter()
                 .any(|label| label.name.starts_with("agent"));
             
@@ -62,11 +81,14 @@ impl AgentRouter {
             // Route logic:
             // - route:unblocker tasks: always routable (critical system issues)
             // - route:land tasks: always routable (any agent can complete merge)
+            // - route:bundle tasks: always routable (bundle opportunities)
             // - route:ready tasks: only if no agent assigned
             let is_routable = if has_route_unblocker {
                 true // route:unblocker tasks are always highest priority
             } else if has_route_land {
                 true // route:land tasks are always routable
+            } else if has_route_bundle {
+                true // route:bundle tasks are always routable
             } else if has_route_ready {
                 !has_agent_label // route:ready only if no agent assigned
             } else {
@@ -106,6 +128,10 @@ impl AgentRouter {
         else if issue.labels.iter().any(|label| label.name == "route:land") {
             100 // High priority - merge-ready work
         }
+        // Bundle opportunities: route:bundle tasks (bundling ready branches)
+        else if issue.labels.iter().any(|label| label.name == "route:bundle") {
+            50 // Bundle priority - bundle multiple ready branches
+        }
         // Standard priority labels for route:ready tasks
         else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
             3 // High priority
@@ -139,11 +165,12 @@ impl AgentRouter {
                     assigned_agent: agent.clone(),
                 };
                 
-                // Check if this is a route:land task - if so, skip assignment
+                // Check if this is a route:land or route:bundle task - if so, skip assignment
                 let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+                let is_route_bundle = issue.labels.iter().any(|label| label.name == "route:bundle");
                 
-                if !is_route_land {
-                    // Only assign for non-route:land tasks
+                if !is_route_land && !is_route_bundle {
+                    // Only assign for route:ready tasks (not route:land or route:bundle)
                     self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
                 }
                 
@@ -219,8 +246,10 @@ impl AgentRouter {
                 .any(|label| label.name == "route:land");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
+            let has_route_bundle = issue.labels.iter()
+                .any(|label| label.name == "route:bundle");
             
-            if !is_open || (!has_route_ready && !has_route_land && !has_route_unblocker) {
+            if !is_open || (!has_route_ready && !has_route_land && !has_route_unblocker && !has_route_bundle) {
                 continue;
             }
             
@@ -273,11 +302,12 @@ impl AgentRouter {
         // Get the first available agent and the highest priority issue
         let available_agents = self.coordinator.get_available_agents().await?;
         if let (Some(issue), Some(agent)) = (available_issues.first(), available_agents.first()) {
-            // Check if this is a route:land task - if so, skip assignment but still create branch
+            // Check if this is a route:land or route:bundle task - if so, skip assignment but still create branch
             let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+            let is_route_bundle = issue.labels.iter().any(|label| label.name == "route:bundle");
             
-            if is_route_land {
-                // For route:land tasks, preserve original assignee and just create branch
+            if is_route_land || is_route_bundle {
+                // For route:land and route:bundle tasks, preserve original assignee and just create branch
                 let branch_name = format!("{}/{}", agent.id, issue.number);
                 println!("🌿 Creating agent branch: {}", branch_name);
                 let _ = self.github_client.create_branch(&branch_name, "main").await;
@@ -312,10 +342,11 @@ impl AgentRouter {
         let available_agents = self.coordinator.get_available_agents().await?;
         
         if let Some(agent) = available_agents.first() {
-            // Check if this is a route:land task - if so, skip assignment
+            // Check if this is a route:land or route:bundle task - if so, skip assignment
             let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+            let is_route_bundle = issue.labels.iter().any(|label| label.name == "route:bundle");
             
-            if !is_route_land {
+            if !is_route_land && !is_route_bundle {
                 self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
             }
             
@@ -335,6 +366,325 @@ impl AgentRouter {
 
     pub fn get_github_client(&self) -> &GitHubClient {
         &self.github_client
+    }
+
+    /// Detect branches that are ready for bundling (completed work but no PR yet)
+    pub async fn detect_bundle_ready_branches(&self) -> Result<Vec<BundleReadyBranch>, GitHubError> {
+        let mut ready_branches = Vec::new();
+        
+        // Get all issues with agent labels (active work)
+        let all_issues = self.github_client.fetch_issues().await?;
+        
+        for issue in all_issues {
+            // Look for open issues with agent labels but no route:land label
+            let is_open = issue.state == octocrab::models::IssueState::Open;
+            let has_agent_label = issue.labels.iter().any(|label| label.name.starts_with("agent"));
+            let has_route_ready = issue.labels.iter().any(|label| label.name == "route:ready");
+            let has_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+            
+            // We want issues that have completed work (no route:ready, no route:land)
+            if is_open && has_agent_label && !has_route_ready && !has_route_land {
+                // Extract agent ID from labels
+                if let Some(agent_label) = issue.labels.iter().find(|label| label.name.starts_with("agent")) {
+                    let agent_id = &agent_label.name;
+                    let branch_name = format!("{}/{}", agent_id, issue.number);
+                    
+                    // Check if branch has commits ahead of main
+                    if let Ok(commits_ahead) = self.check_branch_commits_ahead(&branch_name).await {
+                        if commits_ahead > 0 {
+                            ready_branches.push(BundleReadyBranch {
+                                issue_number: issue.number,
+                                agent_id: agent_id.clone(),
+                                branch_name,
+                                commits_ahead,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(ready_branches)
+    }
+
+    /// Check if bundle thresholds are met and bundling should be triggered
+    pub async fn evaluate_bundle_threshold(&self, ready_branches: Vec<BundleReadyBranch>) -> Result<Option<Issue>, GitHubError> {
+        let thresholds = BundleThresholds {
+            min_branches: 4,
+            max_api_usage_percent: 70,
+            max_prs_per_hour: 6,
+            bundle_window_minutes: 10,
+        };
+        
+        // Check minimum branch threshold
+        if ready_branches.len() < thresholds.min_branches as usize {
+            return Ok(None);
+        }
+        
+        // Check API pressure
+        if let Ok(rate_limit) = self.github_client.get_rate_limit_status().await {
+            if rate_limit.percentage_used > thresholds.max_api_usage_percent {
+                // High API pressure - create bundle opportunity
+                return self.create_bundle_issue(ready_branches).await.map(Some);
+            }
+        }
+        
+        // Check PR creation rate
+        if let Ok(pr_rate) = self.github_client.get_pr_creation_rate().await {
+            if pr_rate.is_over_target {
+                // Too many PRs created recently - create bundle opportunity
+                return self.create_bundle_issue(ready_branches).await.map(Some);
+            }
+        }
+        
+        Ok(None)
+    }
+
+    /// Create a bundle issue for multiple ready branches
+    async fn create_bundle_issue(&self, ready_branches: Vec<BundleReadyBranch>) -> Result<Issue, GitHubError> {
+        let branch_count = ready_branches.len();
+        let issue_numbers: Vec<String> = ready_branches.iter()
+            .map(|b| format!("#{}", b.issue_number))
+            .collect();
+        
+        let title = format!("Bundle {} Completed Branches into Single PR", branch_count);
+        
+        let body = format!(
+            "## Bundle Opportunity\n\n\
+            **Branches Ready for Bundling:** {}\n\
+            **Issues to Bundle:** {}\n\
+            **Total Commits:** {}\n\n\
+            ### Bundle Strategy\n\
+            1. Create a unified PR that combines all completed work\n\
+            2. Use 'Fixes {}' syntax for auto-closure\n\
+            3. Reduce GitHub API pressure by batching operations\n\n\
+            ### Ready Branches\n{}\n\n\
+            🤖 Generated by Clambake Bundle Detection\n\
+            Priority: Bundle opportunities reduce API rate limiting",
+            branch_count,
+            issue_numbers.join(", "),
+            ready_branches.iter().map(|b| b.commits_ahead).sum::<u32>(),
+            issue_numbers.join(", "),
+            ready_branches.iter()
+                .map(|b| format!("- `{}` ({} commits) → Issue #{}", b.branch_name, b.commits_ahead, b.issue_number))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        
+        // Create issue using GitHub CLI (simpler than octocrab for issue creation)
+        let output = std::process::Command::new("gh")
+            .args(&[
+                "issue", "create",
+                "--title", &title,
+                "--body", &body,
+                "--label", "route:bundle"
+            ])
+            .output()
+            .map_err(|e| GitHubError::IoError(e))?;
+        
+        if output.status.success() {
+            // Parse the created issue URL to get the issue number
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            if let Some(issue_url) = output_str.lines().last() {
+                if let Some(issue_number_str) = issue_url.split('/').last() {
+                    if let Ok(issue_number) = issue_number_str.parse::<u64>() {
+                        return self.github_client.fetch_issue(issue_number).await;
+                    }
+                }
+            }
+        }
+        
+        Err(GitHubError::NotImplemented("Failed to create bundle issue".to_string()))
+    }
+
+    /// Check if a branch has commits ahead of main
+    async fn check_branch_commits_ahead(&self, branch_name: &str) -> Result<u32, GitHubError> {
+        let output = std::process::Command::new("git")
+            .args(&["rev-list", "--count", &format!("main..{}", branch_name)])
+            .output()
+            .map_err(|e| GitHubError::IoError(e))?;
+        
+        if output.status.success() {
+            let count_str = String::from_utf8_lossy(&output.stdout);
+            let count = count_str.trim().parse::<u32>().unwrap_or(0);
+            Ok(count)
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// Execute bundle operation - merge multiple branches and create unified PR
+    pub async fn execute_bundle_operation(&self, bundle_issue: &Issue) -> Result<(), GitHubError> {
+        // Parse the bundle issue to extract branch information
+        let ready_branches = self.parse_bundle_issue_branches(bundle_issue).await?;
+        
+        if ready_branches.is_empty() {
+            return Err(GitHubError::NotImplemented("No branches found in bundle issue".to_string()));
+        }
+        
+        // Create a unified branch for the bundle
+        let bundle_branch = format!("bundle/issues-{}", 
+            ready_branches.iter()
+                .map(|b| b.issue_number.to_string())
+                .collect::<Vec<_>>()
+                .join("-")
+        );
+        
+        // Create the bundle branch from main
+        self.create_bundle_branch(&bundle_branch, &ready_branches).await?;
+        
+        // Create unified PR
+        self.create_bundle_pr(&bundle_branch, &ready_branches, bundle_issue).await?;
+        
+        Ok(())
+    }
+
+    /// Parse bundle issue body to extract branch information
+    async fn parse_bundle_issue_branches(&self, bundle_issue: &Issue) -> Result<Vec<BundleReadyBranch>, GitHubError> {
+        let mut branches = Vec::new();
+        
+        if let Some(body) = &bundle_issue.body {
+            // Look for branch patterns in the issue body
+            for line in body.lines() {
+                if line.contains("- `") && line.contains("/") && line.contains("→ Issue #") {
+                    // Parse line like: "- `agent001/123` (2 commits) → Issue #123"
+                    if let Some(branch_part) = line.split("- `").nth(1) {
+                        if let Some(branch_name) = branch_part.split("` (").next() {
+                            if let Some(issue_part) = line.split("→ Issue #").nth(1) {
+                                if let Some(issue_num_str) = issue_part.split_whitespace().next() {
+                                    if let Ok(issue_number) = issue_num_str.parse::<u64>() {
+                                        if let Some(agent_id) = branch_name.split('/').next() {
+                                            let commits_ahead = self.check_branch_commits_ahead(branch_name).await.unwrap_or(0);
+                                            branches.push(BundleReadyBranch {
+                                                issue_number,
+                                                agent_id: agent_id.to_string(),
+                                                branch_name: branch_name.to_string(),
+                                                commits_ahead,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(branches)
+    }
+
+    /// Create bundle branch by merging multiple agent branches
+    async fn create_bundle_branch(&self, bundle_branch: &str, ready_branches: &[BundleReadyBranch]) -> Result<(), GitHubError> {
+        // Start from main branch
+        let output = std::process::Command::new("git")
+            .args(&["checkout", "main"])
+            .output()
+            .map_err(|e| GitHubError::IoError(e))?;
+        
+        if !output.status.success() {
+            return Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to checkout main branch"
+            )));
+        }
+        
+        // Create and checkout bundle branch
+        let output = std::process::Command::new("git")
+            .args(&["checkout", "-b", bundle_branch])
+            .output()
+            .map_err(|e| GitHubError::IoError(e))?;
+        
+        if !output.status.success() {
+            return Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to create bundle branch"
+            )));
+        }
+        
+        // Merge each agent branch
+        for branch in ready_branches {
+            let output = std::process::Command::new("git")
+                .args(&["merge", "--no-ff", "-m", 
+                    &format!("Bundle: merge {} (Issue #{})", branch.branch_name, branch.issue_number),
+                    &branch.branch_name])
+                .output()
+                .map_err(|e| GitHubError::IoError(e))?;
+            
+            if !output.status.success() {
+                return Err(GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to merge branch: {}", branch.branch_name)
+                )));
+            }
+        }
+        
+        // Push the bundle branch
+        let output = std::process::Command::new("git")
+            .args(&["push", "origin", bundle_branch])
+            .output()
+            .map_err(|e| GitHubError::IoError(e))?;
+        
+        if !output.status.success() {
+            return Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to push bundle branch"
+            )));
+        }
+        
+        Ok(())
+    }
+
+    /// Create unified PR for bundled branches
+    async fn create_bundle_pr(&self, bundle_branch: &str, ready_branches: &[BundleReadyBranch], bundle_issue: &Issue) -> Result<(), GitHubError> {
+        let issue_numbers: Vec<String> = ready_branches.iter()
+            .map(|b| format!("#{}", b.issue_number))
+            .collect();
+        
+        let fixes_line = format!("Fixes {}", issue_numbers.join(", "));
+        
+        let title = format!("Bundle: Resolve {} Issues via Unified PR", ready_branches.len());
+        
+        let body = format!(
+            "## Bundled PR - Multiple Issue Resolution\n\n\
+            **Issues Resolved:** {}\n\
+            **Total Commits:** {}\n\
+            **Branches Merged:** {}\n\n\
+            ### Bundle Details\n\
+            This PR combines multiple completed agent branches to reduce GitHub API pressure.\n\n\
+            ### Included Work\n{}\n\n\
+            ### Bundle Benefits\n\
+            - ✅ Reduces GitHub API calls by batching operations\n\
+            - ✅ Maintains individual commit history for traceability\n\
+            - ✅ Auto-closes all related issues upon merge\n\n\
+            {}\n\n\
+            🤖 Generated by Clambake Bundle System\n\n\
+            Co-Authored-By: Multiple Agents <agents@clambake.dev>",
+            issue_numbers.join(", "),
+            ready_branches.iter().map(|b| b.commits_ahead).sum::<u32>(),
+            ready_branches.len(),
+            ready_branches.iter()
+                .map(|b| format!("- `{}` ({} commits) - Issue #{}", b.branch_name, b.commits_ahead, b.issue_number))
+                .collect::<Vec<_>>()
+                .join("\n"),
+            fixes_line
+        );
+        
+        // Create PR using GitHub API
+        match self.github_client.create_pull_request(&title, bundle_branch, "main", &body).await {
+            Ok(pr) => {
+                println!("✅ Created bundle PR #{}: {}", pr.number, title);
+                if let Some(html_url) = &pr.html_url {
+                    println!("   🔗 URL: {}", html_url);
+                }
+                
+                // Add route:land label to the bundle issue to indicate completion
+                let _ = self.github_client.add_label_to_issue(bundle_issue.number, "route:land").await;
+                
+                Ok(())
+            }
+            Err(e) => Err(e)
+        }
     }
 }
 #[cfg(test)]

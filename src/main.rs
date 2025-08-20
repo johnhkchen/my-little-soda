@@ -288,12 +288,59 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
     print!("🔍 Scanning for completed agent work... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
     
-    // Initialize GitHub client
+    // Initialize GitHub client and router
     match github::GitHubClient::new() {
         Ok(client) => {
             println!("✅");
             
-            // First, check for current landing phase (intelligent detection)
+            // First, check for bundle opportunities
+            match AgentRouter::new().await {
+                Ok(router) => {
+                    if let Ok(ready_branches) = router.detect_bundle_ready_branches().await {
+                        if !ready_branches.is_empty() {
+                            if verbose {
+                                println!("🔍 Found {} branches ready for bundling", ready_branches.len());
+                            }
+                            
+                            // Check if bundle thresholds are met
+                            match router.evaluate_bundle_threshold(ready_branches.clone()).await {
+                                Ok(Some(bundle_issue)) => {
+                                    if !dry_run {
+                                        println!("📦 Bundle opportunity detected and created!");
+                                        println!("   📋 Issue #{}: {}", bundle_issue.number, bundle_issue.title);
+                                        println!("   🔗 URL: {}", bundle_issue.html_url);
+                                        println!("   📊 Bundling {} ready branches", ready_branches.len());
+                                        println!();
+                                        println!("🎯 NEXT STEPS:");
+                                        println!("   → Use 'clambake pop' to work on the bundle task");
+                                        println!("   → Bundle task will have priority 50 (higher than regular work)");
+                                    } else {
+                                        println!("📦 Would create bundle opportunity for {} branches", ready_branches.len());
+                                    }
+                                    return Ok(());
+                                }
+                                Ok(None) => {
+                                    if verbose {
+                                        println!("📦 Bundle thresholds not met yet (need 4+ branches or high API pressure)");
+                                    }
+                                }
+                                Err(e) => {
+                                    if verbose {
+                                        println!("⚠️  Bundle evaluation failed: {:?}", e);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    if verbose {
+                        println!("⚠️  Bundle detection failed: {:?}", e);
+                    }
+                }
+            }
+            
+            // Second, check for current landing phase (intelligent detection)
             match detect_current_landing_phase(&client).await {
                 Ok(Some(phase)) => {
                     return handle_landing_phase(&client, phase, dry_run, verbose).await;
@@ -603,9 +650,13 @@ async fn status_command() -> Result<()> {
                     println!("📋 TASK QUEUE & REVIEW PIPELINE:");
                     println!("─────────────────────────────────");
                     
-                    // Separate route:land (Phase 2) and route:ready (Phase 1) tasks
+                    // Separate route:land (Phase 2), route:bundle, and route:ready (Phase 1) tasks
                     let route_land_count = issues.iter().filter(|i| {
                         i.labels.iter().any(|label| label.name == "route:land")
+                    }).count();
+                    
+                    let route_bundle_count = issues.iter().filter(|i| {
+                        i.labels.iter().any(|label| label.name == "route:bundle")
                     }).count();
                     
                     let route_ready_count = issues.iter().filter(|i| {
@@ -638,6 +689,14 @@ async fn status_command() -> Result<()> {
                         println!();
                     }
                     
+                    // Show bundle opportunities
+                    if route_bundle_count > 0 {
+                        println!(" 📦 BUNDLE OPPORTUNITIES: {} tasks", route_bundle_count);
+                        println!("    └─ 🔗 Multiple completed branches ready for bundled PR");
+                        println!("    └─ ⚡ Reduces GitHub API pressure via batching");
+                        println!();
+                    }
+                    
                     // Show new work queue
                     if route_ready_count > 0 {
                         println!(" 📝 PHASE 1 - NEW WORK: {} tasks", route_ready_count);
@@ -648,12 +707,14 @@ async fn status_command() -> Result<()> {
                         println!();
                     }
                     
-                    let total = route_land_count + route_ready_count;
+                    let total = route_land_count + route_bundle_count + route_ready_count;
                     if total > 0 {
-                        println!(" 📊 TOTAL WORKLOAD: {} tasks ({} merge-ready + {} new work)", 
-                                total, route_land_count, route_ready_count);
+                        println!(" 📊 TOTAL WORKLOAD: {} tasks ({} merge-ready + {} bundle + {} new work)", 
+                                total, route_land_count, route_bundle_count, route_ready_count);
                         if route_land_count > 0 {
                             println!(" ⚡ Next action: 'clambake pop' will prioritize merge completion");
+                        } else if route_bundle_count > 0 {
+                            println!(" ⚡ Next action: 'clambake pop' will prioritize bundle opportunities");
                         }
                     } else {
                         println!(" ℹ️  No tasks in queue");
@@ -754,6 +815,9 @@ async fn peek_command() -> Result<()> {
                     let next_issue = &issues[0];
                     let priority = get_issue_priority(next_issue);
                     let priority_label = match priority {
+                        200 => "UNBLOCKER",
+                        100 => "MERGE READY",
+                        50 => "BUNDLE",
                         3 => "HIGH",
                         2 => "MEDIUM", 
                         1 => "LOW",
@@ -786,11 +850,17 @@ async fn peek_command() -> Result<()> {
                         println!("   Total routable tasks: {}", issues.len());
                         
                         // Count by priority
+                        let unblocker_count = issues.iter().filter(|i| get_issue_priority(i) == 200).count();
+                        let merge_ready_count = issues.iter().filter(|i| get_issue_priority(i) == 100).count();
+                        let bundle_count = issues.iter().filter(|i| get_issue_priority(i) == 50).count();
                         let high_count = issues.iter().filter(|i| get_issue_priority(i) == 3).count();
                         let medium_count = issues.iter().filter(|i| get_issue_priority(i) == 2).count();
                         let low_count = issues.iter().filter(|i| get_issue_priority(i) == 1).count();
                         let normal_count = issues.iter().filter(|i| get_issue_priority(i) == 0).count();
                         
+                        if unblocker_count > 0 { println!("   🚨 Unblocker priority: {}", unblocker_count); }
+                        if merge_ready_count > 0 { println!("   🚀 Merge ready: {}", merge_ready_count); }
+                        if bundle_count > 0 { println!("   📦 Bundle opportunities: {}", bundle_count); }
                         if high_count > 0 { println!("   🔴 High priority: {}", high_count); }
                         if medium_count > 0 { println!("   🟡 Medium priority: {}", medium_count); }
                         if low_count > 0 { println!("   🟢 Low priority: {}", low_count); }
@@ -817,9 +887,17 @@ async fn peek_command() -> Result<()> {
 fn get_issue_priority(issue: &octocrab::models::issues::Issue) -> u32 {
     // Priority based on labels: higher number = higher priority
     
-    // Highest priority: route:land tasks (Phase 2 completion)
-    if issue.labels.iter().any(|label| label.name == "route:land") {
-        100 // Maximum priority - merge-ready work
+    // Absolute highest priority: route:unblocker (critical infrastructure issues)
+    if issue.labels.iter().any(|label| label.name == "route:unblocker") {
+        200 // Absolute maximum priority - system blockers
+    }
+    // Second highest priority: route:land tasks (Phase 2 completion)
+    else if issue.labels.iter().any(|label| label.name == "route:land") {
+        100 // High priority - merge-ready work
+    }
+    // Bundle opportunities: route:bundle tasks (bundling ready branches)
+    else if issue.labels.iter().any(|label| label.name == "route:bundle") {
+        50 // Bundle priority - bundle multiple ready branches
     }
     // Standard priority labels for route:ready tasks
     else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
@@ -859,6 +937,10 @@ enum LandingPhase {
         issue_number: u64,  
         agent_id: String,
     },
+    ExecuteBundle {
+        agent_id: String,
+        issue_number: u64,
+    },
     CleanupOnly {
         // Current behavior for orphaned work
     },
@@ -894,7 +976,18 @@ async fn detect_current_landing_phase(client: &github::GitHubClient) -> Result<O
     if let Some((agent_id, issue_number_str)) = current_branch.split_once('/') {
         if agent_id.starts_with("agent") {
             if let Ok(issue_number) = issue_number_str.parse::<u64>() {
-                // Check commits ahead of main
+                // Check if this is a bundle task
+                if let Ok(issue) = client.fetch_issue(issue_number).await {
+                    if issue.labels.iter().any(|label| label.name == "route:bundle") {
+                        // This is a bundle task - execute bundle operation
+                        return Ok(Some(LandingPhase::ExecuteBundle {
+                            agent_id: agent_id.to_string(),
+                            issue_number,
+                        }));
+                    }
+                }
+                
+                // Check commits ahead of main for regular tasks
                 let output = Command::new("git")
                     .args(&["rev-list", "--count", "main..HEAD"])
                     .output()
@@ -992,6 +1085,69 @@ async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase
             println!("🔍 Detected approved PR #{} for issue #{}", pr_number, issue_number);
             // TODO: Implement Phase 2 logic
             println!("🚧 Phase 2 implementation coming soon");
+        }
+        LandingPhase::ExecuteBundle { agent_id, issue_number } => {
+            println!("Bundle Execution: Creating Unified PR");
+            println!("🔍 Detected bundle task for agent {} on issue #{}", agent_id, issue_number);
+            
+            if dry_run {
+                println!("🔍 DRY RUN - Would execute bundle operation:");
+                println!("   1. Parse bundle issue to extract ready branches");
+                println!("   2. Create unified bundle branch");
+                println!("   3. Merge all completed agent branches");
+                println!("   4. Create unified PR with auto-close keywords");
+                println!("🎯 Agent would be freed immediately after bundle creation");
+            } else {
+                // Execute the actual bundle operation
+                match AgentRouter::new().await {
+                    Ok(router) => {
+                        match client.fetch_issue(issue_number).await {
+                            Ok(bundle_issue) => {
+                                match router.execute_bundle_operation(&bundle_issue).await {
+                                    Ok(_) => {
+                                        println!("✅ Bundle operation completed successfully");
+                                        
+                                        // Remove agent label from bundle issue to free the agent
+                                        match remove_label_from_issue(client, issue_number, &agent_id).await {
+                                            Ok(_) => {
+                                                println!("🏷️  Removed agent label '{}' from bundle issue #{}", agent_id, issue_number);
+                                            }
+                                            Err(e) => {
+                                                println!("⚠️  Failed to remove agent label '{}': {:?}", agent_id, e);
+                                            }
+                                        }
+                                        
+                                        // Switch back to main branch to free the agent
+                                        let _ = Command::new("git")
+                                            .args(&["checkout", "main"])
+                                            .output();
+                                            
+                                        println!("🎯 Agent freed - bundle PR created and ready for review");
+                                        println!();
+                                        println!("📦 BUNDLE BENEFITS ACHIEVED:");
+                                        println!("   → Multiple branches combined into single PR");
+                                        println!("   → Reduced GitHub API pressure via batching");
+                                        println!("   → Maintained individual commit traceability");
+                                        println!("   → Auto-close keywords will resolve all bundled issues");
+                                    }
+                                    Err(e) => {
+                                        println!("❌ Bundle operation failed: {:?}", e);
+                                        return Err(anyhow::anyhow!("Failed to execute bundle operation"));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                println!("❌ Failed to fetch bundle issue #{}: {:?}", issue_number, e);
+                                return Err(anyhow::anyhow!("Failed to fetch bundle issue"));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("❌ Failed to initialize AgentRouter: {:?}", e);
+                        return Err(anyhow::anyhow!("Failed to initialize router"));
+                    }
+                }
+            }
         }
         LandingPhase::CleanupOnly {} => {
             println!("Legacy Mode: Cleanup Only");
