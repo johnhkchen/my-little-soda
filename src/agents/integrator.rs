@@ -81,23 +81,61 @@ impl WorkIntegrator {
         println!("🔄 Integrating work for issue #{} from branch {}", 
                 work.issue.number, work.branch_name);
         
-        // In production, this would:
-        // 1. Create PR if not exists
-        // 2. Wait for CI to pass
-        // 3. Merge to main branch
-        // 4. Update issue status
-        // 5. Clean up branch
+        // Generate PR body with auto-close keywords for GitHub's native issue closure
+        let pr_body = format!(
+            "## Summary\n\
+            Automated agent work integration for issue #{}\n\n\
+            **Agent**: {}\n\
+            **Branch**: {}\n\
+            **Work Type**: Agent-completed task\n\n\
+            Fixes #{}\n\n\
+            🤖 Generated with [Clambake](https://github.com/johnhkchen/clambake)\n\
+            Co-Authored-By: {} <agent@clambake.dev>",
+            work.issue.number,
+            work.agent_id,
+            work.branch_name,
+            work.issue.number, // This is the key auto-close keyword
+            work.agent_id
+        );
         
-        // For MVP, simulate successful integration
-        let result = IntegrationResult {
-            issue_number: work.issue.number,
-            success: true,
-            merged_commit: Some(format!("merged-{}", work.commit_sha)),
-            error: None,
-        };
+        // Create PR with auto-close keywords
+        let pr_title = format!("Agent {}: {}", work.agent_id, work.issue.title);
         
-        println!("✅ Successfully integrated issue #{}", work.issue.number);
-        Ok(result)
+        match self.github_client.create_pull_request(
+            &pr_title,
+            &work.branch_name,
+            "main",
+            &pr_body
+        ).await {
+            Ok(pr) => {
+                println!("✅ Created PR #{} with auto-close for issue #{}", pr.number, work.issue.number);
+                println!("🔗 PR URL: {}", pr.html_url.as_ref().map(|url| url.as_str()).unwrap_or("(URL not available)"));
+                
+                // The issue will automatically close when this PR is merged
+                let result = IntegrationResult {
+                    issue_number: work.issue.number,
+                    success: true,
+                    merged_commit: Some(format!("pr-{}-{}", pr.number, work.commit_sha)),
+                    error: None,
+                };
+                
+                println!("✅ Successfully integrated issue #{} - will auto-close on PR merge", work.issue.number);
+                Ok(result)
+            }
+            Err(e) => {
+                // Fallback to manual issue management
+                self.preserve_work_on_failure(work, &format!("PR creation failed: {:?}", e)).await?;
+                
+                let result = IntegrationResult {
+                    issue_number: work.issue.number,
+                    success: false,
+                    merged_commit: None,
+                    error: Some(format!("PR creation failed: {:?}", e)),
+                };
+                
+                Ok(result)
+            }
+        }
     }
 
     pub async fn preserve_work_on_failure(&self, work: &CompletedWork, error: &str) -> Result<(), GitHubError> {
