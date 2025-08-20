@@ -1,5 +1,4 @@
 use octocrab::{Octocrab, Error as OctocrabError};
-use std::fmt;
 use std::fs;
 use std::path::Path;
 use async_trait::async_trait;
@@ -25,17 +24,6 @@ pub enum GitHubError {
     NotImplemented(String),
 }
 
-impl fmt::Display for GitHubError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            GitHubError::TokenNotFound(msg) => write!(f, "GitHub token not found: {}", msg),
-            GitHubError::ConfigNotFound(msg) => write!(f, "Configuration not found: {}", msg),
-            GitHubError::ApiError(err) => write!(f, "GitHub API error: {}", err),
-            GitHubError::IoError(err) => write!(f, "IO error: {}", err),
-            GitHubError::NotImplemented(msg) => write!(f, "{}", msg),
-        }
-    }
-}
 
 impl From<OctocrabError> for GitHubError {
     fn from(err: OctocrabError) -> Self {
@@ -89,6 +77,14 @@ impl std::fmt::Display for GitHubError {
                 write!(f, "   → File permissions issue\n")?;
                 write!(f, "   → Directory doesn't exist\n")?;
                 write!(f, "   → Disk space or I/O error")
+            },
+            GitHubError::NotImplemented(msg) => {
+                write!(f, "Feature Not Yet Implemented\n")?;
+                write!(f, "──────────────────────────\n")?;
+                write!(f, "🚧 {}\n\n", msg)?;
+                write!(f, "🔧 ALTERNATIVES:\n")?;
+                write!(f, "   → Manual workaround may be available\n")?;
+                write!(f, "   → Feature coming in future release")
             }
         }
     }
