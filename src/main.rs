@@ -696,6 +696,20 @@ async fn status_command() -> Result<()> {
                     println!(" ❓ Rate limit: Unable to check (may indicate auth issues)");
                 }
             }
+            
+            // PR creation rate
+            match router.get_github_client().get_pr_creation_rate().await {
+                Ok(pr_count) => {
+                    if pr_count <= 6 {
+                        println!(" 🟢 PRs created in last hour: {} (target ≤6)", pr_count);
+                    } else {
+                        println!(" 🟡 PRs created in last hour: {} (target ≤6)", pr_count);
+                    }
+                }
+                Err(_) => {
+                    println!(" ❓ PR creation rate: Unable to check");
+                }
+            }
             println!();
             
             // Configuration status
