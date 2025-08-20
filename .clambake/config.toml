@@ -1,0 +1,9 @@
+[github]
+owner = "johnhkchen"
+repo = "clambake"
+token_env = "GITHUB_TOKEN"
+
+[routing]
+max_agents = 3
+routing_label = "route:ready"
+assignment_label_prefix = "agent"
