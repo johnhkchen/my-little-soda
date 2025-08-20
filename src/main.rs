@@ -40,6 +40,8 @@ enum Commands {
     Init,
     /// Reset all agents to idle state by removing agent labels from issues
     Reset,
+    /// Complete agent lifecycle by detecting merged work and cleaning up issues
+    Land,
     /// Preview the next task in queue without claiming it
     Peek,
 }
@@ -76,6 +78,11 @@ fn main() -> Result<()> {
         Some(Commands::Reset) => {
             tokio::runtime::Runtime::new()?.block_on(async {
                 reset_command().await
+            })
+        }
+        Some(Commands::Land) => {
+            tokio::runtime::Runtime::new()?.block_on(async {
+                land_command().await
             })
         }
         Some(Commands::Peek) => {
@@ -223,6 +230,98 @@ async fn pop_task_command(mine_only: bool) -> Result<()> {
             println!("{}", e);
             println!();
             println!("📚 Full setup guide: clambake init");
+        }
+    }
+    
+    Ok(())
+}
+
+async fn land_command() -> Result<()> {
+    println!("🚀 CLAMBAKE LAND - Complete Agent Lifecycle");
+    println!("==========================================");
+    println!();
+    
+    print!("🔍 Scanning for completed agent work... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
+    // Initialize GitHub client
+    match github::GitHubClient::new() {
+        Ok(client) => {
+            println!("✅");
+            
+            // Find completed work
+            match detect_completed_work(&client).await {
+                Ok(completed_work) => {
+                    if completed_work.is_empty() {
+                        println!();
+                        println!("ℹ️  No completed work found");
+                        println!("💡 This means either:");
+                        println!("   → No agent branches have been merged yet");
+                        println!("   → All completed work has already been cleaned up");
+                        println!("   → Agents are still working on their assigned tasks");
+                        println!();
+                        println!("🎯 TIP: Use 'clambake status' to see current agent activity");
+                        return Ok(());
+                    }
+                    
+                    println!();
+                    println!("✅ Found {} completed work item(s):", completed_work.len());
+                    println!();
+                    
+                    let mut cleaned_up = 0;
+                    let mut failed = 0;
+                    
+                    for work in &completed_work {
+                        println!("🎯 Processing: Issue #{} - {}", work.issue.number, work.issue.title);
+                        println!("   🌿 Branch: {} → main (merged)", work.branch_name);
+                        
+                        match cleanup_completed_work(&client, work).await {
+                            Ok(_) => {
+                                cleaned_up += 1;
+                                println!("   ✅ Cleaned up successfully");
+                            }
+                            Err(e) => {
+                                failed += 1;
+                                println!("   ❌ Cleanup failed: {:?}", e);
+                            }
+                        }
+                        println!();
+                    }
+                    
+                    // Summary
+                    println!("🎯 LANDING COMPLETE:");
+                    if cleaned_up > 0 {
+                        println!("   ✅ Successfully completed {} work items", cleaned_up);
+                        println!("   🤖 Agents are now available for new assignments");
+                    }
+                    if failed > 0 {
+                        println!("   ⚠️  {} items failed cleanup (may need manual intervention)", failed);
+                    }
+                    
+                    if cleaned_up > 0 {
+                        println!();
+                        println!("🚀 NEXT STEPS:");
+                        println!("   → Use 'clambake pop' to get new tasks");
+                        println!("   → Use 'clambake status' to verify system state");
+                    }
+                }
+                Err(e) => {
+                    println!("❌");
+                    println!();
+                    println!("❌ Failed to detect completed work: {:?}", e);
+                    println!();
+                    println!("💡 This might be due to:");
+                    println!("   → GitHub API access issues");
+                    println!("   → Git repository access problems");
+                    println!("   → Network connectivity issues");
+                }
+            }
+        }
+        Err(e) => {
+            println!("❌");
+            println!();
+            println!("❌ Failed to initialize GitHub client: {:?}", e);
+            println!("   💡 Check your GitHub authentication with: gh auth status");
         }
     }
     
@@ -591,12 +690,188 @@ fn get_issue_priority(issue: &octocrab::models::issues::Issue) -> u32 {
 // Removed: show_quick_system_status() - not needed for streamlined agent workflow
 
 #[derive(Debug)]
+struct CompletedWork {
+    issue: octocrab::models::issues::Issue,
+    branch_name: String,
+    agent_id: String,
+}
+
+#[derive(Debug)]
 struct OngoingWork {
     issue_number: u64,
     issue_title: String,
     branch_name: String,
     status: String,
     has_uncommitted_changes: bool,
+}
+
+async fn detect_completed_work(client: &github::GitHubClient) -> Result<Vec<CompletedWork>, github::GitHubError> {
+    let mut completed = Vec::new();
+    
+    // Get all issues with agent labels
+    let issues = client.fetch_issues().await?;
+    let agent_labeled_issues: Vec<_> = issues
+        .into_iter()
+        .filter(|issue| {
+            // Look for issues with agent labels that are still open
+            issue.state == octocrab::models::IssueState::Open &&
+            issue.labels.iter().any(|label| label.name.starts_with("agent"))
+        })
+        .collect();
+    
+    for issue in agent_labeled_issues {
+        // Extract agent ID from labels
+        if let Some(agent_label) = issue.labels.iter().find(|label| label.name.starts_with("agent")) {
+            let agent_id = agent_label.name.clone();
+            let branch_name = format!("{}/{}", agent_id, issue.number);
+            
+            // Check if this branch was merged to main
+            if is_branch_merged_to_main(&branch_name)? {
+                completed.push(CompletedWork {
+                    issue: issue.clone(),
+                    branch_name,
+                    agent_id,
+                });
+            }
+        }
+    }
+    
+    Ok(completed)
+}
+
+async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Remove agent labels from the issue
+    remove_agent_labels_from_issue(client, &work.issue).await?;
+    
+    // Close the issue with a completion comment
+    close_issue_with_merge_reference(client, &work.issue, &work.branch_name).await?;
+    
+    Ok(())
+}
+
+fn is_branch_merged_to_main(branch_name: &str) -> Result<bool, github::GitHubError> {
+    // Check if branch was merged to main using git merge-base
+    // This checks if the branch commits are reachable from main
+    let output = Command::new("git")
+        .args(&["merge-base", "--is-ancestor", branch_name, "main"])
+        .output();
+    
+    match output {
+        Ok(result) => {
+            // merge-base --is-ancestor returns 0 if ancestor, 1 if not, >1 for errors
+            match result.status.code() {
+                Some(0) => {
+                    // Branch is an ancestor of main, now check if branch still exists
+                    // If branch doesn't exist locally, it was probably merged and deleted
+                    let branch_exists = Command::new("git")
+                        .args(&["show-ref", "--verify", &format!("refs/heads/{}", branch_name)])
+                        .output()
+                        .map(|output| output.status.success())
+                        .unwrap_or(false);
+                    
+                    // If branch was ancestor and no longer exists, it was likely merged
+                    Ok(!branch_exists)
+                }
+                Some(1) => Ok(false), // Not an ancestor, not merged
+                _ => {
+                    // Error or unknown status - check if branch exists on origin but not locally
+                    let remote_branch_exists = Command::new("git")
+                        .args(&["show-ref", "--verify", &format!("refs/remotes/origin/{}", branch_name)])
+                        .output()
+                        .map(|output| output.status.success())
+                        .unwrap_or(false);
+                    
+                    if remote_branch_exists {
+                        // Branch exists on remote - fetch and try again
+                        let _ = Command::new("git").args(&["fetch", "origin"]).output();
+                        
+                        // Try merge-base check again after fetch
+                        Command::new("git")
+                            .args(&["merge-base", "--is-ancestor", &format!("origin/{}", branch_name), "main"])
+                            .output()
+                            .map(|result| result.status.success())
+                            .unwrap_or(false)
+                            .then(|| true)
+                            .ok_or_else(|| github::GitHubError::IoError(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                format!("Could not determine merge status for branch: {}", branch_name)
+                            )))
+                    } else {
+                        Ok(false)
+                    }
+                }
+            }
+        }
+        Err(e) => Err(github::GitHubError::IoError(e)),
+    }
+}
+
+async fn remove_agent_labels_from_issue(client: &github::GitHubClient, issue: &octocrab::models::issues::Issue) -> Result<(), github::GitHubError> {
+    // Find and remove all agent labels from this issue
+    let agent_labels: Vec<_> = issue.labels
+        .iter()
+        .filter(|label| label.name.starts_with("agent"))
+        .collect();
+    
+    for agent_label in agent_labels {
+        remove_label_from_issue(client, issue.number, &agent_label.name).await?;
+    }
+    
+    Ok(())
+}
+
+async fn close_issue_with_merge_reference(_client: &github::GitHubClient, issue: &octocrab::models::issues::Issue, branch_name: &str) -> Result<(), github::GitHubError> {
+    // Use GitHub CLI to close issue with a completion comment
+    let comment_body = format!(
+        "🎯 **Automated Completion**\n\n\
+         This issue has been automatically marked as complete because:\n\
+         - Branch `{}` was successfully merged to main\n\
+         - Agent work has been integrated\n\
+         - Agent is now available for new assignments\n\n\
+         ✅ Work completed successfully!",
+        branch_name
+    );
+    
+    // Add completion comment
+    let output = Command::new("gh")
+        .args(&["issue", "comment", &issue.number.to_string(), "--body", &comment_body])
+        .output();
+    
+    match output {
+        Ok(result) => {
+            if !result.status.success() {
+                let error_msg = String::from_utf8_lossy(&result.stderr);
+                println!("   ⚠️  Could not add completion comment: {}", error_msg);
+                // Continue with closure even if comment fails
+            }
+        }
+        Err(e) => {
+            println!("   ⚠️  Could not add completion comment: {}", e);
+            // Continue with closure even if comment fails
+        }
+    }
+    
+    // Close the issue
+    let output = Command::new("gh")
+        .args(&["issue", "close", &issue.number.to_string(), "--reason", "completed"])
+        .output();
+    
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                Ok(())
+            } else {
+                let error_msg = String::from_utf8_lossy(&result.stderr);
+                Err(github::GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("GitHub CLI error closing issue: {}", error_msg)
+                )))
+            }
+        }
+        Err(e) => {
+            Err(github::GitHubError::IoError(e))
+        }
+    }
 }
 
 async fn check_ongoing_work() -> Result<Option<OngoingWork>> {
