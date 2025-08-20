@@ -4,8 +4,10 @@
 pub mod github;
 pub mod agents;
 pub mod workflows;
+pub mod external;
 
 // Re-export key types for easy access
 pub use github::{GitHubClient, GitHubError};
 pub use agents::{AgentCoordinator, AgentRouter};
+pub use external::{GitHubOperations, GitRepository, CommandExecutor};
 // Future exports: WorkIntegrator, CompletedWork, StateMachine, StateTransition
