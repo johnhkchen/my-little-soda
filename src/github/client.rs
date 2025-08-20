@@ -8,6 +8,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait GitHubOps {
     async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError>;
+    async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError>;
     async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<(), GitHubError>;
     async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError>;
     async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError>;
@@ -191,10 +192,14 @@ impl GitHubClient {
     }
 
     pub async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
+        self.fetch_issues_with_state(None).await
+    }
+
+    pub async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
         let issues = self.octocrab
             .issues(&self.owner, &self.repo)
             .list()
-            .state(octocrab::params::State::Open)
+            .state(state.unwrap_or(octocrab::params::State::Open))
             .send()
             .await?;
             
@@ -337,6 +342,10 @@ impl GitHubClient {
 impl GitHubOps for GitHubClient {
     async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
         self.fetch_issues().await
+    }
+    
+    async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
+        self.fetch_issues_with_state(state).await
     }
     
     async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<(), GitHubError> {

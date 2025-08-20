@@ -784,8 +784,12 @@ struct OngoingWork {
 async fn detect_completed_work(client: &github::GitHubClient, include_closed: bool, days: u32, verbose: bool) -> Result<Vec<CompletedWork>, github::GitHubError> {
     let mut completed = Vec::new();
     
-    // Get all issues with agent labels  
-    let issues = client.fetch_issues().await?;
+    // Get all issues (both open and closed) with agent labels when needed 
+    let issues = if include_closed {
+        client.fetch_issues_with_state(Some(octocrab::params::State::All)).await?
+    } else {
+        client.fetch_issues().await?
+    };
     
     let now = chrono::Utc::now();
     let cutoff_date = now - chrono::Duration::days(days as i64);
