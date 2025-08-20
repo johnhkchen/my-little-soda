@@ -1,0 +1,12 @@
+/target
+
+# Clambake credentials and sensitive configuration
+.clambake/credentials/
+.clambake/cache/
+*.token
+*.key
+
+# Development environment files
+.env
+.env.local
+.env.development
