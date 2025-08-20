@@ -188,8 +188,34 @@ impl AgentCoordinator {
     
     /// Get agent utilization for load balancing
     pub async fn get_agent_utilization(&self) -> HashMap<String, (u32, u32)> {
+        // Get real-time utilization by checking GitHub for agent assignments
+        let issues = match self.github_client.fetch_issues().await {
+            Ok(issues) => issues,
+            Err(_) => {
+                // Fall back to cached state if GitHub is unavailable
+                let capacities = self.agent_capacity.lock().await;
+                return capacities.clone();
+            }
+        };
+        
         let capacities = self.agent_capacity.lock().await;
-        capacities.clone()
+        let mut utilization = HashMap::new();
+        
+        // For each configured agent, count their actual assignments from GitHub
+        for (agent_id, (_cached_current, max_capacity)) in capacities.iter() {
+            let actual_count = issues
+                .iter()
+                .filter(|issue| {
+                    issue.state == octocrab::models::IssueState::Open
+                        && issue.labels.iter().any(|label| label.name == *agent_id)
+                        && issue.labels.iter().any(|label| label.name == "route:ready")
+                })
+                .count() as u32;
+            
+            utilization.insert(agent_id.clone(), (actual_count, *max_capacity));
+        }
+        
+        utilization
     }
     
     /// Validate system consistency - no conflicts or over-assignments
