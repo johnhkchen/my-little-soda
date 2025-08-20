@@ -352,6 +352,7 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
                         let status_desc = match work.work_type {
                             CompletedWorkType::ReadyForPhaseOne => "Phase 1: Work complete, ready for PR creation",
                             CompletedWorkType::ReadyForPhaseTwo => "Phase 2: Approved, ready for final merge",
+                            CompletedWorkType::WorkCompleted => "Bundle: Work completed, evaluating for bundling",
                             CompletedWorkType::OpenWithMergedBranch => "Legacy: Branch merged, issue still open",
                             CompletedWorkType::ClosedWithLabels => "Legacy: Auto-closed by PR merge, cleaning up labels",
                             CompletedWorkType::OrphanedBranch => "Legacy: Orphaned branch detected",
@@ -528,6 +529,36 @@ async fn remove_label_from_issue(
                 Err(github::GitHubError::IoError(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     format!("GitHub CLI error: {}", error_msg)
+                )))
+            }
+        }
+        Err(e) => {
+            Err(github::GitHubError::IoError(e))
+        }
+    }
+}
+
+async fn add_label_to_issue(
+    _client: &github::GitHubClient,
+    issue_number: u64,
+    label_name: &str,
+) -> Result<(), github::GitHubError> {
+    // Use GitHub CLI to add label to issue
+    use std::process::Command;
+    
+    let output = Command::new("gh")
+        .args(&["issue", "edit", &issue_number.to_string(), "--add-label", label_name])
+        .output();
+    
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                Ok(())
+            } else {
+                let error_msg = String::from_utf8_lossy(&result.stderr);
+                Err(github::GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to add label {}: {}", label_name, error_msg),
                 )))
             }
         }
@@ -850,6 +881,9 @@ enum CompletedWorkType {
     // New phased workflow types
     ReadyForPhaseOne,         // Work complete, needs PR creation and route:ready removal
     ReadyForPhaseTwo,         // Has route:land label, needs final merge completion
+    
+    // Bundle workflow types
+    WorkCompleted,            // Work complete, marked for bundling consideration (agent freed)
 }
 
 #[derive(Debug)]
@@ -1467,6 +1501,7 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
                 octocrab::models::IssueState::Open => {
                     let has_route_ready = issue.labels.iter().any(|label| label.name == "route:ready");
                     let has_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+                    let has_work_completed = issue.labels.iter().any(|label| label.name == "work:completed");
                     
                     if has_route_land {
                         // Phase 2: Issue has route:land label - ready for final merge
@@ -1475,6 +1510,14 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
                             branch_name,
                             agent_id,
                             work_type: CompletedWorkType::ReadyForPhaseTwo,
+                        });
+                    } else if has_work_completed {
+                        // New workflow: Work completed, ready for bundling
+                        completed.push(CompletedWork {
+                            issue: issue.clone(),
+                            branch_name,
+                            agent_id,
+                            work_type: CompletedWorkType::WorkCompleted,
                         });
                     } else if has_route_ready {
                         // Check if work is actually complete (branch has commits)
@@ -1525,12 +1568,12 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
 async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedWork, dry_run: bool) -> Result<(), github::GitHubError> {
     match work.work_type {
         CompletedWorkType::ReadyForPhaseOne => {
-            // Phase 1: Create PR and remove route:ready label to free agent
+            // New bundle workflow: Mark work complete and free agent (no immediate PR)
             if !dry_run {
-                execute_phase_one(client, work).await?
+                transition_to_work_completed(client, work).await?
             } else {
-                println!("   📝 Phase 1: Would create PR and remove route:ready label");
-                println!("   📝 Agent would be freed for new work immediately");
+                println!("   📝 Bundle: Would mark work complete and free agent");
+                println!("   📝 No immediate PR creation - work queued for bundling");
             }
         }
         CompletedWorkType::ReadyForPhaseTwo => {
@@ -1540,6 +1583,15 @@ async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedW
             } else {
                 println!("   📝 Phase 2: Would merge PR and remove route:land label");
                 println!("   📝 Issue would be closed via GitHub auto-close");
+            }
+        }
+        CompletedWorkType::WorkCompleted => {
+            // Bundle workflow: Work completed, evaluate for bundling or timed fallback
+            if !dry_run {
+                handle_completed_work_bundling(client, work).await?
+            } else {
+                println!("   📝 Bundle: Would evaluate for bundling or create individual PR after timeout");
+                println!("   📝 Agent already freed when work was marked complete");
             }
         }
         CompletedWorkType::OpenWithMergedBranch => {
@@ -1808,6 +1860,201 @@ async fn execute_phase_two(client: &github::GitHubClient, work: &CompletedWork) 
             println!("   ✅ Removed route:land label");
             println!("   🔀 PR should be merged by human after review approval");
             println!("   📝 Issue will auto-close when PR merges (via 'Fixes #{}' keywords)", work.issue.number);
+        }
+        Err(e) => {
+            return Err(e);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn handle_completed_work_bundling(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Collect all completed work items for bundling consideration
+    let completed_work_items = detect_all_completed_work(client).await?;
+    
+    // Check how long this work has been waiting
+    let completion_timestamp = get_work_completion_timestamp(&work.issue).await?;
+    let wait_time_minutes = completion_timestamp.map(|ts| {
+        let now = chrono::Utc::now();
+        (now - ts).num_minutes()
+    }).unwrap_or(0);
+    
+    // Fallback: Create individual PR if waiting > 10 minutes
+    if wait_time_minutes > 10 {
+        println!("   ⏰ Work waiting {} minutes - creating individual PR", wait_time_minutes);
+        return create_individual_pr_from_completed_work(client, work).await;
+    }
+    
+    // Check for bundling opportunity (2+ completed items)
+    if completed_work_items.len() >= 2 {
+        println!("   📦 Found {} completed items - creating bundle PR", completed_work_items.len());
+        return create_bundle_pr_from_completed_work(client, completed_work_items).await;
+    }
+    
+    // Work completed but not enough for bundling yet, and not timed out
+    println!("   ⏳ Work completed, waiting for bundling opportunity ({}min elapsed)", wait_time_minutes);
+    println!("   📦 Bundle threshold: 2+ items | ⏰ Individual PR fallback: 10+ minutes");
+    
+    Ok(())
+}
+
+async fn transition_to_work_completed(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Key function: Mark work complete and free agent immediately (no PR creation)
+    println!("   🔄 Transitioning to bundle workflow - freeing agent immediately");
+    
+    // Remove route:ready label to free agent
+    match remove_label_from_issue(client, work.issue.number, "route:ready").await {
+        Ok(_) => {
+            println!("   ✅ Removed route:ready label - agent freed for new work");
+        }
+        Err(e) => {
+            println!("   ⚠️  Warning: Failed to remove route:ready label: {:?}", e);
+        }
+    }
+    
+    // Add work:completed label to queue for bundling
+    match add_label_to_issue(client, work.issue.number, "work:completed").await {
+        Ok(_) => {
+            println!("   ✅ Added work:completed label - queued for bundling");
+            println!("   📦 Work will be bundled with other completed items or get individual PR after 10min");
+        }
+        Err(e) => {
+            return Err(e);
+        }
+    }
+    
+    println!("   🚀 Agent {} immediately available for new assignments", work.agent_id);
+    
+    Ok(())
+}
+
+async fn detect_all_completed_work(client: &github::GitHubClient) -> Result<Vec<CompletedWork>, github::GitHubError> {
+    // Get all issues with work:completed label
+    let issues = client.fetch_issues().await?;
+    let mut completed_work = Vec::new();
+    
+    for issue in issues {
+        if issue.labels.iter().any(|label| label.name == "work:completed") {
+            if let Some(agent_label) = issue.labels.iter().find(|label| label.name.starts_with("agent")) {
+                let agent_id = agent_label.name.clone();
+                let branch_name = format!("{}/{}", agent_id, issue.number);
+                
+                completed_work.push(CompletedWork {
+                    issue: issue.clone(),
+                    branch_name,
+                    agent_id,
+                    work_type: CompletedWorkType::WorkCompleted,
+                });
+            }
+        }
+    }
+    
+    Ok(completed_work)
+}
+
+async fn get_work_completion_timestamp(issue: &octocrab::models::issues::Issue) -> Result<Option<chrono::DateTime<chrono::Utc>>, github::GitHubError> {
+    // For MVP, we'll use the updated_at timestamp as a proxy for when work:completed was added
+    // In a full implementation, we could track this more precisely with issue events
+    Ok(Some(issue.updated_at))
+}
+
+async fn create_individual_pr_from_completed_work(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Create individual PR and transition to route:land
+    println!("   🚀 Creating individual PR for timed-out work");
+    
+    let pr_body = format!(
+        "## Summary\n\
+        Agent work completion for issue #{} (individual PR - bundling timeout)\n\n\
+        **Agent**: {}\n\
+        **Branch**: {}\n\
+        **Reason**: Bundling timeout after 10+ minutes\n\n\
+        This PR contains work completed by the agent and is ready for CodeRabbit AI review.\n\
+        After review approval, this will automatically close the issue.\n\n\
+        Fixes #{}\n\n\
+        🤖 Generated with [Clambake](https://github.com/johnhkchen/clambake)\n\
+        Co-Authored-By: {} <agent@clambake.dev>",
+        work.issue.number,
+        work.agent_id,
+        work.branch_name,
+        work.issue.number,
+        work.agent_id
+    );
+    
+    let pr_title = format!("[{}] {}", work.agent_id, work.issue.title);
+    
+    match client.create_pull_request(
+        &pr_title,
+        &work.branch_name,
+        "main",
+        &pr_body
+    ).await {
+        Ok(pr) => {
+            println!("   ✅ Created individual PR #{}", pr.number);
+            
+            // Remove work:completed and add route:land
+            remove_label_from_issue(client, work.issue.number, "work:completed").await?;
+            add_label_to_issue(client, work.issue.number, "route:land").await?;
+            
+            println!("   ✅ Transitioned to route:land for final merge");
+        }
+        Err(e) => {
+            return Err(e);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn create_bundle_pr_from_completed_work(client: &github::GitHubClient, completed_work: Vec<CompletedWork>) -> Result<(), github::GitHubError> {
+    // Create bundle PR for 2+ completed work items
+    let issue_numbers: Vec<u64> = completed_work.iter().map(|w| w.issue.number).collect();
+    let branch_names: Vec<String> = completed_work.iter().map(|w| w.branch_name.clone()).collect();
+    
+    let bundle_branch = format!("bundle/{}", issue_numbers.iter().map(|n| n.to_string()).collect::<Vec<_>>().join("-"));
+    
+    let pr_title = format!("Bundle: {} issues (bundle workflow)", completed_work.len());
+    let pr_body = format!(
+        "## Bundle Summary\n\
+        This PR bundles multiple agent-completed tasks for efficient review and API rate limiting.\n\n\
+        ## Bundled Issues\n\
+        {}\n\n\
+        ## Bundle Details\n\
+        - **Bundle Strategy**: Multiple completed work items detected\n\
+        - **API Rate Limiting**: Reduces PR creation from {}+ to 1 PR\n\
+        - **Agent Efficiency**: All agents already freed when work completed\n\n\
+        After CodeRabbit review and approval, this bundle will close all included issues.\n\n\
+        {}\n\n\
+        🤖 Generated with [Clambake Bundle Workflow](https://github.com/johnhkchen/clambake)",
+        completed_work.iter().map(|w| format!("- Fixes #{}: {} ({})", w.issue.number, w.issue.title, w.agent_id)).collect::<Vec<_>>().join("\n"),
+        completed_work.len(),
+        completed_work.iter().map(|w| format!("Fixes #{}", w.issue.number)).collect::<Vec<_>>().join("\n")
+    );
+    
+    // Create bundle branch
+    if let Err(e) = create_bundle_branch(&bundle_branch, &branch_names) {
+        return Err(github::GitHubError::NotImplemented(format!(
+            "Bundle creation failed: {:?}", e
+        )));
+    }
+    
+    // Create bundle PR
+    match client.create_pull_request(
+        &pr_title,
+        &bundle_branch,
+        "main",
+        &pr_body
+    ).await {
+        Ok(pr) => {
+            println!("   ✅ Created bundle PR #{} for {} issues", pr.number, completed_work.len());
+            
+            // Transition all work items from work:completed to route:land
+            for work in &completed_work {
+                remove_label_from_issue(client, work.issue.number, "work:completed").await?;
+                add_label_to_issue(client, work.issue.number, "route:land").await?;
+            }
+            
+            println!("   ✅ All {} issues transitioned to route:land", completed_work.len());
         }
         Err(e) => {
             return Err(e);
