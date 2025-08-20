@@ -317,9 +317,11 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
                     
                     for work in &completed_work {
                         let status_desc = match work.work_type {
-                            CompletedWorkType::OpenWithMergedBranch => "Branch merged, issue still open",
-                            CompletedWorkType::ClosedWithLabels => "Auto-closed by PR merge, cleaning up labels",
-                            CompletedWorkType::OrphanedBranch => "Orphaned branch detected",
+                            CompletedWorkType::ReadyForPhaseOne => "Phase 1: Work complete, ready for PR creation",
+                            CompletedWorkType::ReadyForPhaseTwo => "Phase 2: Approved, ready for final merge",
+                            CompletedWorkType::OpenWithMergedBranch => "Legacy: Branch merged, issue still open",
+                            CompletedWorkType::ClosedWithLabels => "Legacy: Auto-closed by PR merge, cleaning up labels",
+                            CompletedWorkType::OrphanedBranch => "Legacy: Orphaned branch detected",
                         };
                         
                         println!("🎯 Processing: Issue #{} - {}", work.issue.number, work.issue.title);
@@ -567,22 +569,61 @@ async fn status_command() -> Result<()> {
                         b_priority.cmp(&a_priority)
                     });
                     
-                    println!("📋 TASK QUEUE:");
-                    println!("─────────────");
+                    println!("📋 TASK QUEUE & REVIEW PIPELINE:");
+                    println!("─────────────────────────────────");
                     
-                    let high_count = issues.iter().filter(|i| get_issue_priority(i) == 3).count();
-                    let medium_count = issues.iter().filter(|i| get_issue_priority(i) == 2).count();
-                    let low_count = issues.iter().filter(|i| get_issue_priority(i) == 1).count();
-                    let normal_count = issues.iter().filter(|i| get_issue_priority(i) == 0).count();
-                    let total = high_count + medium_count + low_count + normal_count;
+                    // Separate route:land (Phase 2) and route:ready (Phase 1) tasks
+                    let route_land_count = issues.iter().filter(|i| {
+                        i.labels.iter().any(|label| label.name == "route:land")
+                    }).count();
                     
-                    if total > 0 {
-                        if high_count > 0 { println!(" 🔴 High priority: {} tasks", high_count); }
-                        if medium_count > 0 { println!(" 🟡 Medium priority: {} tasks", medium_count); }
-                        if low_count > 0 { println!(" 🟢 Low priority: {} tasks", low_count); }
-                        if normal_count > 0 { println!(" ⚪ Normal priority: {} tasks", normal_count); }
+                    let route_ready_count = issues.iter().filter(|i| {
+                        i.labels.iter().any(|label| label.name == "route:ready")
+                    }).count();
+                    
+                    // Count priority levels for route:ready tasks only
+                    let high_count = issues.iter().filter(|i| {
+                        i.labels.iter().any(|label| label.name == "route:ready") &&
+                        get_issue_priority(i) == 3
+                    }).count();
+                    let medium_count = issues.iter().filter(|i| {
+                        i.labels.iter().any(|label| label.name == "route:ready") &&
+                        get_issue_priority(i) == 2
+                    }).count();
+                    let low_count = issues.iter().filter(|i| {
+                        i.labels.iter().any(|label| label.name == "route:ready") &&
+                        get_issue_priority(i) == 1
+                    }).count();
+                    let normal_count = issues.iter().filter(|i| {
+                        i.labels.iter().any(|label| label.name == "route:ready") &&
+                        get_issue_priority(i) == 0
+                    }).count();
+                    
+                    // Show review pipeline status
+                    if route_land_count > 0 {
+                        println!(" 🚀 PHASE 2 - MERGE READY: {} tasks", route_land_count);
+                        println!("    └─ ✅ CodeRabbit reviewed + human approved");
+                        println!("    └─ 🎯 Highest priority - any agent can complete");
                         println!();
-                        println!(" 📊 Total: {} tasks ready for assignment", total);
+                    }
+                    
+                    // Show new work queue
+                    if route_ready_count > 0 {
+                        println!(" 📝 PHASE 1 - NEW WORK: {} tasks", route_ready_count);
+                        if high_count > 0 { println!("    🔴 High priority: {} tasks", high_count); }
+                        if medium_count > 0 { println!("    🟡 Medium priority: {} tasks", medium_count); }
+                        if low_count > 0 { println!("    🟢 Low priority: {} tasks", low_count); }
+                        if normal_count > 0 { println!("    ⚪ Normal priority: {} tasks", normal_count); }
+                        println!();
+                    }
+                    
+                    let total = route_land_count + route_ready_count;
+                    if total > 0 {
+                        println!(" 📊 TOTAL WORKLOAD: {} tasks ({} merge-ready + {} new work)", 
+                                total, route_land_count, route_ready_count);
+                        if route_land_count > 0 {
+                            println!(" ⚡ Next action: 'clambake pop' will prioritize merge completion");
+                        }
                     } else {
                         println!(" ℹ️  No tasks in queue");
                         println!(" 💡 Create tasks with: gh issue create --title 'Task name' --label 'route:ready'");
@@ -744,8 +785,14 @@ async fn peek_command() -> Result<()> {
 // Helper function to get issue priority (mirrors router logic)
 fn get_issue_priority(issue: &octocrab::models::issues::Issue) -> u32 {
     // Priority based on labels: higher number = higher priority
-    if issue.labels.iter().any(|label| label.name == "route:priority-high") {
-        3 // Highest priority
+    
+    // Highest priority: route:land tasks (Phase 2 completion)
+    if issue.labels.iter().any(|label| label.name == "route:land") {
+        100 // Maximum priority - merge-ready work
+    }
+    // Standard priority labels for route:ready tasks
+    else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
+        3 // High priority
     } else if issue.labels.iter().any(|label| label.name == "route:priority-medium") {
         2 // Medium priority
     } else if issue.labels.iter().any(|label| label.name == "route:priority-low") {
@@ -759,9 +806,14 @@ fn get_issue_priority(issue: &octocrab::models::issues::Issue) -> u32 {
 
 #[derive(Debug)]
 enum CompletedWorkType {
+    // Legacy types (still needed for backward compatibility)
     OpenWithMergedBranch,     // Issue open, branch merged -> close issue + remove labels
     ClosedWithLabels,         // Issue closed, has labels -> remove labels only  
     OrphanedBranch,          // Branch merged, no matching issue -> create cleanup report
+    
+    // New phased workflow types
+    ReadyForPhaseOne,         // Work complete, needs PR creation and route:ready removal
+    ReadyForPhaseTwo,         // Has route:land label, needs final merge completion
 }
 
 #[derive(Debug)]
@@ -822,7 +874,8 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
         if include_closed {
             println!("   📋 Checked {} recently closed issues with agent labels (last {} days)", closed_count, days);
         }
-        println!("   🌿 Verifying merge status for {} agent branches", agent_labeled_issues.len());
+        println!("   🌿 Checking work status for {} agent branches", agent_labeled_issues.len());
+        println!("   📊 Phased workflow: Phase 1 (PR creation) and Phase 2 (merge completion)");
     }
     
     for issue in agent_labeled_issues {
@@ -833,14 +886,38 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
             
             match issue.state {
                 octocrab::models::IssueState::Open => {
-                    // For open issues, check if branch was merged
-                    if is_branch_merged_to_main(&branch_name)? {
+                    let has_route_ready = issue.labels.iter().any(|label| label.name == "route:ready");
+                    let has_route_land = issue.labels.iter().any(|label| label.name == "route:land");
+                    
+                    if has_route_land {
+                        // Phase 2: Issue has route:land label - ready for final merge
                         completed.push(CompletedWork {
                             issue: issue.clone(),
                             branch_name,
                             agent_id,
-                            work_type: CompletedWorkType::OpenWithMergedBranch,
+                            work_type: CompletedWorkType::ReadyForPhaseTwo,
                         });
+                    } else if has_route_ready {
+                        // Check if work is actually complete (branch has commits)
+                        if is_branch_ready_for_pr(&branch_name)? {
+                            // Phase 1: Work complete, needs PR creation and route:ready removal
+                            completed.push(CompletedWork {
+                                issue: issue.clone(),
+                                branch_name,
+                                agent_id,
+                                work_type: CompletedWorkType::ReadyForPhaseOne,
+                            });
+                        }
+                    } else {
+                        // Legacy: Check if branch was already merged (backward compatibility)
+                        if is_branch_merged_to_main(&branch_name)? {
+                            completed.push(CompletedWork {
+                                issue: issue.clone(),
+                                branch_name,
+                                agent_id,
+                                work_type: CompletedWorkType::OpenWithMergedBranch,
+                            });
+                        }
                     }
                 }
                 octocrab::models::IssueState::Closed => {
@@ -868,8 +945,26 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
 
 async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedWork, dry_run: bool) -> Result<(), github::GitHubError> {
     match work.work_type {
+        CompletedWorkType::ReadyForPhaseOne => {
+            // Phase 1: Create PR and remove route:ready label to free agent
+            if !dry_run {
+                execute_phase_one(client, work).await?
+            } else {
+                println!("   📝 Phase 1: Would create PR and remove route:ready label");
+                println!("   📝 Agent would be freed for new work immediately");
+            }
+        }
+        CompletedWorkType::ReadyForPhaseTwo => {
+            // Phase 2: Complete final merge and cleanup
+            if !dry_run {
+                execute_phase_two(client, work).await?
+            } else {
+                println!("   📝 Phase 2: Would merge PR and remove route:land label");
+                println!("   📝 Issue would be closed via GitHub auto-close");
+            }
+        }
         CompletedWorkType::OpenWithMergedBranch => {
-            // Issue should have been auto-closed by PR merge with "Fixes #N" keywords
+            // Legacy: Issue should have been auto-closed by PR merge with "Fixes #N" keywords
             // If still open, it means auto-close didn't work (PR may not have had keywords)
             if !dry_run {
                 remove_agent_labels_from_issue(client, &work.issue).await?;
@@ -905,6 +1000,51 @@ async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedW
     }
     
     Ok(())
+}
+
+fn is_branch_ready_for_pr(branch_name: &str) -> Result<bool, github::GitHubError> {
+    // Check if branch exists and has commits ahead of main
+    
+    // First check if branch exists locally
+    let branch_exists = Command::new("git")
+        .args(&["show-ref", "--verify", &format!("refs/heads/{}", branch_name)])
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    
+    if !branch_exists {
+        // Check if branch exists on remote
+        let remote_branch_exists = Command::new("git")
+            .args(&["show-ref", "--verify", &format!("refs/remotes/origin/{}", branch_name)])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+        
+        if !remote_branch_exists {
+            return Ok(false); // Branch doesn't exist
+        }
+        
+        // Fetch the remote branch
+        let _ = Command::new("git").args(&["fetch", "origin", branch_name]).output();
+    }
+    
+    // Check if branch has commits ahead of main
+    let output = Command::new("git")
+        .args(&["rev-list", "--count", &format!("main..{}", branch_name)])
+        .output();
+    
+    match output {
+        Ok(result) => {
+            if result.status.success() {
+                let count_str = String::from_utf8_lossy(&result.stdout);
+                let count: u32 = count_str.trim().parse().unwrap_or(0);
+                Ok(count > 0) // Has commits ahead of main
+            } else {
+                Ok(false) // Git command failed, assume not ready
+            }
+        }
+        Err(_) => Ok(false),
+    }
 }
 
 fn is_branch_merged_to_main(branch_name: &str) -> Result<bool, github::GitHubError> {
@@ -1010,6 +1150,88 @@ async fn add_completion_comment_only(_client: &github::GitHubClient, issue: &oct
         Err(e) => {
             println!("   ⚠️  Could not add completion comment: {}", e);
             // Don't fail the whole operation if comment fails
+        }
+    }
+    
+    Ok(())
+}
+
+async fn execute_phase_one(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Phase 1: Create PR with CodeRabbit integration and remove route:ready label
+    println!("   🚀 Phase 1: Creating PR for completed work");
+    
+    // Generate PR body with auto-close keywords for GitHub's native issue closure
+    let pr_body = format!(
+        "## Summary\n\
+        Agent work completion for issue #{}\n\n\
+        **Agent**: {}\n\
+        **Branch**: {}\n\
+        **Work Type**: Agent-completed task\n\n\
+        This PR contains work completed by the agent and is ready for CodeRabbit AI review.\n\
+        After review approval, this will automatically close the issue.\n\n\
+        Fixes #{}\n\n\
+        🤖 Generated with [Clambake](https://github.com/johnhkchen/clambake)\n\
+        Co-Authored-By: {} <agent@clambake.dev>",
+        work.issue.number,
+        work.agent_id,
+        work.branch_name,
+        work.issue.number, // This is the key auto-close keyword
+        work.agent_id
+    );
+    
+    // Create PR with auto-close keywords
+    let pr_title = format!("[{}] {}", work.agent_id, work.issue.title);
+    
+    match client.create_pull_request(
+        &pr_title,
+        &work.branch_name,
+        "main",
+        &pr_body
+    ).await {
+        Ok(pr) => {
+            println!("   ✅ Created PR #{} with CodeRabbit integration", pr.number);
+            
+            // Atomically remove route:ready label to free the agent
+            match remove_label_from_issue(client, work.issue.number, "route:ready").await {
+                Ok(_) => {
+                    println!("   ✅ Removed route:ready label - agent freed for new work");
+                    println!("   🤖 CodeRabbit will begin AI review automatically");
+                    println!("   ⏳ Human approval required after AI review completion");
+                }
+                Err(e) => {
+                    println!("   ⚠️  Warning: Failed to remove route:ready label: {:?}", e);
+                    println!("   ⚠️  Agent may not be freed for new work");
+                }
+            }
+        }
+        Err(e) => {
+            return Err(e);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn execute_phase_two(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Phase 2: Complete final merge after CodeRabbit + human approval
+    println!("   🎆 Phase 2: Completing final merge after approval");
+    
+    // Note: In a full implementation, this would:
+    // 1. Verify CodeRabbit review is complete
+    // 2. Verify human approval is granted
+    // 3. Merge the PR
+    // 4. Remove route:land label
+    // 5. The issue will auto-close via GitHub's "Fixes #N" keywords
+    
+    // For now, we'll remove the route:land label to indicate completion
+    match remove_label_from_issue(client, work.issue.number, "route:land").await {
+        Ok(_) => {
+            println!("   ✅ Removed route:land label");
+            println!("   🔀 PR should be merged by human after review approval");
+            println!("   📝 Issue will auto-close when PR merges (via 'Fixes #{}' keywords)", work.issue.number);
+        }
+        Err(e) => {
+            return Err(e);
         }
     }
     

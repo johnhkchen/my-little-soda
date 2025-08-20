@@ -34,16 +34,21 @@ impl AgentRouter {
         let all_issues = self.github_client.fetch_issues().await?;
         
         // Filter for issues that can be routed to agents
-        // Must have route:ready label and NOT have agent labels (agents not yet assigned)
+        // Include both route:ready and route:land labeled issues
         let routable_issues: Vec<Issue> = all_issues
             .into_iter()
             .filter(|issue| {
-                // Must be open and have route:ready label
+                // Must be open
                 let is_open = issue.state == octocrab::models::IssueState::Open;
-                let has_route_label = issue.labels.iter()
-                    .any(|label| label.name == "route:ready");
                 
-                // Key fix: Allow human-assigned issues, but NOT agent-assigned issues
+                // Check for routing labels
+                let has_route_ready = issue.labels.iter()
+                    .any(|label| label.name == "route:ready");
+                let has_route_land = issue.labels.iter()
+                    .any(|label| label.name == "route:land");
+                
+                // For route:ready - agent must NOT be assigned yet
+                // For route:land - agent assignment doesn't matter (any agent can complete merge)
                 let has_agent_label = issue.labels.iter()
                     .any(|label| label.name.starts_with("agent"));
                 
@@ -51,7 +56,18 @@ impl AgentRouter {
                 let is_human_only = issue.labels.iter()
                     .any(|label| label.name == "route:human-only");
                 
-                is_open && has_route_label && !has_agent_label && !is_human_only
+                // Route logic:
+                // - route:ready tasks: only if no agent assigned
+                // - route:land tasks: always routable (any agent can complete)
+                let is_routable = if has_route_land {
+                    true // route:land tasks are always routable
+                } else if has_route_ready {
+                    !has_agent_label // route:ready only if no agent assigned
+                } else {
+                    false // no routing label
+                };
+                
+                is_open && is_routable && !is_human_only
             })
             .collect();
             
@@ -60,8 +76,14 @@ impl AgentRouter {
 
     fn get_issue_priority(&self, issue: &Issue) -> u32 {
         // Priority based on labels: higher number = higher priority
-        if issue.labels.iter().any(|label| label.name == "route:priority-high") {
-            3 // Highest priority
+        
+        // Highest priority: route:land tasks (Phase 2 completion)
+        if issue.labels.iter().any(|label| label.name == "route:land") {
+            100 // Maximum priority - merge-ready work
+        }
+        // Standard priority labels for route:ready tasks
+        else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
+            3 // High priority
         } else if issue.labels.iter().any(|label| label.name == "route:priority-medium") {
             2 // Medium priority
         } else if issue.labels.iter().any(|label| label.name == "route:priority-low") {
