@@ -4,6 +4,106 @@ use std::path::Path;
 use async_trait::async_trait;
 // use crate::github::retry::GitHubRetryHandler;
 
+/// CodeRabbit feedback categorization
+#[derive(Debug, Clone)]
+pub struct CodeRabbitFeedback {
+    pub actionable_suggestions: Vec<FeedbackItem>,
+    pub nitpick_suggestions: Vec<FeedbackItem>,
+    pub has_feedback: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct FeedbackItem {
+    pub content: String,
+    pub url: String,
+    pub category: FeedbackCategory,
+}
+
+#[derive(Debug, Clone)]
+pub enum FeedbackCategory {
+    Actionable,
+    Nitpick,
+}
+
+impl CodeRabbitFeedback {
+    pub fn new() -> Self {
+        Self {
+            actionable_suggestions: Vec::new(),
+            nitpick_suggestions: Vec::new(),
+            has_feedback: false,
+        }
+    }
+    
+    pub fn add_review_comment(&mut self, content: &str, url: &str) {
+        self.has_feedback = true;
+        
+        // Categorize the feedback based on content
+        if self.is_actionable_feedback(content) {
+            self.actionable_suggestions.push(FeedbackItem {
+                content: content.to_string(),
+                url: url.to_string(),
+                category: FeedbackCategory::Actionable,
+            });
+        } else if self.is_nitpick_feedback(content) {
+            self.nitpick_suggestions.push(FeedbackItem {
+                content: content.to_string(),
+                url: url.to_string(),
+                category: FeedbackCategory::Nitpick,
+            });
+        }
+    }
+    
+    pub fn add_line_comment(&mut self, content: &str, url: &str) {
+        self.has_feedback = true;
+        
+        // Line comments are typically more actionable
+        if self.is_actionable_feedback(content) {
+            self.actionable_suggestions.push(FeedbackItem {
+                content: content.to_string(),
+                url: url.to_string(),
+                category: FeedbackCategory::Actionable,
+            });
+        } else {
+            self.nitpick_suggestions.push(FeedbackItem {
+                content: content.to_string(),
+                url: url.to_string(),
+                category: FeedbackCategory::Nitpick,
+            });
+        }
+    }
+    
+    fn is_actionable_feedback(&self, content: &str) -> bool {
+        let content_lower = content.to_lowercase();
+        
+        // Keywords that indicate actionable feedback
+        let actionable_keywords = [
+            "security", "vulnerability", "bug", "error", "fix", "critical",
+            "performance", "memory leak", "null pointer", "unsafe",
+            "should", "must", "needs to", "required", "recommend",
+            "breaking change", "compatibility", "refactor"
+        ];
+        
+        actionable_keywords.iter().any(|&keyword| content_lower.contains(keyword))
+    }
+    
+    fn is_nitpick_feedback(&self, content: &str) -> bool {
+        let content_lower = content.to_lowercase();
+        
+        // Keywords that indicate style/nitpick feedback
+        let nitpick_keywords = [
+            "style", "formatting", "naming", "comment", "documentation",
+            "consider", "might", "could", "nitpick", "minor",
+            "suggestion", "readability", "clarity"
+        ];
+        
+        nitpick_keywords.iter().any(|&keyword| content_lower.contains(keyword))
+    }
+    
+    pub fn total_suggestions(&self) -> usize {
+        self.actionable_suggestions.len() + self.nitpick_suggestions.len()
+    }
+}
+
 /// Trait for GitHub operations to enable testing with mocks
 #[async_trait]
 pub trait GitHubOps {
@@ -337,6 +437,15 @@ impl GitHubClient {
         Ok(())
     }
 
+    pub async fn add_label_to_pr(&self, pr_number: u64, label: &str) -> Result<(), GitHubError> {
+        self.octocrab
+            .issues(&self.owner, &self.repo)
+            .add_labels(pr_number, &[label.to_string()])
+            .await
+            .map_err(GitHubError::ApiError)?;
+        Ok(())
+    }
+
     pub async fn fetch_open_pull_requests(&self) -> Result<Vec<octocrab::models::pulls::PullRequest>, GitHubError> {
         let pulls = self.octocrab
             .pulls(&self.owner, &self.repo)
@@ -385,6 +494,270 @@ impl GitHubClient {
         }
         
         Ok(false)
+    }
+
+    /// Find PRs with completed reviews that are ready for route:land labeling
+    /// Returns list of (PR number, associated issue number) tuples
+    pub async fn find_prs_with_completed_reviews(&self) -> Result<Vec<(u64, u64)>, GitHubError> {
+        let open_prs = self.fetch_open_pull_requests().await?;
+        let mut completed_prs = Vec::new();
+        
+        for pr in open_prs {
+            // Skip PRs that already have route:land label
+            let has_route_land = pr.labels.as_ref()
+                .map(|labels| labels.iter().any(|label| label.name == "route:land"))
+                .unwrap_or(false);
+            
+            if has_route_land {
+                continue;
+            }
+            
+            // Extract associated issue number from PR body
+            if let Some(issue_number) = self.extract_issue_number_from_pr(&pr).await {
+                // Check if this PR has completed reviews
+                if let Ok(is_review_complete) = self.is_pr_review_complete(pr.number).await {
+                    if is_review_complete {
+                        completed_prs.push((pr.number, issue_number));
+                    }
+                }
+            }
+        }
+        
+        Ok(completed_prs)
+    }
+    
+    /// Extract issue number from PR body using common patterns
+    async fn extract_issue_number_from_pr(&self, pr: &octocrab::models::pulls::PullRequest) -> Option<u64> {
+        if let Some(body) = &pr.body {
+            let body_lower = body.to_lowercase();
+            
+            // Look for patterns like "fixes #123", "closes #123", etc.
+            let patterns = [
+                r"fixes #(\d+)",
+                r"closes #(\d+)", 
+                r"resolves #(\d+)",
+                r"fix #(\d+)",
+                r"close #(\d+)",
+                r"resolve #(\d+)",
+            ];
+            
+            for pattern in patterns {
+                if let Ok(regex) = regex::Regex::new(pattern) {
+                    if let Some(captures) = regex.captures(&body_lower) {
+                        if let Some(number_str) = captures.get(1) {
+                            if let Ok(issue_number) = number_str.as_str().parse::<u64>() {
+                                return Some(issue_number);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        None
+    }
+    
+    /// Check if a PR's review process is complete
+    async fn is_pr_review_complete(&self, pr_number: u64) -> Result<bool, GitHubError> {
+        // Get PR reviews
+        let reviews = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list_reviews(pr_number)
+            .send()
+            .await?;
+        
+        let mut has_approval = false;
+        let mut has_pending_changes = false;
+        let mut has_coderabbit_review = false;
+        
+        // Check the latest review from each reviewer
+        let mut latest_reviews = std::collections::HashMap::new();
+        
+        for review in reviews.items {
+            if let Some(user) = &review.user {
+                // Keep only the latest review from each user
+                latest_reviews.insert(user.id, review);
+            }
+        }
+        
+        // Analyze the latest reviews
+        for review in latest_reviews.values() {
+            if let Some(user) = &review.user {
+                // Check if this is a CodeRabbit review
+                if user.login.to_lowercase().contains("coderabbit") {
+                    has_coderabbit_review = true;
+                    
+                    // For CodeRabbit, any substantial review indicates completion
+                    // Check if the review has actual content (not just initial comment)
+                    if let Some(body) = &review.body {
+                        if body.len() > 100 { // Substantial review content
+                            return Ok(true);
+                        }
+                    }
+                } else {
+                    // Human reviewer logic
+                    if let Some(state) = &review.state {
+                        match state {
+                            octocrab::models::pulls::ReviewState::Approved => has_approval = true,
+                            octocrab::models::pulls::ReviewState::ChangesRequested => has_pending_changes = true,
+                            _ => {} // COMMENTED or other states don't affect completion
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If we found CodeRabbit but no substantial review, it's still in progress
+        if has_coderabbit_review {
+            return Ok(false);
+        }
+        
+        // For human PRs, require approval without pending changes
+        Ok(has_approval && !has_pending_changes)
+    }
+    
+    /// Check PR review completion using GitHub's check runs (for bots like CodeRabbit)
+    async fn check_pr_review_status_via_checks(&self, pr_number: u64) -> Result<bool, GitHubError> {
+        // Get the PR to find the latest commit SHA
+        let pr = self.get_pull_request(pr_number).await?;
+        let commit_sha = &pr.head.sha;
+        
+        // Get check runs for the latest commit
+        let check_runs = self.octocrab
+            .checks(&self.owner, &self.repo)
+            .list_check_runs_for_git_ref(octocrab::params::repos::Commitish(commit_sha.clone()))
+            .send()
+            .await?;
+        
+        // Look for CodeRabbit or other review bot check runs
+        for check_run in check_runs.check_runs {
+            let name_lower = check_run.name.to_lowercase();
+            
+            // Check for CodeRabbit or other review tools
+            if name_lower.contains("coderabbit") 
+                || name_lower.contains("review") 
+                || name_lower.contains("code-review") {
+                
+                // Check if the review is complete and passed
+                if let Some(conclusion) = &check_run.conclusion {
+                    match conclusion.as_str() {
+                        "success" | "neutral" => {
+                            println!("  ✅ Found completed review check: {} = {}", check_run.name, conclusion);
+                            return Ok(true);
+                        }
+                        "failure" | "cancelled" | "timed_out" => {
+                            println!("  ❌ Found failed review check: {} = {}", check_run.name, conclusion);
+                            return Ok(false);
+                        }
+                        _ => {
+                            println!("  ⏳ Review check in progress: {} = {}", check_run.name, conclusion);
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(false)
+    }
+    
+    /// Check if a PR was created by a bot (e.g., CodeRabbit)
+    async fn is_bot_pr(&self, pr_number: u64) -> Result<bool, GitHubError> {
+        let pr = self.get_pull_request(pr_number).await?;
+        
+        if let Some(user) = &pr.user {
+            // Check if the PR author is a known bot
+            let bot_names = ["coderabbitai", "dependabot", "renovate", "github-actions"];
+            let is_bot = bot_names.iter().any(|&bot| user.login.to_lowercase().contains(bot));
+            // For now, just check by username pattern - we can enhance type checking later
+            Ok(is_bot)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Get CodeRabbit feedback from a PR and categorize suggestions
+    pub async fn get_coderabbit_feedback(&self, pr_number: u64) -> Result<CodeRabbitFeedback, GitHubError> {
+        let mut feedback = CodeRabbitFeedback::new();
+        
+        // Get PR reviews
+        let reviews = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list_reviews(pr_number)
+            .send()
+            .await?;
+        
+        // Get PR review comments (line-specific comments)
+        let review_comments = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list_comments(Some(pr_number))
+            .send()
+            .await?;
+        
+        // Process reviews from CodeRabbit
+        for review in reviews.items {
+            if let Some(user) = &review.user {
+                if user.login.to_lowercase().contains("coderabbit") {
+                    if let Some(body) = &review.body {
+                        // Use PR URL as fallback for review URL
+                        let url_str = format!("PR #{}", pr_number);
+                        feedback.add_review_comment(body, &url_str);
+                    }
+                }
+            }
+        }
+        
+        // Process line-specific comments from CodeRabbit  
+        for comment in review_comments.items {
+            if let Some(user) = &comment.user {
+                if user.login.to_lowercase().contains("coderabbit") {
+                    let url_str = if comment.html_url.is_empty() {
+                        format!("PR #{}", pr_number)
+                    } else {
+                        comment.html_url
+                    };
+                    feedback.add_line_comment(&comment.body, &url_str);
+                }
+            }
+        }
+        
+        Ok(feedback)
+    }
+
+    /// Check if CodeRabbit feedback has been decomposed into issues
+    pub async fn is_coderabbit_feedback_decomposed(&self, pr_number: u64) -> Result<bool, GitHubError> {
+        let feedback = self.get_coderabbit_feedback(pr_number).await?;
+        
+        // If no significant feedback, consider it decomposed
+        if feedback.actionable_suggestions.is_empty() && feedback.nitpick_suggestions.is_empty() {
+            return Ok(true);
+        }
+        
+        // Check if there are recent issues created with coderabbit-feedback label
+        // that reference this PR
+        let issues = self.fetch_issues().await?;
+        let coderabbit_issues: Vec<_> = issues
+            .iter()
+            .filter(|issue| {
+                // Check for coderabbit-feedback label
+                let has_feedback_label = issue.labels.iter()
+                    .any(|label| label.name == "coderabbit-feedback");
+                
+                // Check if issue references this PR
+                let references_pr = if let Some(body) = &issue.body {
+                    body.contains(&format!("PR #{}", pr_number)) || 
+                    body.contains(&format!("pr/{}", pr_number))
+                } else {
+                    false
+                };
+                
+                has_feedback_label && references_pr
+            })
+            .collect();
+        
+        // Consider feedback decomposed if we have at least one follow-up issue
+        // In a more sophisticated implementation, we could check if the number
+        // of issues matches the number of suggestions
+        Ok(!coderabbit_issues.is_empty())
     }
 }
 

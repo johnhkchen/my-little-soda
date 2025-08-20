@@ -235,6 +235,7 @@ dependencies = [
  "octocrab",
  "once_cell",
  "predicates",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

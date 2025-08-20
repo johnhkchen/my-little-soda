@@ -30,6 +30,12 @@ impl AgentRouter {
     }
 
     pub async fn fetch_routable_issues(&self) -> Result<Vec<Issue>, GitHubError> {
+        // First, scan for completed reviews and auto-apply route:land labels
+        if let Err(e) = self.scan_and_apply_route_land_labels().await {
+            tracing::warn!("Failed to scan for completed reviews: {:?}", e);
+            // Continue with normal operation even if review scanning fails
+        }
+        
         // GitHub-native: Only route issues that exist in GitHub
         let all_issues = self.github_client.fetch_issues().await?;
         
@@ -335,6 +341,37 @@ impl AgentRouter {
 
     pub fn get_github_client(&self) -> &GitHubClient {
         &self.github_client
+    }
+
+    /// Scan for PRs with completed reviews and automatically apply route:land labels
+    async fn scan_and_apply_route_land_labels(&self) -> Result<(), GitHubError> {
+        let completed_prs = self.github_client.find_prs_with_completed_reviews().await?;
+        
+        for (pr_number, issue_number) in completed_prs {
+            tracing::info!("Found completed review: PR #{} for issue #{}", pr_number, issue_number);
+            
+            // Add route:land label to both the issue and the PR
+            match self.github_client.add_label_to_issue(issue_number, "route:land").await {
+                Ok(_) => {
+                    tracing::info!("✅ Applied route:land label to issue #{}", issue_number);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to apply route:land label to issue #{}: {:?}", issue_number, e);
+                }
+            }
+            
+            // Also add route:land label to the PR to unblock the issue
+            match self.github_client.add_label_to_pr(pr_number, "route:land").await {
+                Ok(_) => {
+                    tracing::info!("✅ Applied route:land label to PR #{}", pr_number);
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to apply route:land label to PR #{}: {:?}", pr_number, e);
+                }
+            }
+        }
+        
+        Ok(())
     }
 }
 #[cfg(test)]

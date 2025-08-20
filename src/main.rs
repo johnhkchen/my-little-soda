@@ -220,14 +220,143 @@ async fn pop_task_command(mine_only: bool) -> Result<()> {
                     std::io::Write::flush(&mut std::io::stdout()).unwrap();
                     println!("✅");
                     println!();
-                    println!("✅ Successfully popped task:");
-                    println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
-                    println!("  👤 Assigned to: {}", task.assigned_agent.id);
-                    println!("  🌿 Branch: {}/{}", task.assigned_agent.id, task.issue.number);
-                    println!("  🔗 URL: {}", task.issue.html_url);
-                    println!();
-                    println!("🚀 Ready to work! Issue assigned and branch created/targeted.");
-                    println!("   Next: git checkout {}/{}", task.assigned_agent.id, task.issue.number);
+                    // Check if this is a route:land task for special instructions
+                    let is_route_land = task.issue.labels.iter()
+                        .any(|label| label.name == "route:land");
+                    
+                    if is_route_land {
+                        println!("✅ Successfully popped MERGE-READY task:");
+                        println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
+                        println!("  👤 Assigned to: {}", task.assigned_agent.id);
+                        println!("  🌿 Branch: {}/{}", task.assigned_agent.id, task.issue.number);
+                        println!("  🔗 URL: {}", task.issue.html_url);
+                        println!();
+                        
+                        // Find and display PR information
+                        print!("🔍 Finding associated PR... ");
+                        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                        
+                        // Find the PR for this issue
+                        if let Ok(router) = agents::router::AgentRouter::new().await {
+                            if let Ok(prs) = router.get_github_client().fetch_open_pull_requests().await {
+                                let mut found_pr = None;
+                                for pr in prs {
+                                    if let Some(body) = &pr.body {
+                                        let body_lower = body.to_lowercase();
+                                        let patterns = [
+                                            format!("fixes #{}", task.issue.number),
+                                            format!("closes #{}", task.issue.number),
+                                            format!("resolves #{}", task.issue.number),
+                                            format!("#{}", task.issue.number),
+                                        ];
+                                        
+                                        if patterns.iter().any(|pattern| body_lower.contains(&pattern.to_lowercase())) {
+                                            found_pr = Some(pr);
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if let Some(pr) = found_pr {
+                                    println!("✅");
+                                    println!();
+                                    println!("🎯 MERGE-READY TASK - PR #{}: {}", pr.number, pr.title.as_deref().unwrap_or("No title"));
+                                    
+                                    // Check if CodeRabbit feedback has been decomposed
+                                    if let Ok(is_decomposed) = router.get_github_client().is_coderabbit_feedback_decomposed(pr.number).await {
+                                        if is_decomposed {
+                                            println!("   ✅ CodeRabbit feedback has been decomposed - ready for merge!");
+                                            println!();
+                                            println!("🚀 READY TO MERGE:");
+                                            println!("   🔗 View PR: gh pr view {}", pr.number);
+                                            println!("   🚀 Merge: gh pr merge {} --squash", pr.number);
+                                            println!();
+                                            println!("🎯 TO COMPLETE TASK:");
+                                            println!("   gh pr merge {} --squash && gh issue edit {} --remove-label {}", 
+                                                    pr.number, task.issue.number, task.assigned_agent.id);
+                                        } else {
+                                            // Feedback not decomposed - block merge and provide assistance
+                                            println!("   ⚠️  CodeRabbit feedback requires decomposition before merge!");
+                                            println!();
+                                            
+                                            // Get and display the feedback
+                                            match router.get_github_client().get_coderabbit_feedback(pr.number).await {
+                                                Ok(feedback) => {
+                                                    if feedback.has_feedback {
+                                                        println!("🤖 CODERABBIT FEEDBACK ANALYSIS:");
+                                                        if !feedback.actionable_suggestions.is_empty() {
+                                                            println!("   🔴 {} actionable suggestions found", feedback.actionable_suggestions.len());
+                                                        }
+                                                        if !feedback.nitpick_suggestions.is_empty() {
+                                                            println!("   🟡 {} nitpick suggestions found", feedback.nitpick_suggestions.len());
+                                                        }
+                                                        println!();
+                                                        
+                                                        println!("📋 REQUIRED BEFORE MERGE:");
+                                                        println!("   1. 📖 Review CodeRabbit feedback: gh pr view {}", pr.number);
+                                                        println!("   2. 🎯 Create issues for actionable suggestions (use commands below)");
+                                                        println!("   3. 🔄 Return to this task after decomposition");
+                                                        println!();
+                                                        
+                                                        // Generate issue creation commands
+                                                        println!("💡 SUGGESTED ISSUE CREATION COMMANDS:");
+                                                        for (i, suggestion) in feedback.actionable_suggestions.iter().enumerate() {
+                                                            let title = generate_issue_title_from_feedback(&suggestion.content, pr.number);
+                                                            println!("   gh issue create --title '{}' --label 'coderabbit-feedback,route:priority-high' --body 'CodeRabbit suggestion from PR #{}: {}'", 
+                                                                    title, pr.number, suggestion.content.chars().take(100).collect::<String>());
+                                                        }
+                                                        
+                                                        for (i, suggestion) in feedback.nitpick_suggestions.iter().enumerate() {
+                                                            let title = generate_issue_title_from_feedback(&suggestion.content, pr.number);
+                                                            println!("   gh issue create --title '{}' --label 'coderabbit-feedback,route:priority-medium' --body 'CodeRabbit suggestion from PR #{}: {}'", 
+                                                                    title, pr.number, suggestion.content.chars().take(100).collect::<String>());
+                                                        }
+                                                        
+                                                        println!();
+                                                        println!("🔒 MERGE BLOCKED: Complete feedback decomposition to proceed");
+                                                    } else {
+                                                        println!("   ✅ No significant feedback found - ready for merge!");
+                                                        println!();
+                                                        println!("🚀 READY TO MERGE:");
+                                                        println!("   gh pr merge {} --squash && gh issue edit {} --remove-label {}", 
+                                                                pr.number, task.issue.number, task.assigned_agent.id);
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    println!("   ⚠️  Could not analyze CodeRabbit feedback: {:?}", e);
+                                                    println!("   💡 Manual review recommended before merge");
+                                                    println!("   🔗 View PR: gh pr view {}", pr.number);
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        println!("   ⚠️  Could not check feedback decomposition status");
+                                        println!("   💡 Manual review recommended");
+                                        println!("   🔗 View PR: gh pr view {}", pr.number);
+                                    }
+                                } else {
+                                    println!("❌");
+                                    println!("⚠️  Could not find associated PR automatically.");
+                                    println!("   💡 Find manually: gh pr list --search \"fixes #{} in:body\"", task.issue.number);
+                                }
+                            } else {
+                                println!("❌");
+                                println!("⚠️  Could not fetch PRs.");
+                            }
+                        } else {
+                            println!("❌");
+                            println!("⚠️  Could not initialize GitHub client.");
+                        }
+                    } else {
+                        println!("✅ Successfully popped task:");
+                        println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
+                        println!("  👤 Assigned to: {}", task.assigned_agent.id);
+                        println!("  🌿 Branch: {}/{}", task.assigned_agent.id, task.issue.number);
+                        println!("  🔗 URL: {}", task.issue.html_url);
+                        println!();
+                        println!("🚀 Ready to work! Issue assigned and branch created/targeted.");
+                        println!("   Next: git checkout {}/{}", task.assigned_agent.id, task.issue.number);
+                    }
                 }
                 Ok(None) => {
                     println!("📋 No tasks found");
@@ -760,24 +889,52 @@ async fn peek_command() -> Result<()> {
                         _ => "NORMAL",
                     };
                     
-                    println!("🎯 NEXT TASK TO BE ASSIGNED:");
-                    println!("   📋 Issue #{}: {}", next_issue.number, next_issue.title);
-                    println!("   🏷️  Priority: {} ({})", priority_label, priority);
-                    
                     // Show labels for context
                     let labels: Vec<String> = next_issue.labels.iter()
                         .map(|l| l.name.clone())
                         .collect();
-                    if !labels.is_empty() {
-                        println!("   🔖 Labels: {}", labels.join(", "));
-                    }
                     
-                    // Show assignee if any
-                    if let Some(assignee) = &next_issue.assignee {
-                        println!("   👤 Currently assigned to: {}", assignee.login);
-                    }
+                    // Check if this is a route:land task for special instructions
+                    let is_route_land = next_issue.labels.iter()
+                        .any(|label| label.name == "route:land");
                     
-                    println!("   🔗 URL: {}", next_issue.html_url);
+                    if is_route_land {
+                        println!("🎯 NEXT TASK TO BE ASSIGNED:");
+                        println!("   📋 Issue #{}: {}", next_issue.number, next_issue.title);
+                        println!("   🏷️  Priority: {} ({})", priority_label, priority);
+                        if !labels.is_empty() {
+                            println!("   🔖 Labels: {}", labels.join(", "));
+                        }
+                        
+                        // Show assignee if any
+                        if let Some(assignee) = &next_issue.assignee {
+                            println!("   👤 Currently assigned to: {}", assignee.login);
+                        }
+                        
+                        println!("   🔗 URL: {}", next_issue.html_url);
+                        println!();
+                        println!("📋 MERGE-READY TASK:");
+                        println!("   When you run 'clambake pop', you will be instructed to:");
+                        println!("   1. Review CodeRabbit feedback");
+                        println!("   2. Decompose feedback into new issues");
+                        println!("   3. Merge the reviewed PR");
+                        println!("   4. Free yourself with successful completion");
+                    } else {
+                        println!("🎯 NEXT TASK TO BE ASSIGNED:");
+                        println!("   📋 Issue #{}: {}", next_issue.number, next_issue.title);
+                        println!("   🏷️  Priority: {} ({})", priority_label, priority);
+                        
+                        if !labels.is_empty() {
+                            println!("   🔖 Labels: {}", labels.join(", "));
+                        }
+                        
+                        // Show assignee if any
+                        if let Some(assignee) = &next_issue.assignee {
+                            println!("   👤 Currently assigned to: {}", assignee.login);
+                        }
+                        
+                        println!("   🔗 URL: {}", next_issue.html_url);
+                    }
                     println!();
                     
                     // Show queue summary
@@ -817,9 +974,13 @@ async fn peek_command() -> Result<()> {
 fn get_issue_priority(issue: &octocrab::models::issues::Issue) -> u32 {
     // Priority based on labels: higher number = higher priority
     
-    // Highest priority: route:land tasks (Phase 2 completion)
-    if issue.labels.iter().any(|label| label.name == "route:land") {
-        100 // Maximum priority - merge-ready work
+    // Absolute highest priority: route:unblocker (critical infrastructure issues)
+    if issue.labels.iter().any(|label| label.name == "route:unblocker") {
+        200 // Absolute maximum priority - system blockers
+    }
+    // Second highest priority: route:land tasks (Phase 2 completion)
+    else if issue.labels.iter().any(|label| label.name == "route:land") {
+        100 // High priority - merge-ready work
     }
     // Standard priority labels for route:ready tasks
     else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
@@ -1970,5 +2131,44 @@ async fn show_how_to_get_work() -> Result<()> {
     }
     
     Ok(())
+}
+
+/// Generate a concise issue title from CodeRabbit feedback
+fn generate_issue_title_from_feedback(content: &str, pr_number: u64) -> String {
+    // Extract the first meaningful sentence or phrase
+    let content_trimmed = content.trim();
+    let first_line = content_trimmed.lines().next().unwrap_or(content_trimmed);
+    
+    // Remove common prefixes and cleanup
+    let cleaned = first_line
+        .replace("**", "")
+        .replace("*", "")
+        .replace("##", "")
+        .replace("#", "");
+    let cleaned = cleaned.trim();
+    
+    // Take first part up to punctuation or reasonable length
+    let title_part = if let Some(pos) = cleaned.find('.') {
+        &cleaned[..pos]
+    } else if let Some(pos) = cleaned.find('?') {
+        &cleaned[..pos]
+    } else if let Some(pos) = cleaned.find('!') {
+        &cleaned[..pos]
+    } else if cleaned.len() > 60 {
+        &cleaned[..60]
+    } else {
+        cleaned
+    };
+    
+    // Ensure it's not too short
+    let final_title = if title_part.len() < 20 && cleaned.len() > title_part.len() {
+        // Take a bit more context if title is too short
+        let extended = if cleaned.len() > 50 { &cleaned[..50] } else { cleaned };
+        extended.trim()
+    } else {
+        title_part.trim()
+    };
+    
+    format!("[IMPROVEMENT] {} (PR #{})", final_title, pr_number)
 }
 
