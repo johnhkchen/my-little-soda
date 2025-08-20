@@ -269,6 +269,7 @@ Routing:
   - route:ready (green)
   - route:blocked (gray)
   - route:priority-high (red)
+  - route:human-only (purple)
 
 Agent Status:
   - agent:assigned (blue)

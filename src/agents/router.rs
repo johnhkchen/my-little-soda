@@ -47,7 +47,11 @@ impl AgentRouter {
                 let has_agent_label = issue.labels.iter()
                     .any(|label| label.name.starts_with("agent"));
                 
-                is_open && has_route_label && !has_agent_label
+                // Human-only filtering: Exclude issues marked for human-only assignment
+                let is_human_only = issue.labels.iter()
+                    .any(|label| label.name == "route:human-only");
+                
+                is_open && has_route_label && !has_agent_label && !is_human_only
             })
             .collect();
             
@@ -164,10 +168,20 @@ impl AgentRouter {
                     return false;
                 }
                 
-                // Accept if unassigned OR assigned to current user
+                // Check if this is a human-only task
+                let is_human_only = issue.labels.iter()
+                    .any(|label| label.name == "route:human-only");
+                
+                // Accept based on assignment status and human-only filtering
                 match &issue.assignee {
-                    None => true, // Unassigned
-                    Some(assignee) => assignee.login == current_user, // Assigned to me
+                    None => {
+                        // Unassigned tasks: exclude human-only tasks (bots can't take them)
+                        !is_human_only
+                    },
+                    Some(assignee) => {
+                        // Tasks assigned to current user: allow regardless of human-only status
+                        assignee.login == current_user
+                    }
                 }
             })
             .collect();
