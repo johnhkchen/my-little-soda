@@ -1337,7 +1337,7 @@ async fn check_ongoing_work() -> Result<Option<OngoingWork>> {
                         
                     if let Some(issue) = assigned_issues.first() {
                         // Found ongoing work - build status regardless of agent availability
-                        let branch_name = format!("work-{}", issue.number);
+                        let branch_name = format!("agent001/{}", issue.number);
                         
                         // Check if we're currently on this branch or if it exists
                         let current_branch = get_current_git_branch();
