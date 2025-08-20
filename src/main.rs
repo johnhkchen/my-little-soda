@@ -41,7 +41,20 @@ enum Commands {
     /// Reset all agents to idle state by removing agent labels from issues
     Reset,
     /// Complete agent lifecycle by detecting merged work and cleaning up issues
-    Land,
+    Land {
+        /// Only scan open issues (excludes auto-closed issues from GitHub PR merges)
+        #[arg(long, help = "Only scan open issues, exclude recently closed issues")]
+        open_only: bool,
+        /// Number of days to look back for closed issues
+        #[arg(long, default_value = "7", help = "Days to look back for closed issues when scanning")]
+        days: u32,
+        /// Show what would be cleaned without making changes
+        #[arg(long, help = "Preview what would be cleaned without making changes")]
+        dry_run: bool,
+        /// Show detailed information about the scan process
+        #[arg(long, short = 'v', help = "Show detailed scan information")]
+        verbose: bool,
+    },
     /// Preview the next task in queue without claiming it
     Peek,
 }
@@ -80,9 +93,9 @@ fn main() -> Result<()> {
                 reset_command().await
             })
         }
-        Some(Commands::Land) => {
+        Some(Commands::Land { open_only, days, dry_run, verbose }) => {
             tokio::runtime::Runtime::new()?.block_on(async {
-                land_command().await
+                land_command(!open_only, days, dry_run, verbose).await
             })
         }
         Some(Commands::Peek) => {
@@ -236,10 +249,24 @@ async fn pop_task_command(mine_only: bool) -> Result<()> {
     Ok(())
 }
 
-async fn land_command() -> Result<()> {
-    println!("🚀 CLAMBAKE LAND - Complete Agent Lifecycle");
+async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: bool) -> Result<()> {
+    if dry_run {
+        println!("🚀 CLAMBAKE LAND - Complete Agent Lifecycle (DRY RUN)");
+    } else {
+        println!("🚀 CLAMBAKE LAND - Complete Agent Lifecycle");
+    }
     println!("==========================================");
     println!();
+    
+    if verbose {
+        println!("🔧 Configuration:");
+        println!("   📅 Include closed issues: {}", if include_closed { "Yes (default)" } else { "No (--open-only)" });
+        if include_closed {
+            println!("   ⏰ Days to look back: {}", days);
+        }
+        println!("   🔍 Dry run mode: {}", if dry_run { "Yes" } else { "No" });
+        println!();
+    }
     
     print!("🔍 Scanning for completed agent work... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
@@ -250,17 +277,34 @@ async fn land_command() -> Result<()> {
             println!("✅");
             
             // Find completed work
-            match detect_completed_work(&client).await {
+            match detect_completed_work(&client, include_closed, days, verbose).await {
                 Ok(completed_work) => {
                     if completed_work.is_empty() {
                         println!();
                         println!("ℹ️  No completed work found");
-                        println!("💡 This means either:");
-                        println!("   → No agent branches have been merged yet");
-                        println!("   → All completed work has already been cleaned up");
-                        println!("   → Agents are still working on their assigned tasks");
+                        if verbose {
+                            println!("   🔍 Scanned issues and found no work needing cleanup");
+                        }
                         println!();
-                        println!("🎯 TIP: Use 'clambake status' to see current agent activity");
+                        println!("💡 This could mean:");
+                        println!("   → All work is still in progress (check: clambake status)");
+                        println!("   → Agents haven't completed any tasks yet");
+                        println!("   → All completed work has already been cleaned up");
+                        if include_closed {
+                            println!("   → No auto-closed issues found in last {} days", days);
+                        } else {
+                            println!("   → Auto-closed issues excluded (using --open-only)");
+                        }
+                        println!();
+                        println!("🎯 NEXT STEPS:");
+                        println!("   → Check active work: clambake status");
+                        println!("   → See available tasks: clambake peek");
+                        println!("   → Get new assignment: clambake pop");
+                        if !include_closed {
+                            println!("   → Include auto-closed issues: clambake land (remove --open-only)");
+                        } else if days < 14 {
+                            println!("   → Look further back: clambake land --days {}", days * 2);
+                        }
                         return Ok(());
                     }
                     
@@ -272,13 +316,24 @@ async fn land_command() -> Result<()> {
                     let mut failed = 0;
                     
                     for work in &completed_work {
-                        println!("🎯 Processing: Issue #{} - {}", work.issue.number, work.issue.title);
-                        println!("   🌿 Branch: {} → main (merged)", work.branch_name);
+                        let status_desc = match work.work_type {
+                            CompletedWorkType::OpenWithMergedBranch => "Branch merged, issue still open",
+                            CompletedWorkType::ClosedWithLabels => "Auto-closed by PR merge, cleaning up labels",
+                            CompletedWorkType::OrphanedBranch => "Orphaned branch detected",
+                        };
                         
-                        match cleanup_completed_work(&client, work).await {
+                        println!("🎯 Processing: Issue #{} - {}", work.issue.number, work.issue.title);
+                        println!("   📋 Status: {}", status_desc);
+                        println!("   🌿 Agent: {} | Branch: {}", work.agent_id, work.branch_name);
+                        
+                        match cleanup_completed_work(&client, work, dry_run).await {
                             Ok(_) => {
                                 cleaned_up += 1;
-                                println!("   ✅ Cleaned up successfully");
+                                if dry_run {
+                                    println!("   ✅ Would clean up successfully (dry run)");
+                                } else {
+                                    println!("   ✅ Cleaned up successfully");
+                                }
                             }
                             Err(e) => {
                                 failed += 1;
@@ -289,20 +344,33 @@ async fn land_command() -> Result<()> {
                     }
                     
                     // Summary
-                    println!("🎯 LANDING COMPLETE:");
-                    if cleaned_up > 0 {
-                        println!("   ✅ Successfully completed {} work items", cleaned_up);
-                        println!("   🤖 Agents are now available for new assignments");
+                    if dry_run {
+                        println!("🎯 DRY RUN COMPLETE:");
+                        if cleaned_up > 0 {
+                            println!("   📝 Would successfully clean up {} work items", cleaned_up);
+                            println!("   📝 No actual changes were made");
+                        }
+                    } else {
+                        println!("🎯 LANDING COMPLETE:");
+                        if cleaned_up > 0 {
+                            println!("   ✅ Successfully completed {} work items", cleaned_up);
+                            println!("   🤖 Agents are now available for new assignments");
+                        }
                     }
+                    
                     if failed > 0 {
                         println!("   ⚠️  {} items failed cleanup (may need manual intervention)", failed);
                     }
                     
-                    if cleaned_up > 0 {
+                    if cleaned_up > 0 || dry_run {
                         println!();
                         println!("🚀 NEXT STEPS:");
-                        println!("   → Use 'clambake pop' to get new tasks");
-                        println!("   → Use 'clambake status' to verify system state");
+                        if dry_run {
+                            println!("   → Run without --dry-run to apply changes");
+                        }
+                        println!("   → Check active work: clambake status");
+                        println!("   → Get new assignment: clambake pop");
+                        println!("   → See available tasks: clambake peek");
                     }
                 }
                 Err(e) => {
@@ -690,10 +758,18 @@ fn get_issue_priority(issue: &octocrab::models::issues::Issue) -> u32 {
 // Removed: show_quick_system_status() - not needed for streamlined agent workflow
 
 #[derive(Debug)]
+enum CompletedWorkType {
+    OpenWithMergedBranch,     // Issue open, branch merged -> close issue + remove labels
+    ClosedWithLabels,         // Issue closed, has labels -> remove labels only  
+    OrphanedBranch,          // Branch merged, no matching issue -> create cleanup report
+}
+
+#[derive(Debug)]
 struct CompletedWork {
     issue: octocrab::models::issues::Issue,
     branch_name: String,
     agent_id: String,
+    work_type: CompletedWorkType,
 }
 
 #[derive(Debug)]
@@ -705,19 +781,49 @@ struct OngoingWork {
     has_uncommitted_changes: bool,
 }
 
-async fn detect_completed_work(client: &github::GitHubClient) -> Result<Vec<CompletedWork>, github::GitHubError> {
+async fn detect_completed_work(client: &github::GitHubClient, include_closed: bool, days: u32, verbose: bool) -> Result<Vec<CompletedWork>, github::GitHubError> {
     let mut completed = Vec::new();
     
-    // Get all issues with agent labels
+    // Get all issues with agent labels  
     let issues = client.fetch_issues().await?;
+    
+    let now = chrono::Utc::now();
+    let cutoff_date = now - chrono::Duration::days(days as i64);
+    
     let agent_labeled_issues: Vec<_> = issues
         .into_iter()
         .filter(|issue| {
-            // Look for issues with agent labels that are still open
-            issue.state == octocrab::models::IssueState::Open &&
-            issue.labels.iter().any(|label| label.name.starts_with("agent"))
+            let has_agent_labels = issue.labels.iter().any(|label| label.name.starts_with("agent"));
+            if !has_agent_labels {
+                return false;
+            }
+            
+            // Always include open issues
+            if issue.state == octocrab::models::IssueState::Open {
+                return true;
+            }
+            
+            // Include closed issues only if requested and within date range
+            if include_closed && issue.state == octocrab::models::IssueState::Closed {
+                if let Some(closed_at) = issue.closed_at {
+                    return closed_at > cutoff_date;
+                }
+            }
+            
+            false
         })
         .collect();
+        
+    if verbose {
+        let open_count = agent_labeled_issues.iter().filter(|i| i.state == octocrab::models::IssueState::Open).count();
+        let closed_count = agent_labeled_issues.len() - open_count;
+        println!("📊 Scan Summary:");
+        println!("   📋 Checked {} open issues with agent labels", open_count);
+        if include_closed {
+            println!("   📋 Checked {} recently closed issues with agent labels (last {} days)", closed_count, days);
+        }
+        println!("   🌿 Verifying merge status for {} agent branches", agent_labeled_issues.len());
+    }
     
     for issue in agent_labeled_issues {
         // Extract agent ID from labels
@@ -725,13 +831,34 @@ async fn detect_completed_work(client: &github::GitHubClient) -> Result<Vec<Comp
             let agent_id = agent_label.name.clone();
             let branch_name = format!("{}/{}", agent_id, issue.number);
             
-            // Check if this branch was merged to main
-            if is_branch_merged_to_main(&branch_name)? {
-                completed.push(CompletedWork {
-                    issue: issue.clone(),
-                    branch_name,
-                    agent_id,
-                });
+            match issue.state {
+                octocrab::models::IssueState::Open => {
+                    // For open issues, check if branch was merged
+                    if is_branch_merged_to_main(&branch_name)? {
+                        completed.push(CompletedWork {
+                            issue: issue.clone(),
+                            branch_name,
+                            agent_id,
+                            work_type: CompletedWorkType::OpenWithMergedBranch,
+                        });
+                    }
+                }
+                octocrab::models::IssueState::Closed => {
+                    // For closed issues, we just need to clean up labels
+                    // (they were likely auto-closed by PR merge)
+                    completed.push(CompletedWork {
+                        issue: issue.clone(),
+                        branch_name,
+                        agent_id,
+                        work_type: CompletedWorkType::ClosedWithLabels,
+                    });
+                }
+                _ => {
+                    // Handle any other states (shouldn't happen normally)
+                    if verbose {
+                        println!("   ⚠️  Skipping issue #{} with unknown state: {:?}", issue.number, issue.state);
+                    }
+                }
             }
         }
     }
@@ -739,12 +866,34 @@ async fn detect_completed_work(client: &github::GitHubClient) -> Result<Vec<Comp
     Ok(completed)
 }
 
-async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
-    // Remove agent labels from the issue
-    remove_agent_labels_from_issue(client, &work.issue).await?;
-    
-    // Close the issue with a completion comment
-    close_issue_with_merge_reference(client, &work.issue, &work.branch_name).await?;
+async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedWork, dry_run: bool) -> Result<(), github::GitHubError> {
+    match work.work_type {
+        CompletedWorkType::OpenWithMergedBranch => {
+            // Issue is still open but branch was merged -> close issue + remove labels
+            if !dry_run {
+                remove_agent_labels_from_issue(client, &work.issue).await?;
+                close_issue_with_merge_reference(client, &work.issue, &work.branch_name).await?;
+            } else {
+                println!("   📝 Would remove agent labels and close issue");
+            }
+        }
+        CompletedWorkType::ClosedWithLabels => {
+            // Issue was auto-closed by PR merge, just clean up labels
+            if !dry_run {
+                remove_agent_labels_from_issue(client, &work.issue).await?;
+            } else {
+                println!("   📝 Would remove agent labels from auto-closed issue");
+            }
+        }
+        CompletedWorkType::OrphanedBranch => {
+            // This shouldn't happen in current logic, but handle for completeness
+            if !dry_run {
+                remove_agent_labels_from_issue(client, &work.issue).await?;
+            } else {
+                println!("   📝 Would remove agent labels from orphaned work");
+            }
+        }
+    }
     
     Ok(())
 }
