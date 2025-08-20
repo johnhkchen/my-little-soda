@@ -46,9 +46,12 @@ impl AgentRouter {
                 .any(|label| label.name == "route:ready");
             let has_route_land = issue.labels.iter()
                 .any(|label| label.name == "route:land");
+            let has_route_unblocker = issue.labels.iter()
+                .any(|label| label.name == "route:unblocker");
             
             // For route:ready - agent must NOT be assigned yet
             // For route:land - agent assignment doesn't matter (any agent can complete merge)
+            // For route:unblocker - always routable (critical issues)
             let has_agent_label = issue.labels.iter()
                 .any(|label| label.name.starts_with("agent"));
             
@@ -57,9 +60,12 @@ impl AgentRouter {
                 .any(|label| label.name == "route:human-only");
             
             // Route logic:
+            // - route:unblocker tasks: always routable (critical system issues)
+            // - route:land tasks: always routable (any agent can complete merge)
             // - route:ready tasks: only if no agent assigned
-            // - route:land tasks: always routable (any agent can complete)
-            let is_routable = if has_route_land {
+            let is_routable = if has_route_unblocker {
+                true // route:unblocker tasks are always highest priority
+            } else if has_route_land {
                 true // route:land tasks are always routable
             } else if has_route_ready {
                 !has_agent_label // route:ready only if no agent assigned
@@ -211,8 +217,10 @@ impl AgentRouter {
                 .any(|label| label.name == "route:ready");
             let has_route_land = issue.labels.iter()
                 .any(|label| label.name == "route:land");
+            let has_route_unblocker = issue.labels.iter()
+                .any(|label| label.name == "route:unblocker");
             
-            if !is_open || (!has_route_ready && !has_route_land) {
+            if !is_open || (!has_route_ready && !has_route_land && !has_route_unblocker) {
                 continue;
             }
             
