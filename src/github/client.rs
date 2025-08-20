@@ -12,6 +12,7 @@ pub trait GitHubOps {
     async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<(), GitHubError>;
     async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError>;
     async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError>;
+    async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError>;
     fn owner(&self) -> &str;
     fn repo(&self) -> &str;
 }
@@ -335,6 +336,56 @@ impl GitHubClient {
             .map_err(GitHubError::ApiError)?;
         Ok(())
     }
+
+    pub async fn fetch_open_pull_requests(&self) -> Result<Vec<octocrab::models::pulls::PullRequest>, GitHubError> {
+        let pulls = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list()
+            .state(octocrab::params::State::Open)
+            .send()
+            .await?;
+            
+        Ok(pulls.items)
+    }
+
+    /// Check if an issue has an open PR that references it
+    /// Returns true if the issue has an open PR WITHOUT route:land label
+    pub async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError> {
+        let open_prs = self.fetch_open_pull_requests().await?;
+        
+        for pr in open_prs {
+            // Check if this PR references the issue number
+            if let Some(body) = &pr.body {
+                // Look for common patterns like "fixes #123", "closes #123", etc.
+                let patterns = [
+                    format!("fixes #{}", issue_number),
+                    format!("closes #{}", issue_number),
+                    format!("resolves #{}", issue_number),
+                    format!("fix #{}", issue_number),
+                    format!("close #{}", issue_number),
+                    format!("resolve #{}", issue_number),
+                    format!("#{}", issue_number), // Simple reference
+                ];
+                
+                let body_lower = body.to_lowercase();
+                let references_issue = patterns.iter().any(|pattern| body_lower.contains(&pattern.to_lowercase()));
+                
+                if references_issue {
+                    // Check if this PR has route:land label
+                    let has_route_land = pr.labels.as_ref()
+                        .map(|labels| labels.iter().any(|label| label.name == "route:land"))
+                        .unwrap_or(false);
+                    
+                    // If PR references the issue but doesn't have route:land, it's blocking
+                    if !has_route_land {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+        
+        Ok(false)
+    }
 }
 
 // Implement the trait for GitHubClient
@@ -359,6 +410,10 @@ impl GitHubOps for GitHubClient {
     
     async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError> {
         self.create_branch(branch_name, from_branch).await
+    }
+    
+    async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError> {
+        self.issue_has_blocking_pr(issue_number).await
     }
     
     fn owner(&self) -> &str {
