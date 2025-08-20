@@ -1109,7 +1109,23 @@ async fn create_pr_for_issue(client: &github::GitHubClient, issue: &octocrab::mo
         Ok(pr_url)
     } else {
         let error = String::from_utf8_lossy(&output.stderr);
-        Err(github::GitHubError::NotImplemented(format!("PR creation failed: {}", error)))
+        
+        // Provide helpful error messages for common issues
+        if error.contains("No commits between") {
+            Err(github::GitHubError::NotImplemented(format!(
+                "PR creation failed: {}\n\n🔧 LIKELY CAUSE: Branch not pushed to GitHub\n   → Fix: git push origin {}\n   → Then retry: clambake land\n\n💡 TIP: clambake land requires branches to be pushed to GitHub first", 
+                error, 
+                branch_name
+            )))
+        } else if error.contains("already exists") {
+            Err(github::GitHubError::NotImplemented(format!(
+                "PR creation failed: {}\n\n🔧 LIKELY CAUSE: PR already exists for this branch\n   → Check: gh pr list --head {}\n   → Or use: gh pr view --web\n\n💡 TIP: Work may have been completed already", 
+                error,
+                branch_name
+            )))
+        } else {
+            Err(github::GitHubError::NotImplemented(format!("PR creation failed: {}", error)))
+        }
     }
 }
 
