@@ -233,6 +233,7 @@ dependencies = [
  "clap",
  "exponential-backoff",
  "octocrab",
+ "once_cell",
  "predicates",
  "serde",
  "serde_json",

@@ -77,9 +77,13 @@ impl AgentRouter {
     fn get_issue_priority(&self, issue: &Issue) -> u32 {
         // Priority based on labels: higher number = higher priority
         
-        // Highest priority: route:land tasks (Phase 2 completion)
-        if issue.labels.iter().any(|label| label.name == "route:land") {
-            100 // Maximum priority - merge-ready work
+        // Absolute highest priority: route:unblocker (critical infrastructure issues)
+        if issue.labels.iter().any(|label| label.name == "route:unblocker") {
+            200 // Absolute maximum priority - system blockers
+        }
+        // Second highest priority: route:land tasks (Phase 2 completion)
+        else if issue.labels.iter().any(|label| label.name == "route:land") {
+            100 // High priority - merge-ready work
         }
         // Standard priority labels for route:ready tasks
         else if issue.labels.iter().any(|label| label.name == "route:priority-high") {
