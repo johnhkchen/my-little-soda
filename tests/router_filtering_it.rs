@@ -2,7 +2,7 @@
 // This file validates label-based semantics on octocrab Issue objects as a contract.
 // Note: These are not invoking AgentRouter network operations; they ensure the label-state semantics used by the router remain consistent.
 
-use octocrab::models::{issues::Issue, IssueState, Label, User};
+use octocrab::models::{issues::Issue, IssueState};
 
 fn make_issue(
     number: u64,
@@ -10,85 +10,53 @@ fn make_issue(
     labels: Vec<&str>,
     assignee_login: Option<&str>,
 ) -> Issue {
-    Issue {
-        number,
-        state,
-        labels: labels
-            .into_iter()
-            .map(|name| Label {
-                id: None,
-                node_id: None,
-                url: None,
-                name: name.to_string(),
-                description: None,
-                color: None,
-                default: None,
-            })
-            .collect(),
-        assignee: assignee_login.map(|login| User {
-            login: login.to_string(),
-            id: 0u64.into(),
-            node_id: None,
-            avatar_url: None,
-            gravatar_id: None,
-            url: None,
-            html_url: None,
-            followers_url: None,
-            following_url: None,
-            gists_url: None,
-            starred_url: None,
-            subscriptions_url: None,
-            organizations_url: None,
-            repos_url: None,
-            events_url: None,
-            received_events_url: None,
-            site_admin: None,
-            name: None,
-            company: None,
-            blog: None,
-            location: None,
-            email: None,
-            hireable: None,
-            bio: None,
-            twitter_username: None,
-            public_repos: None,
-            public_gists: None,
-            followers: None,
-            following: None,
-            created_at: None,
-            updated_at: None,
-            suspended_at: None,
-        }),
-        // Unused fields defaulted
-        id: 0u64.into(),
-        node_id: None,
-        url: None,
-        repository_url: None,
-        labels_url: None,
-        comments_url: None,
-        events_url: None,
-        html_url: None,
-        number_from_url: None,
-        title: None,
-        user: None,
-        body: None,
-        closed_at: None,
-        created_at: None,
-        updated_at: None,
-        locked: None,
-        active_lock_reason: None,
-        comments: None,
-        pull_request: None,
-        milestone: None,
-        assignees: vec![],
-        author_association: None,
-        state_reason: None,
-        reactions: None,
-        timeline_url: None,
-        performed_via_github_app: None,
-        repository: None,
-        draft: None,
-    }
+    let state_str = match state {
+        IssueState::Open => "open",
+        IssueState::Closed => "closed",
+        _ => "open", // Default to open for any other states
+    };
+    
+    let assignee_json = if let Some(login) = assignee_login {
+        serde_json::json!({
+            "login": login,
+            "id": 1
+        })
+    } else {
+        serde_json::Value::Null
+    };
+
+    let labels_json: Vec<serde_json::Value> = labels.into_iter().map(|name| {
+        serde_json::json!({
+            "id": 1000,
+            "name": name
+        })
+    }).collect();
+
+    serde_json::from_value(serde_json::json!({
+        "id": number,
+        "number": number,
+        "state": state_str,
+        "title": format!("Test Issue {}", number),
+        "user": {
+            "login": "testuser",
+            "id": 1
+        },
+        "body": "Test issue body",
+        "labels": labels_json,
+        "assignee": assignee_json,
+        "assignees": assignee_login.map(|login| vec![serde_json::json!({"login": login, "id": 1})]).unwrap_or_default(),
+        "comments": 0,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2023-01-01T00:00:00Z",
+        "html_url": format!("https://github.com/test/test/issues/{}", number),
+        "url": format!("https://api.github.com/repos/test/test/issues/{}", number),
+        "repository_url": "https://api.github.com/repos/test/test",
+        "labels_url": format!("https://api.github.com/repos/test/test/issues/{}/labels{{/name}}", number),
+        "comments_url": format!("https://api.github.com/repos/test/test/issues/{}/comments", number),
+        "events_url": format!("https://api.github.com/repos/test/test/issues/{}/events", number),
+        "locked": false,
+        "author_association": "OWNER"
+    })).expect("Failed to construct test issue")
 }
 
 // These tests validate the routing semantics as a contract on issue metadata,
