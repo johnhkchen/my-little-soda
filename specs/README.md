@@ -66,6 +66,31 @@ Uniform recovery strategies:
 - `mvp.md` - MVP implementation plan
 - `test-strategy.md` - Testing approach
 
+## Super Task Specifications (Root Level)
+
+The architectural refactor is organized into 9 super tasks, each with its own specification:
+
+### Super Task Structure
+Every super task follows this naming convention: `specs/<task-number>-<task-name>.md`
+
+Each super task spec contains:
+- **Problem**: What needs to be solved
+- **Target State**: Clear end goal  
+- **Interfaces**: API contracts and data models
+- **Observability**: Monitoring and metrics
+- **Cutover Plan**: Migration strategy
+- **Definition of Done**: Acceptance criteria
+
+### Super Task Index
+See `000-index.md` for the complete list of all 9 super tasks, their dependencies, and current status.
+
+### Super Task Guidelines
+1. **Spec-first approach**: Specification must be approved before implementation begins
+2. **Versioned specs**: All changes go through code review
+3. **Clear acceptance criteria**: Unambiguous definition of completion
+4. **Migration planning**: How to move from current to target state
+5. **Rollback strategy**: How to undo changes if needed
+
 ## Using Specifications
 
 ### For Developers
