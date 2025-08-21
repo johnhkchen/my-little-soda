@@ -363,13 +363,39 @@ impl GitHubClient {
             
         let (approved_reviews, requested_changes) = match reviews_result {
             Ok(reviews) => {
-                let approved = reviews.items.iter()
+                // Get latest review per reviewer by comparing submitted_at timestamps
+                let mut latest_reviews: std::collections::HashMap<octocrab::models::UserId, &octocrab::models::pulls::Review> = std::collections::HashMap::new();
+                
+                for review in &reviews.items {
+                    if let Some(user) = &review.user {
+                        let user_id = user.id;
+                        
+                        // Check if this is the latest review from this user
+                        match latest_reviews.get(&user_id) {
+                            Some(existing_review) => {
+                                // Compare submitted_at to keep the latest review
+                                if let (Some(new_submitted), Some(existing_submitted)) = 
+                                    (&review.submitted_at, &existing_review.submitted_at) {
+                                    if new_submitted > existing_submitted {
+                                        latest_reviews.insert(user_id, review);
+                                    }
+                                }
+                            }
+                            None => {
+                                latest_reviews.insert(user_id, review);
+                            }
+                        }
+                    }
+                }
+                
+                // Count approved and changes requested from latest reviews only
+                let approved = latest_reviews.values()
                     .filter(|review| {
                         review.state.as_ref().map(|s| format!("{:?}", s).contains("Approved")).unwrap_or(false)
                     })
                     .count();
                     
-                let changes = reviews.items.iter()
+                let changes = latest_reviews.values()
                     .filter(|review| {
                         review.state.as_ref().map(|s| format!("{:?}", s).contains("ChangesRequested")).unwrap_or(false)
                     })
