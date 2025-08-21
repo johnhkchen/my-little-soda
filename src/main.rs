@@ -43,6 +43,9 @@ enum Commands {
         /// Force early train departure to bundle all completed branches into PR
         #[arg(long, help = "Override schedule to bundle all queued branches immediately")]
         bundle_branches: bool,
+        /// Auto-approve all prompts during bundling (non-interactive mode)
+        #[arg(short = 'y', long, help = "Skip interactive prompts and auto-approve bundling operations")]
+        yes: bool,
     },
     /// Display system status, agent utilization, and task queue overview
     Status,
@@ -82,7 +85,7 @@ enum Commands {
     Peek,
 }
 
-async fn bundle_all_branches() -> Result<()> {
+async fn bundle_all_branches(auto_approve: bool) -> Result<()> {
     print!("🔍 Scanning for completed agent work... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
     
@@ -251,9 +254,9 @@ fn main() -> Result<()> {
                 route_tickets_command(agents).await
             })
         },
-        Some(Commands::Pop { mine, bundle_branches }) => {
+        Some(Commands::Pop { mine, bundle_branches, yes }) => {
             tokio::runtime::Runtime::new()?.block_on(async {
-                pop_task_command(mine, bundle_branches).await
+                pop_task_command(mine, bundle_branches, yes).await
             })
         },
         Some(Commands::Status) => {
@@ -350,13 +353,13 @@ async fn route_tickets_command(agents: u32) -> Result<()> {
     Ok(())
 }
 
-async fn pop_task_command(mine_only: bool, bundle_branches: bool) -> Result<()> {
+async fn pop_task_command(mine_only: bool, bundle_branches: bool, auto_approve: bool) -> Result<()> {
     // Handle bundle branches special case first
     if bundle_branches {
         println!("🚄 EMERGENCY TRAIN DEPARTURE - Bundling all queued branches");
         println!("========================================================");
         println!();
-        return bundle_all_branches().await;
+        return bundle_all_branches(auto_approve).await;
     }
     
     if mine_only {
