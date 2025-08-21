@@ -6,6 +6,7 @@ pub mod agents;
 pub mod workflows;
 pub mod priority;
 pub mod train_schedule;
+pub mod telemetry;
 
 // Re-export key types for easy access
 pub use github::{GitHubClient, GitHubError};
@@ -13,3 +14,4 @@ pub use agents::{AgentCoordinator, AgentRouter, WorkIntegrator, CompletedWork, I
 pub use workflows::{StateMachine, StateTransition, TransitionResult};
 pub use priority::Priority;
 pub use train_schedule::{TrainSchedule, ScheduleStatus, QueuedBranch};
+pub use telemetry::{init_telemetry, shutdown_telemetry, generate_correlation_id, create_coordination_span};

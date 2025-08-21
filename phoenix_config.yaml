@@ -1,0 +1,83 @@
+# Phoenix Observability Dashboard Configuration
+# This configures Arize Phoenix for observability (placeholder configuration)
+# Currently Clambake uses structured JSON logging for telemetry
+# Future versions will add OpenTelemetry integration for Phoenix
+
+# Server Configuration
+server:
+  host: "0.0.0.0"
+  port: 6006
+  
+# OpenTelemetry Collector Configuration
+collector:
+  grpc_endpoint: "0.0.0.0:4317"
+  http_endpoint: "0.0.0.0:4318"
+  traces_endpoint: "/v1/traces"
+
+# Dashboard Configuration
+dashboard:
+  title: "Clambake Agent Coordination"
+  description: "Multi-agent GitHub orchestration observability"
+  
+  # Key metrics to display
+  metrics:
+    - name: "Agent Assignment Rate"
+      query: "rate(agent_coordination{operation='assign_agent_to_issue'}[5m])"
+      description: "Rate of agent assignments per minute"
+      
+    - name: "Issue Routing Success Rate"
+      query: "rate(agent_coordination{operation='route_issues_to_agents',status='success'}[5m]) / rate(agent_coordination{operation='route_issues_to_agents'}[5m])"
+      description: "Percentage of successful issue routing operations"
+      
+    - name: "Average Assignment Duration"
+      query: "histogram_quantile(0.95, agent_coordination_duration{operation='assign_agent_to_issue'})"
+      description: "95th percentile assignment duration"
+
+# Trace Configuration
+traces:
+  # Attributes to index for fast searching
+  indexed_attributes:
+    - "agent.id"
+    - "issue.number"
+    - "operation"
+    - "correlation.id"
+    - "otel.kind"
+    
+  # Retention policy
+  retention_days: 7
+  
+  # Sampling configuration
+  sampling:
+    default_rate: 1.0  # Sample all traces for debugging
+    
+# Alerting (optional)
+alerts:
+  - name: "High Assignment Failure Rate"
+    condition: "rate(agent_coordination{operation='assign_agent_to_issue',status='error'}[5m]) > 0.1"
+    description: "Alert when agent assignment failure rate exceeds 10%"
+    
+  - name: "No Agent Activity"
+    condition: "absent(rate(agent_coordination[5m]))"
+    description: "Alert when no agent coordination activity is detected"
+
+# Environment Variables
+environment:
+  PHOENIX_HOST: "localhost"
+  PHOENIX_PORT: "6006"
+  PHOENIX_OTLP_ENDPOINT: "http://localhost:6006/v1/traces"
+  
+# Docker Configuration (for containerized deployment)
+docker:
+  image: "arizephoenix/phoenix:latest"
+  ports:
+    - "6006:6006"  # Phoenix dashboard
+    - "4317:4317"  # OTLP gRPC receiver
+    - "4318:4318"  # OTLP HTTP receiver
+    
+  environment:
+    - PHOENIX_WORKING_DIR=/phoenix-data
+    - PHOENIX_HOST=0.0.0.0
+    - PHOENIX_PORT=6006
+    
+  volumes:
+    - phoenix-data:/phoenix-data

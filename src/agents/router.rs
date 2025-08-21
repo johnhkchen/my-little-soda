@@ -4,9 +4,11 @@
 use crate::github::{GitHubClient, GitHubError};
 use crate::agents::{Agent, AgentCoordinator};
 use crate::priority::Priority;
+use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use octocrab::models::issues::Issue;
 use std::collections::HashMap;
 use std::process::Command;
+use tracing::Instrument;
 
 #[derive(Debug)]
 pub struct AgentRouter {
@@ -200,8 +202,20 @@ impl AgentRouter {
     }
 
     pub async fn route_issues_to_agents(&self) -> Result<Vec<RoutingAssignment>, GitHubError> {
-        let mut issues = self.fetch_routable_issues().await?;
-        let available_agents = self.coordinator.get_available_agents().await?;
+        let correlation_id = generate_correlation_id();
+        let span = create_coordination_span("route_issues_to_agents", None, None, Some(&correlation_id));
+        
+        async move {
+            tracing::info!(correlation_id = %correlation_id, "Starting issue routing");
+            
+            let mut issues = self.fetch_routable_issues().await?;
+            let available_agents = self.coordinator.get_available_agents().await?;
+            
+            tracing::info!(
+                issue_count = issues.len(),
+                available_agent_count = available_agents.len(),
+                "Fetched issues and agents for routing"
+            );
         
         // Sort issues by priority: high priority first
         issues.sort_by(|a, b| {
@@ -226,19 +240,45 @@ impl AgentRouter {
                 if !is_route_land {
                     // Only assign for non-route:land tasks
                     self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
+                    tracing::info!(
+                        agent_id = %agent.id,
+                        issue_number = issue.number,
+                        issue_title = %issue.title,
+                        "Assigned agent to issue"
+                    );
+                } else {
+                    tracing::info!(
+                        issue_number = issue.number,
+                        issue_title = %issue.title,
+                        "Skipped assignment for route:land task"
+                    );
                 }
                 
                 assignments.push(assignment);
             }
         }
         
+        tracing::info!(assignment_count = assignments.len(), "Completed issue routing");
         Ok(assignments)
+        }.instrument(span).await
     }
 
     pub async fn pop_task_assigned_to_me(&self) -> Result<Option<RoutingAssignment>, GitHubError> {
-        // Get issues assigned to current user (repo owner) only
-        let all_issues = self.github_client.fetch_issues().await?;
-        let current_user = self.github_client.owner();
+        let correlation_id = generate_correlation_id();
+        let span = create_coordination_span("pop_task_assigned_to_me", None, None, Some(&correlation_id));
+        
+        async move {
+            tracing::info!(correlation_id = %correlation_id, "Starting task pop operation");
+            
+            // Get issues assigned to current user (repo owner) only
+            let all_issues = self.github_client.fetch_issues().await?;
+            let current_user = self.github_client.owner();
+            
+            tracing::debug!(
+                current_user = %current_user,
+                total_issues = all_issues.len(),
+                "Fetched issues for task filtering"
+            );
         
         // Filter for issues assigned to current user with route:ready label
         let mut my_issues: Vec<_> = all_issues
@@ -295,8 +335,10 @@ impl AgentRouter {
                 assigned_agent: agent.clone(),
             }))
         } else {
+            tracing::info!("No assigned tasks available for current user");
             Ok(None)
         }
+        }.instrument(span).await
     }
 
     pub async fn pop_any_available_task(&self) -> Result<Option<RoutingAssignment>, GitHubError> {
