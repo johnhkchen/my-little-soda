@@ -703,7 +703,7 @@ async fn reset_command() -> Result<()> {
 
 // Helper function to remove a label from an issue
 async fn remove_label_from_issue(
-    _client: &github::GitHubClient,
+    client: &github::GitHubClient,
     issue_number: u64,
     label_name: &str,
 ) -> Result<(), github::GitHubError> {
@@ -711,8 +711,9 @@ async fn remove_label_from_issue(
     // For now, we'll use the gh CLI as a simple implementation
     use std::process::Command;
     
+    let repo = format!("{}/{}", client.owner(), client.repo());
     let output = Command::new("gh")
-        .args(&["issue", "edit", &issue_number.to_string(), "--remove-label", label_name])
+        .args(&["issue", "edit", &issue_number.to_string(), "-R", &repo, "--remove-label", label_name])
         .output();
     
     match output {
@@ -734,15 +735,16 @@ async fn remove_label_from_issue(
 }
 
 async fn add_label_to_issue(
-    _client: &github::GitHubClient,
+    client: &github::GitHubClient,
     issue_number: u64,
     label_name: &str,
 ) -> Result<(), github::GitHubError> {
     // Use GitHub CLI to add label to issue
     use std::process::Command;
     
+    let repo = format!("{}/{}", client.owner(), client.repo());
     let output = Command::new("gh")
-        .args(&["issue", "edit", &issue_number.to_string(), "--add-label", label_name])
+        .args(&["issue", "edit", &issue_number.to_string(), "-R", &repo, "--add-label", label_name])
         .output();
     
     match output {
