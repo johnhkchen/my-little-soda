@@ -216,6 +216,181 @@ mod tests {
         assert_eq!(ongoing_work[0].assignee.as_ref().unwrap().login, "johnhkchen");
     }
     
+    #[tokio::test]
+    async fn test_agent001_specific_label_assignment() {
+        // Given: A mock client for testing specifically agent001 labeling
+        let mock_client = MockGitHubClient::new("johnhkchen", "clambake");
+        
+        // When: Agent001 is assigned to various issue numbers
+        mock_client.add_label_to_issue(42, "agent001").await.unwrap();
+        mock_client.add_label_to_issue(100, "agent001").await.unwrap();
+        mock_client.add_label_to_issue(999, "agent001").await.unwrap();
+        
+        // Then: All API calls should be correctly recorded with agent001 label
+        let api_calls = mock_client.get_api_calls();
+        assert_eq!(api_calls.len(), 3);
+        
+        for (i, expected_issue) in [42, 100, 999].iter().enumerate() {
+            match &api_calls[i] {
+                ApiCall::AddLabel { issue_number, label } => {
+                    assert_eq!(*issue_number, *expected_issue);
+                    assert_eq!(label, "agent001");
+                }
+                _ => panic!("Expected AddLabel API call for issue {}", expected_issue),
+            }
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_agent001_branch_naming_convention() {
+        // Given: A mock client for testing agent001 branch creation
+        let mock_client = MockGitHubClient::new("johnhkchen", "clambake");
+        
+        // When: Branches are created for agent001 working on different issues
+        mock_client.create_branch("agent001/17", "main").await.unwrap();
+        mock_client.create_branch("agent001/25", "main").await.unwrap();
+        mock_client.create_branch("agent001/142", "main").await.unwrap();
+        
+        // Then: Branch names should follow agent001/{issue_number} pattern
+        let api_calls = mock_client.get_api_calls();
+        assert_eq!(api_calls.len(), 3);
+        
+        let expected_branches = ["agent001/17", "agent001/25", "agent001/142"];
+        for (i, expected_branch) in expected_branches.iter().enumerate() {
+            match &api_calls[i] {
+                ApiCall::CreateBranch { branch_name, from_branch } => {
+                    assert_eq!(branch_name, expected_branch);
+                    assert_eq!(from_branch, "main");
+                }
+                _ => panic!("Expected CreateBranch API call for branch {}", expected_branch),
+            }
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_agent001_end_to_end_workflow() {
+        // Given: A mock client to test the full agent001 workflow
+        let mock_client = MockGitHubClient::new("johnhkchen", "clambake");
+        
+        // When: A complete agent001 assignment workflow is executed
+        let issue_number = 17;
+        let agent_id = "agent001";
+        let github_user = "johnhkchen";
+        
+        // Step 1: Assign issue to GitHub user
+        mock_client.assign_issue(issue_number, github_user).await.unwrap();
+        // Step 2: Add agent001 label to track agent assignment
+        mock_client.add_label_to_issue(issue_number, agent_id).await.unwrap();
+        // Step 3: Create agent001 work branch
+        let branch_name = format!("{}/{}", agent_id, issue_number);
+        mock_client.create_branch(&branch_name, "main").await.unwrap();
+        
+        // Then: All workflow steps should be properly executed
+        let api_calls = mock_client.get_api_calls();
+        assert_eq!(api_calls.len(), 3);
+        
+        // Verify assignment step
+        match &api_calls[0] {
+            ApiCall::AssignIssue { issue_number: num, assignee } => {
+                assert_eq!(*num, issue_number);
+                assert_eq!(assignee, github_user);
+            }
+            _ => panic!("Expected AssignIssue API call"),
+        }
+        
+        // Verify agent labeling step
+        match &api_calls[1] {
+            ApiCall::AddLabel { issue_number: num, label } => {
+                assert_eq!(*num, issue_number);
+                assert_eq!(label, agent_id);
+            }
+            _ => panic!("Expected AddLabel API call with agent001"),
+        }
+        
+        // Verify branch creation step
+        match &api_calls[2] {
+            ApiCall::CreateBranch { branch_name: name, from_branch } => {
+                assert_eq!(name, "agent001/17");
+                assert_eq!(from_branch, "main");
+            }
+            _ => panic!("Expected CreateBranch API call"),
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_agent001_label_filtering_logic() {
+        // Given: Test data with various agent labels
+        let labels_with_agent001 = vec!["route:ready", "agent001", "bug"];
+        let labels_with_other_agent = vec!["route:ready", "agent002", "feature"];
+        let labels_without_agent = vec!["route:ready", "enhancement"];
+        
+        // Define filtering logic similar to production code
+        let has_agent001_label = |labels: &Vec<&str>| {
+            labels.iter().any(|l| *l == "agent001")
+        };
+        
+        let has_any_agent_label = |labels: &Vec<&str>| {
+            labels.iter().any(|l| l.starts_with("agent"))
+        };
+        
+        let is_routable_for_agent001 = |labels: &Vec<&str>| {
+            let has_route_ready = labels.iter().any(|l| *l == "route:ready");
+            let already_has_agent = has_any_agent_label(labels);
+            // Only routable if has route:ready and no agent assigned yet
+            has_route_ready && !already_has_agent
+        };
+        
+        // Then: agent001 label detection should work correctly
+        assert!(has_agent001_label(&labels_with_agent001));
+        assert!(!has_agent001_label(&labels_with_other_agent));
+        assert!(!has_agent001_label(&labels_without_agent));
+        
+        // And: routing logic should prevent double-assignment
+        assert!(!is_routable_for_agent001(&labels_with_agent001)); // Already assigned to agent001
+        assert!(!is_routable_for_agent001(&labels_with_other_agent)); // Already assigned to other agent
+        assert!(is_routable_for_agent001(&labels_without_agent)); // Available for assignment
+    }
+    
+    #[tokio::test]
+    async fn test_agent001_multiple_concurrent_assignments() {
+        // Given: A mock client for testing concurrent operations
+        let mock_client = MockGitHubClient::new("johnhkchen", "clambake");
+        
+        // When: Multiple rapid assignments happen for agent001
+        // This simulates what could happen during high-throughput periods
+        let issues = [17, 42, 99];
+        for &issue_num in &issues {
+            mock_client.assign_issue(issue_num, "johnhkchen").await.unwrap();
+            mock_client.add_label_to_issue(issue_num, "agent001").await.unwrap();
+        }
+        
+        // Then: All assignments should be tracked correctly
+        let api_calls = mock_client.get_api_calls();
+        assert_eq!(api_calls.len(), 6); // 3 assignments + 3 labelings
+        
+        // Verify alternating pattern of assign -> label for each issue
+        for (i, &issue_num) in issues.iter().enumerate() {
+            let assign_idx = i * 2;
+            let label_idx = i * 2 + 1;
+            
+            match &api_calls[assign_idx] {
+                ApiCall::AssignIssue { issue_number, assignee } => {
+                    assert_eq!(*issue_number, issue_num);
+                    assert_eq!(assignee, "johnhkchen");
+                }
+                _ => panic!("Expected AssignIssue at index {}", assign_idx),
+            }
+            
+            match &api_calls[label_idx] {
+                ApiCall::AddLabel { issue_number, label } => {
+                    assert_eq!(*issue_number, issue_num);
+                    assert_eq!(label, "agent001");
+                }
+                _ => panic!("Expected AddLabel at index {}", label_idx),
+            }
+        }
+    }
+    
     // Future tests for multi-agent and human-only scenarios
     // Creating GitHub issues to track these features for later implementation
 }
