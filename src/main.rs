@@ -1750,7 +1750,7 @@ async fn detect_bundle_candidates(client: &github::GitHubClient, current_branch:
     let ready_issues: Vec<_> = issues.into_iter()
         .filter(|issue| {
             issue.state == octocrab::models::IssueState::Open &&
-            issue.labels.iter().any(|label| label.name == "route:ready") &&
+            issue.labels.iter().any(|label| label.name == "route:review") &&
             issue.labels.iter().any(|label| label.name.starts_with("agent"))
         })
         .collect();

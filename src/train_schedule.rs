@@ -119,34 +119,35 @@ impl TrainSchedule {
         Ok(queued_branches)
     }
     
-    /// Check if a branch has completed work (commits ahead and route:ready label)
+    /// Check if a branch has completed work (issue has route:review label)
     async fn branch_has_completed_work(branch_name: &str) -> Result<bool, Box<dyn std::error::Error>> {
-        // Check if branch has commits ahead of main
-        let output = Command::new("git")
-            .args(&["rev-list", "--count", &format!("origin/{}..origin/main", branch_name)])
+        // Parse issue number from branch name (agent001/123 -> 123)
+        let issue_number = if let Some((_, issue_number_str)) = branch_name.split_once('/') {
+            issue_number_str.parse::<u64>().unwrap_or(0)
+        } else {
+            return Ok(false);
+        };
+        
+        if issue_number == 0 {
+            return Ok(false);
+        }
+        
+        // Check if the issue has route:review label (indicating completed work)
+        let output = Command::new("gh")
+            .args(&["issue", "view", &issue_number.to_string(), "--json", "labels,state"])
             .output()?;
             
         if !output.status.success() {
             return Ok(false);
         }
         
-        let commits_behind_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let _commits_behind: u32 = commits_behind_str.parse().unwrap_or(0);
+        let json_str = String::from_utf8_lossy(&output.stdout);
         
-        // Check commits ahead
-        let output = Command::new("git")
-            .args(&["rev-list", "--count", &format!("origin/main..origin/{}", branch_name)])
-            .output()?;
-            
-        if !output.status.success() {
-            return Ok(false);
-        }
+        // Check if issue is open and has route:review label
+        let is_open = json_str.contains("\"state\":\"OPEN\"");
+        let has_route_review = json_str.contains("\"name\":\"route:review\"");
         
-        let commits_ahead_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let commits_ahead: u32 = commits_ahead_str.parse().unwrap_or(0);
-        
-        // Branch has work if it has commits ahead
-        Ok(commits_ahead > 0)
+        Ok(is_open && has_route_review)
     }
     
     /// Get a description for the branch work from the issue

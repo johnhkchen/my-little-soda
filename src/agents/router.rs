@@ -125,8 +125,8 @@ impl AgentRouter {
                 .any(|label| label.name == "route:land");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
-            let has_work_completed = issue.labels.iter()
-                .any(|label| label.name == "work:completed");
+            let has_route_review = issue.labels.iter()
+                .any(|label| label.name == "route:review");
             
             // For route:ready - agent must NOT be assigned yet
             // For route:land - agent assignment doesn't matter (any agent can complete merge)
@@ -139,12 +139,12 @@ impl AgentRouter {
                 .any(|label| label.name == "route:human-only");
             
             // Route logic:
-            // - work:completed tasks: not routable (awaiting bundling)
+            // - route:review tasks: not routable (awaiting bundling)
             // - route:unblocker tasks: routable only if no agent assigned AND work not completed
             // - route:land tasks: always routable (any agent can complete merge)
             // - route:ready tasks: only if no agent assigned AND work not completed
-            let is_routable = if has_work_completed {
-                false // work:completed issues are not routable (awaiting bundling)
+            let is_routable = if has_route_review {
+                false // route:review issues are not routable (awaiting bundling)
             } else if has_route_unblocker {
                 if has_agent_label {
                     // Check if this agent branch has completed work - if so, exclude from routing
@@ -250,10 +250,10 @@ impl AgentRouter {
                     .unwrap_or(false);
                 let has_route_label = issue.labels.iter()
                     .any(|label| label.name == "route:ready");
-                let has_work_completed = issue.labels.iter()
-                    .any(|label| label.name == "work:completed");
+                let has_route_review = issue.labels.iter()
+                    .any(|label| label.name == "route:review");
                 
-                let basic_filter = is_open && is_assigned_to_me && has_route_label && !has_work_completed;
+                let basic_filter = is_open && is_assigned_to_me && has_route_label && !has_route_review;
                 
                 if basic_filter {
                     // Check if work is completed on this issue (prevents re-assignment of completed work)
@@ -315,15 +315,15 @@ impl AgentRouter {
                 .any(|label| label.name == "route:land");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
-            let has_work_completed = issue.labels.iter()
-                .any(|label| label.name == "work:completed");
+            let has_route_review = issue.labels.iter()
+                .any(|label| label.name == "route:review");
             
             if !is_open || (!has_route_ready && !has_route_land && !has_route_unblocker) {
                 continue;
             }
             
-            // Skip work:completed issues (awaiting bundling)
-            if has_work_completed {
+            // Skip route:review issues (awaiting bundling)
+            if has_route_review {
                 continue;
             }
             
