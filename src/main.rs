@@ -11,6 +11,7 @@ mod priority;
 mod train_schedule;
 mod telemetry;
 mod metrics;
+mod git;
 
 use agents::AgentRouter;
 use std::process::Command;
@@ -18,6 +19,7 @@ use github::GitHubClient;
 use priority::Priority;
 use train_schedule::TrainSchedule;
 use telemetry::{init_telemetry, shutdown_telemetry};
+use git::{GitOperations, Git2Operations};
 
 #[derive(Parser)]
 #[command(name = "clambake")]
@@ -172,16 +174,20 @@ async fn process_overdue_branches_interactively(overdue_branches: Vec<train_sche
         
         // Step 1: Switch to branch
         println!("Step 1: Switching to branch...");
-        let output = Command::new("git")
-            .args(&["checkout", &branch.branch_name])
-            .output();
-            
-        match output {
-            Ok(result) if result.status.success() => {
+        let git_ops = match create_git_ops() {
+            Ok(ops) => ops,
+            Err(e) => {
+                println!("❌ Failed to initialize git operations: {}", e);
+                continue;
+            }
+        };
+        
+        match git_ops.checkout_branch(&branch.branch_name) {
+            Ok(()) => {
                 println!("✅ Switched to branch {}", branch.branch_name);
             }
-            Ok(result) => {
-                println!("❌ Failed to switch to branch: {}", String::from_utf8_lossy(&result.stderr));
+            Err(e) => {
+                println!("❌ Failed to switch to branch: {}", e);
                 print!("Continue to next branch? [y/N]: ");
                 std::io::Write::flush(&mut std::io::stdout()).unwrap();
                 
@@ -192,30 +198,22 @@ async fn process_overdue_branches_interactively(overdue_branches: Vec<train_sche
                 }
                 continue;
             }
-            Err(e) => {
-                println!("❌ Git checkout failed: {}", e);
-                continue;
-            }
         }
         
         // Step 2: Show commit details
         println!();
         println!("Step 2: Reviewing commits...");
-        let output = Command::new("git")
-            .args(&["log", "--oneline", "origin/main..HEAD"])
-            .output();
-            
-        match output {
-            Ok(result) if result.status.success() => {
-                let commits = String::from_utf8_lossy(&result.stdout);
-                if commits.trim().is_empty() {
+        
+        match git_ops.get_commits(Some("origin/main"), Some("HEAD")) {
+            Ok(commits) => {
+                if commits.is_empty() {
                     println!("⚠️  No commits found ahead of main - skipping");
                     continue;
                 }
                 
                 println!("📝 Commits to be included:");
-                for line in commits.lines() {
-                    println!("   {}", line);
+                for commit in &commits {
+                    println!("   {} {}", &commit.id[..8], commit.message.lines().next().unwrap_or(""));
                 }
                 
                 println!();
@@ -229,8 +227,8 @@ async fn process_overdue_branches_interactively(overdue_branches: Vec<train_sche
                     continue;
                 }
             }
-            _ => {
-                println!("❌ Could not retrieve commit information - skipping");
+            Err(e) => {
+                println!("❌ Could not retrieve commit information: {} - skipping", e);
                 continue;
             }
         }
@@ -238,30 +236,24 @@ async fn process_overdue_branches_interactively(overdue_branches: Vec<train_sche
         // Step 3: Push to origin if needed
         println!();
         println!("Step 3: Ensuring branch is pushed to origin...");
-        let output = Command::new("git")
-            .args(&["push", "origin", &branch.branch_name])
-            .output();
-            
-        match output {
-            Ok(result) if result.status.success() => {
+        
+        match git_ops.push("origin", &branch.branch_name) {
+            Ok(()) => {
                 println!("✅ Branch pushed to origin");
             }
-            Ok(result) => {
-                let stderr = String::from_utf8_lossy(&result.stderr);
-                if stderr.contains("up-to-date") {
+            Err(e) => {
+                let error_msg = e.to_string();
+                if error_msg.contains("up-to-date") {
                     println!("✅ Branch already up-to-date on origin");
                 } else {
-                    println!("⚠️  Push result: {}", stderr);
-                }
-            }
-            Err(e) => {
-                println!("❌ Push failed: {}", e);
-                print!("Continue anyway? [y/N]: ");
-                std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                
-                let mut input = String::new();
-                if std::io::stdin().read_line(&mut input).is_ok() && input.trim().to_lowercase() != "y" {
-                    continue;
+                    println!("❌ Push failed: {}", error_msg);
+                    print!("Continue anyway? [y/N]: ");
+                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                    
+                    let mut input = String::new();
+                    if std::io::stdin().read_line(&mut input).is_ok() && input.trim().to_lowercase() != "y" {
+                        continue;
+                    }
                 }
             }
         }
@@ -454,6 +446,11 @@ async fn force_land_with_override(client: &github::GitHubClient, queued_branches
     }
     
     Ok(())
+}
+
+/// Helper function to create Git2Operations instance for the current directory
+fn create_git_ops() -> Result<Git2Operations> {
+    Git2Operations::new(".")
 }
 
 fn main() -> Result<()> {
@@ -1916,37 +1913,75 @@ Co-Authored-By: Multiple Agents <agents@clambake.dev>",
 }
 
 fn create_bundle_branch(bundle_branch: &str, branch_names: &[String]) -> Result<(), std::io::Error> {
-    // Create new bundle branch from main
-    Command::new("git")
-        .args(&["checkout", "-b", bundle_branch, "main"])
-        .output()?;
+    let git_ops = create_git_ops().map_err(|e| std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("Failed to initialize git operations: {}", e)
+    ))?;
     
-    // Merge each branch into the bundle
+    // Create new bundle branch from main
+    git_ops.create_branch(bundle_branch, "main").map_err(|e| std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("Failed to create bundle branch: {}", e)
+    ))?;
+    
+    git_ops.checkout_branch(bundle_branch).map_err(|e| std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("Failed to checkout bundle branch: {}", e)
+    ))?;
+    
+    // Cherry-pick commits from each branch into the bundle
     for branch_name in branch_names {
-        let output = Command::new("git")
-            .args(&["merge", "--no-ff", branch_name, "-m", &format!("Bundle: merge {}", branch_name)])
-            .output()?;
+        // Get all commits from the branch that are ahead of main
+        let commits = git_ops.get_commits(Some("main"), Some(branch_name)).map_err(|e| std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Failed to get commits for branch {}: {}", branch_name, e)
+        ))?;
         
-        if !output.status.success() {
-            // If merge fails, cleanup and return error
-            let _ = Command::new("git").args(&["checkout", "main"]).output();
-            let _ = Command::new("git").args(&["branch", "-D", bundle_branch]).output();
-            return Err(std::io::Error::new(
+        // Cherry-pick each commit
+        for commit in commits {
+            let commit_oid = git2::Oid::from_str(&commit.id).map_err(|e| std::io::Error::new(
                 std::io::ErrorKind::Other,
-                format!("Failed to merge branch {} into bundle", branch_name)
-            ));
+                format!("Invalid commit ID {}: {}", commit.id, e)
+            ))?;
+            
+            match git_ops.cherry_pick(commit_oid) {
+                Ok(Some(conflicts)) => {
+                    // Cherry-pick had conflicts - cleanup and return error
+                    let _ = git_ops.checkout_branch("main");
+                    let _ = git_ops.delete_branch(bundle_branch, true);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Cherry-pick conflicts in branch {}: {:?}", branch_name, conflicts)
+                    ));
+                }
+                Ok(None) => {
+                    // Cherry-pick succeeded
+                    println!("✅ Cherry-picked commit {} from {}", &commit.id[..8], branch_name);
+                }
+                Err(e) => {
+                    // Cherry-pick failed - cleanup and return error
+                    let _ = git_ops.checkout_branch("main");
+                    let _ = git_ops.delete_branch(bundle_branch, true);
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Failed to cherry-pick from branch {}: {}", branch_name, e)
+                    ));
+                }
+            }
         }
     }
     
     // Push bundle branch
-    Command::new("git")
-        .args(&["push", "origin", bundle_branch])
-        .output()?;
+    git_ops.push("origin", bundle_branch).map_err(|e| std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("Failed to push bundle branch: {}", e)
+    ))?;
     
     // Switch back to main
-    Command::new("git")
-        .args(&["checkout", "main"])
-        .output()?;
+    git_ops.checkout_branch("main").map_err(|e| std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("Failed to switch back to main: {}", e)
+    ))?;
     
     Ok(())
 }

@@ -5,6 +5,7 @@ use crate::github::{GitHubClient, GitHubError};
 use crate::agents::{Agent, AgentCoordinator};
 use crate::priority::Priority;
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
+use crate::git::{GitOperations, Git2Operations};
 use octocrab::models::issues::Issue;
 use std::collections::HashMap;
 use std::process::Command;
@@ -66,45 +67,30 @@ impl AgentRouter {
 
     /// Check if a branch has commits ahead of main branch
     fn branch_has_commits_ahead_of_main(&self, branch_name: &str) -> bool {
+        let git_ops = match Git2Operations::new(".") {
+            Ok(ops) => ops,
+            Err(_) => return false,
+        };
+        
         // First check if branch exists locally
-        let branch_exists = Command::new("git")
-            .args(&["show-ref", "--verify", &format!("refs/heads/{}", branch_name)])
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false);
+        let branch_exists = git_ops.branch_exists(branch_name).unwrap_or(false);
         
         if !branch_exists {
             // Check if branch exists on remote
-            let remote_branch_exists = Command::new("git")
-                .args(&["show-ref", "--verify", &format!("refs/remotes/origin/{}", branch_name)])
-                .output()
-                .map(|output| output.status.success())
-                .unwrap_or(false);
+            let remote_branch_exists = git_ops.remote_branch_exists("origin", branch_name).unwrap_or(false);
             
             if !remote_branch_exists {
                 return false; // Branch doesn't exist
             }
             
             // Fetch the remote branch
-            let _ = Command::new("git").args(&["fetch", "origin", branch_name]).output();
+            let _ = git_ops.fetch("origin");
         }
         
         // Check if branch has commits ahead of main
-        let output = Command::new("git")
-            .args(&["rev-list", "--count", &format!("main..{}", branch_name)])
-            .output();
-        
-        match output {
-            Ok(result) => {
-                if result.status.success() {
-                    let count_str = String::from_utf8_lossy(&result.stdout);
-                    let count: u32 = count_str.trim().parse().unwrap_or(0);
-                    count > 0 // Has commits ahead of main
-                } else {
-                    false // Git command failed, assume not ready
-                }
-            }
-            Err(_) => false,
+        match git_ops.get_commits(Some("main"), Some(branch_name)) {
+            Ok(commits) => !commits.is_empty(), // Has commits ahead of main
+            Err(_) => false, // Git operation failed, assume not ready
         }
     }
 
