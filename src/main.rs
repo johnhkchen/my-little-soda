@@ -202,7 +202,7 @@ async fn force_land_with_override(client: &github::GitHubClient, queued_branches
         
         println!("📋 Processing: {} ({})", work.issue.title, status_desc);
         
-        match cleanup_completed_work(client, work, false).await {
+        match cleanup_completed_work_with_mode(client, work, false, true).await {
             Ok(_) => {
                 cleaned_up += 1;
                 println!("   ✅ Cleaned up successfully");
@@ -1855,14 +1855,27 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
 }
 
 async fn cleanup_completed_work(client: &github::GitHubClient, work: &CompletedWork, dry_run: bool) -> Result<(), github::GitHubError> {
+    cleanup_completed_work_with_mode(client, work, dry_run, false).await
+}
+
+async fn cleanup_completed_work_with_mode(client: &github::GitHubClient, work: &CompletedWork, dry_run: bool, emergency_bundling: bool) -> Result<(), github::GitHubError> {
     match work.work_type {
         CompletedWorkType::ReadyForPhaseOne => {
-            // New bundle workflow: Mark work complete and free agent (no immediate PR)
-            if !dry_run {
-                transition_to_work_completed(client, work).await?
+            if emergency_bundling {
+                // Emergency bundling: Create PR immediately
+                if !dry_run {
+                    execute_phase_one(client, work).await?
+                } else {
+                    println!("   📝 Emergency: Would create PR immediately");
+                }
             } else {
-                println!("   📝 Bundle: Would mark work complete and free agent");
-                println!("   📝 No immediate PR creation - work queued for bundling");
+                // Normal bundle workflow: Mark work complete and free agent (no immediate PR)
+                if !dry_run {
+                    transition_to_work_completed(client, work).await?
+                } else {
+                    println!("   📝 Bundle: Would mark work complete and free agent");
+                    println!("   📝 No immediate PR creation - work queued for bundling");
+                }
             }
         }
         CompletedWorkType::ReadyForPhaseTwo => {
