@@ -55,6 +55,7 @@ pub trait GitHubOps {
     async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError>;
     async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<(), GitHubError>;
     async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError>;
+    async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError>;
     async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError>;
     async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError>;
     fn owner(&self) -> &str;
@@ -520,6 +521,20 @@ impl GitHubClient {
         Ok(())
     }
 
+    pub async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError> {
+        let issue = self.octocrab
+            .issues(&self.owner, &self.repo)
+            .create(title)
+            .body(body)
+            .labels(labels)
+            .send()
+            .await
+            .map_err(GitHubError::ApiError)?;
+        
+        println!("✅ Created issue #{}: {}", issue.number, title);
+        Ok(issue)
+    }
+
     pub async fn fetch_open_pull_requests(&self) -> Result<Vec<octocrab::models::pulls::PullRequest>, GitHubError> {
         let pulls = self.octocrab
             .pulls(&self.owner, &self.repo)
@@ -852,6 +867,10 @@ impl GitHubOps for GitHubClient {
     
     async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
         self.add_label_to_issue(issue_number, label).await
+    }
+    
+    async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError> {
+        self.create_issue(title, body, labels).await
     }
     
     async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError> {

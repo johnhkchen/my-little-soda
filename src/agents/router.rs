@@ -39,20 +39,88 @@ impl AgentRouter {
         })
     }
 
+    /// Generate branch name following the pattern: agent-{id}/{issue-number}-{slug}
+    fn generate_branch_name(&self, agent_id: &str, issue_number: u64, issue_title: &str) -> String {
+        // Create slug from issue title
+        let slug = issue_title
+            .to_lowercase()
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-')
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<&str>>()
+            .join("-")
+            .chars()
+            .take(30) // Limit slug length
+            .collect::<String>();
+        
+        format!("{}/{}-{}", agent_id, issue_number, slug)
+    }
+
+    /// Create branch for agent work with atomic operation
+    pub async fn create_agent_branch(&self, agent_id: &str, issue_number: u64, issue_title: &str) -> Result<String, GitHubError> {
+        let branch_name = self.generate_branch_name(agent_id, issue_number, issue_title);
+        
+        // Create branch atomically
+        match self.github_client.create_branch(&branch_name, "main").await {
+            Ok(()) => {
+                println!("✅ Branch '{}' created successfully", branch_name);
+                Ok(branch_name)
+            }
+            Err(e) => {
+                // Log but don't fail - branch creation failure shouldn't block task assignment
+                tracing::warn!("Branch creation failed for {}: {:?}", branch_name, e);
+                println!("⚠️  Branch creation failed for '{}', continuing with task assignment", branch_name);
+                Ok(branch_name) // Return the branch name anyway for consistency
+            }
+        }
+    }
+
     /// Check if an agent branch has completed work (has commits ahead of main)
     fn is_agent_branch_completed(&self, issue_number: u64, agent_labels: &[&str]) -> bool {
         // First try to extract agent ID from agent labels (e.g., "agent001")
         if let Some(agent_label) = agent_labels.iter().find(|label| label.starts_with("agent")) {
             let agent_id = agent_label;
-            let branch_name = format!("{}/{}", agent_id, issue_number);
             
-            // Check if branch exists and has commits ahead of main
-            return self.branch_has_commits_ahead_of_main(&branch_name);
+            // Check both old and new branch naming patterns
+            let old_branch_name = format!("{}/{}", agent_id, issue_number);
+            if self.branch_has_commits_ahead_of_main(&old_branch_name) {
+                return true;
+            }
+            
+            // Check new pattern by looking for branches that match agent_id/issue_number-*
+            return self.check_agent_branch_with_slug(agent_id, issue_number);
         }
         
         // If no agent label, check for any existing agent branches for this issue
         // This handles the case where work is completed but agent label was removed
         self.check_any_agent_branch_completed(issue_number)
+    }
+
+    /// Check if agent branch with slug pattern has completed work
+    /// Since we can't efficiently list all branches, we use git command as fallback
+    fn check_agent_branch_with_slug(&self, agent_id: &str, issue_number: u64) -> bool {
+        // Use git command to find branches matching pattern
+        let pattern = format!("{}/{}-", agent_id, issue_number);
+        
+        if let Ok(output) = std::process::Command::new("git")
+            .args(&["branch", "-a"])
+            .output()
+        {
+            if output.status.success() {
+                let branches = String::from_utf8_lossy(&output.stdout);
+                for line in branches.lines() {
+                    let branch_name = line.trim().trim_start_matches("* ").trim_start_matches("remotes/origin/");
+                    if branch_name.starts_with(&pattern) {
+                        if self.branch_has_commits_ahead_of_main(branch_name) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        false
     }
 
     /// Check if any agent branch exists for this issue with completed work
@@ -61,8 +129,14 @@ impl AgentRouter {
         let common_agents = ["agent001", "agent002", "agent003", "agent004", "agent005"];
         
         for agent_id in &common_agents {
-            let branch_name = format!("{}/{}", agent_id, issue_number);
-            if self.branch_has_commits_ahead_of_main(&branch_name) {
+            // Check old pattern
+            let old_branch_name = format!("{}/{}", agent_id, issue_number);
+            if self.branch_has_commits_ahead_of_main(&old_branch_name) {
+                return true;
+            }
+            
+            // Check new pattern with slug
+            if self.check_agent_branch_with_slug(agent_id, issue_number) {
                 return true;
             }
         }
@@ -316,9 +390,7 @@ impl AgentRouter {
         let available_agents = self.coordinator.get_available_agents().await?;
         if let (Some(issue), Some(agent)) = (my_issues.first(), available_agents.first()) {
             // Create branch for the assigned issue (no need to assign again)
-            let branch_name = format!("{}/{}", agent.id, issue.number);
-            println!("🌿 Creating agent branch: {}", branch_name);
-            let _ = self.github_client.create_branch(&branch_name, "main").await;
+            let branch_name = self.create_agent_branch(&agent.id, issue.number, &issue.title).await?;
             
             // Return the assignment
             Ok(Some(RoutingAssignment {
@@ -431,17 +503,13 @@ impl AgentRouter {
             
             if is_route_land {
                 // For route:land tasks, preserve original assignee and just create branch
-                let branch_name = format!("{}/{}", agent.id, issue.number);
-                println!("🌿 Creating agent branch: {}", branch_name);
-                let _ = self.github_client.create_branch(&branch_name, "main").await;
+                let _ = self.create_agent_branch(&agent.id, issue.number, &issue.title).await;
             } else if issue.assignee.is_none() {
                 // For route:ready tasks, assign if unassigned
                 self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
             } else {
                 // Already assigned to me, just create branch
-                let branch_name = format!("{}/{}", agent.id, issue.number);
-                println!("🌿 Creating agent branch: {}", branch_name);
-                let _ = self.github_client.create_branch(&branch_name, "main").await;
+                let _ = self.create_agent_branch(&agent.id, issue.number, &issue.title).await;
             }
             
             // Track agent utilization metrics
