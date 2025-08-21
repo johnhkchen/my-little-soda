@@ -1,4 +1,5 @@
 use octocrab::{Octocrab, Error as OctocrabError};
+use octocrab::params::pulls::MergeMethod;
 use std::fs;
 use std::path::Path;
 use async_trait::async_trait;
@@ -15,6 +16,18 @@ pub trait GitHubOps {
     async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError>;
     fn owner(&self) -> &str;
     fn repo(&self) -> &str;
+}
+
+#[derive(Debug)]
+pub struct PullRequestStatus {
+    pub number: u64,
+    pub state: String,
+    pub mergeable: Option<bool>,
+    pub merged: bool,
+    pub ci_status: String,
+    pub approved_reviews: usize,
+    pub requested_changes: usize,
+    pub head_sha: String,
 }
 
 #[derive(Debug)]
@@ -307,17 +320,118 @@ impl GitHubClient {
         Ok(pr)
     }
 
+    /// Check if a PR is ready for merging
+    pub async fn is_pr_mergeable(&self, pr: &octocrab::models::pulls::PullRequest) -> Result<bool, GitHubError> {
+        // Check basic merge conditions
+        if pr.merged.unwrap_or(false) {
+            return Ok(false); // Already merged
+        }
+        
+        // Check if PR is open (using string comparison for compatibility)
+        let pr_state_str = format!("{:?}", pr.state).to_lowercase();
+        if !pr_state_str.contains("open") {
+            return Ok(false); // Not open
+        }
+        
+        // Check if PR is mergeable (no conflicts)
+        if pr.mergeable == Some(false) {
+            return Ok(false); // Has conflicts
+        }
+        
+        // For now, we'll be permissive and allow merging if basic conditions are met
+        // In a production system, you might want to check:
+        // - Required status checks
+        // - Required reviews
+        // - Branch protection rules
+        
+        Ok(true)
+    }
+    
+    /// Get detailed PR status including CI and review status
+    pub async fn get_pr_status(&self, pr_number: u64) -> Result<PullRequestStatus, GitHubError> {
+        let pr = self.get_pull_request(pr_number).await?;
+        
+        // Get commit status for the PR head - simplified for compatibility
+        let ci_status = "unknown".to_string();
+            
+        // Check reviews
+        let reviews_result = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .list_reviews(pr_number)
+            .send()
+            .await;
+            
+        let (approved_reviews, requested_changes) = match reviews_result {
+            Ok(reviews) => {
+                let approved = reviews.items.iter()
+                    .filter(|review| {
+                        review.state.as_ref().map(|s| format!("{:?}", s).contains("Approved")).unwrap_or(false)
+                    })
+                    .count();
+                    
+                let changes = reviews.items.iter()
+                    .filter(|review| {
+                        review.state.as_ref().map(|s| format!("{:?}", s).contains("ChangesRequested")).unwrap_or(false)
+                    })
+                    .count();
+                    
+                (approved, changes)
+            }
+            Err(_) => (0, 0),
+        };
+        
+        Ok(PullRequestStatus {
+            number: pr.number,
+            state: format!("{:?}", pr.state),
+            mergeable: pr.mergeable,
+            merged: pr.merged.unwrap_or(false),
+            ci_status,
+            approved_reviews,
+            requested_changes,
+            head_sha: pr.head.sha.clone(),
+        })
+    }
+
     pub async fn merge_pull_request(
         &self,
         pr_number: u64,
-        _merge_method: Option<&str>,
-    ) -> Result<(), GitHubError> {
-        // Simplified for MVP - just track that we would merge
-        println!("🔀 Would merge PR #{}", pr_number);
+        merge_method: Option<&str>,
+    ) -> Result<octocrab::models::pulls::PullRequest, GitHubError> {
+        // First check if PR is mergeable
+        let pr = self.get_pull_request(pr_number).await?;
         
-        // TODO: Implement real merge once we understand the octocrab merge API
+        if !self.is_pr_mergeable(&pr).await? {
+            return Err(GitHubError::NotImplemented(format!(
+                "PR #{} is not ready for merge. Check CI status, conflicts, or review requirements.",
+                pr_number
+            )));
+        }
         
-        Ok(())
+        println!("🔀 Merging PR #{}: {}", pr_number, pr.title.as_ref().unwrap_or(&"".to_string()));
+        
+        let method = merge_method.unwrap_or("squash");
+        
+        // Use octocrab to merge the PR
+        let merge_result = self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .merge(pr_number)
+            .method(match method {
+                "merge" => MergeMethod::Merge,
+                "rebase" => MergeMethod::Rebase,
+                _ => MergeMethod::Squash,
+            })
+            .send()
+            .await?;
+            
+        if merge_result.merged {
+            println!("✅ Successfully merged PR #{}", pr_number);
+            Ok(pr)
+        } else {
+            Err(GitHubError::NotImplemented(format!(
+                "PR #{} merge was not successful. SHA: {:?}",
+                pr_number, merge_result.sha
+            )))
+        }
     }
 
     pub fn owner(&self) -> &str {
