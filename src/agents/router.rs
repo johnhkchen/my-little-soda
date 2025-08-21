@@ -6,6 +6,7 @@ use crate::agents::{Agent, AgentCoordinator};
 use crate::priority::Priority;
 use octocrab::models::issues::Issue;
 use std::collections::HashMap;
+use std::process::Command;
 
 #[derive(Debug)]
 pub struct AgentRouter {
@@ -30,6 +31,81 @@ impl AgentRouter {
         })
     }
 
+    /// Check if an agent branch has completed work (has commits ahead of main)
+    fn is_agent_branch_completed(&self, issue_number: u64, agent_labels: &[&str]) -> bool {
+        // First try to extract agent ID from agent labels (e.g., "agent001")
+        if let Some(agent_label) = agent_labels.iter().find(|label| label.starts_with("agent")) {
+            let agent_id = agent_label;
+            let branch_name = format!("{}/{}", agent_id, issue_number);
+            
+            // Check if branch exists and has commits ahead of main
+            return self.branch_has_commits_ahead_of_main(&branch_name);
+        }
+        
+        // If no agent label, check for any existing agent branches for this issue
+        // This handles the case where work is completed but agent label was removed
+        self.check_any_agent_branch_completed(issue_number)
+    }
+
+    /// Check if any agent branch exists for this issue with completed work
+    fn check_any_agent_branch_completed(&self, issue_number: u64) -> bool {
+        // Check common agent IDs that might have worked on this issue
+        let common_agents = ["agent001", "agent002", "agent003", "agent004", "agent005"];
+        
+        for agent_id in &common_agents {
+            let branch_name = format!("{}/{}", agent_id, issue_number);
+            if self.branch_has_commits_ahead_of_main(&branch_name) {
+                return true;
+            }
+        }
+        
+        false
+    }
+
+    /// Check if a branch has commits ahead of main branch
+    fn branch_has_commits_ahead_of_main(&self, branch_name: &str) -> bool {
+        // First check if branch exists locally
+        let branch_exists = Command::new("git")
+            .args(&["show-ref", "--verify", &format!("refs/heads/{}", branch_name)])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+        
+        if !branch_exists {
+            // Check if branch exists on remote
+            let remote_branch_exists = Command::new("git")
+                .args(&["show-ref", "--verify", &format!("refs/remotes/origin/{}", branch_name)])
+                .output()
+                .map(|output| output.status.success())
+                .unwrap_or(false);
+            
+            if !remote_branch_exists {
+                return false; // Branch doesn't exist
+            }
+            
+            // Fetch the remote branch
+            let _ = Command::new("git").args(&["fetch", "origin", branch_name]).output();
+        }
+        
+        // Check if branch has commits ahead of main
+        let output = Command::new("git")
+            .args(&["rev-list", "--count", &format!("main..{}", branch_name)])
+            .output();
+        
+        match output {
+            Ok(result) => {
+                if result.status.success() {
+                    let count_str = String::from_utf8_lossy(&result.stdout);
+                    let count: u32 = count_str.trim().parse().unwrap_or(0);
+                    count > 0 // Has commits ahead of main
+                } else {
+                    false // Git command failed, assume not ready
+                }
+            }
+            Err(_) => false,
+        }
+    }
+
     pub async fn fetch_routable_issues(&self) -> Result<Vec<Issue>, GitHubError> {
         // GitHub-native: Only route issues that exist in GitHub
         let all_issues = self.github_client.fetch_issues().await?;
@@ -49,6 +125,8 @@ impl AgentRouter {
                 .any(|label| label.name == "route:land");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
+            let has_work_completed = issue.labels.iter()
+                .any(|label| label.name == "work:completed");
             
             // For route:ready - agent must NOT be assigned yet
             // For route:land - agent assignment doesn't matter (any agent can complete merge)
@@ -61,15 +139,33 @@ impl AgentRouter {
                 .any(|label| label.name == "route:human-only");
             
             // Route logic:
-            // - route:unblocker tasks: routable only if no agent assigned (like route:ready, but higher priority)
+            // - work:completed tasks: not routable (awaiting bundling)
+            // - route:unblocker tasks: routable only if no agent assigned AND work not completed
             // - route:land tasks: always routable (any agent can complete merge)
-            // - route:ready tasks: only if no agent assigned
-            let is_routable = if has_route_unblocker {
-                !has_agent_label // FIX: route:unblocker should not be routable if agent already working
+            // - route:ready tasks: only if no agent assigned AND work not completed
+            let is_routable = if has_work_completed {
+                false // work:completed issues are not routable (awaiting bundling)
+            } else if has_route_unblocker {
+                if has_agent_label {
+                    // Check if this agent branch has completed work - if so, exclude from routing
+                    let agent_labels: Vec<&str> = issue.labels.iter()
+                        .filter(|label| label.name.starts_with("agent"))
+                        .map(|label| label.name.as_str())
+                        .collect();
+                    !self.is_agent_branch_completed(issue.number, &agent_labels)
+                } else {
+                    true // No agent assigned yet, routable
+                }
             } else if has_route_land {
                 true // route:land tasks are always routable
             } else if has_route_ready {
-                !has_agent_label // route:ready only if no agent assigned
+                let agent_labels: Vec<&str> = issue.labels.iter()
+                    .filter(|label| label.name.starts_with("agent"))
+                    .map(|label| label.name.as_str())
+                    .collect();
+                // Check if work is completed (whether or not agent label is present)
+                // If work is completed, not routable (awaiting bundling)
+                !self.is_agent_branch_completed(issue.number, &agent_labels)
             } else {
                 false // no routing label
             };
@@ -154,8 +250,23 @@ impl AgentRouter {
                     .unwrap_or(false);
                 let has_route_label = issue.labels.iter()
                     .any(|label| label.name == "route:ready");
+                let has_work_completed = issue.labels.iter()
+                    .any(|label| label.name == "work:completed");
                 
-                is_open && is_assigned_to_me && has_route_label
+                let basic_filter = is_open && is_assigned_to_me && has_route_label && !has_work_completed;
+                
+                if basic_filter {
+                    // Check if work is completed on this issue (prevents re-assignment of completed work)
+                    let agent_labels: Vec<&str> = issue.labels.iter()
+                        .filter(|label| label.name.starts_with("agent"))
+                        .map(|label| label.name.as_str())
+                        .collect();
+                    
+                    // If work is completed, exclude this issue (awaiting bundling)
+                    !self.is_agent_branch_completed(issue.number, &agent_labels)
+                } else {
+                    false
+                }
             })
             .collect();
             
@@ -204,8 +315,15 @@ impl AgentRouter {
                 .any(|label| label.name == "route:land");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
+            let has_work_completed = issue.labels.iter()
+                .any(|label| label.name == "work:completed");
             
             if !is_open || (!has_route_ready && !has_route_land && !has_route_unblocker) {
+                continue;
+            }
+            
+            // Skip work:completed issues (awaiting bundling)
+            if has_work_completed {
                 continue;
             }
             
@@ -226,6 +344,19 @@ impl AgentRouter {
             };
             
             if is_acceptable {
+                // Check if work is completed on this issue (prevents re-assignment of completed work)
+                if has_route_ready || has_route_unblocker {
+                    let agent_labels: Vec<&str> = issue.labels.iter()
+                        .filter(|label| label.name.starts_with("agent"))
+                        .map(|label| label.name.as_str())
+                        .collect();
+                    
+                    // If work is completed, skip this issue (awaiting bundling)
+                    if self.is_agent_branch_completed(issue.number, &agent_labels) {
+                        continue;
+                    }
+                }
+
                 // Check if issue has blocking PR (open PR without route:land)
                 match self.github_client.issue_has_blocking_pr(issue.number).await {
                     Ok(has_blocking_pr) => {
