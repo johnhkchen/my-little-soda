@@ -57,7 +57,7 @@ clambake dashboard
 
 - [`src/`](src/README.md) - Core application code and architecture
 - [`tests/`](tests/README.md) - Comprehensive test suite with chaos engineering
-- [`specs/`](specs/README.md) - Living specifications and domain requirements
+- [`specs/`](specs/README.md) - Living specifications, domain requirements, and architectural refactor super tasks
 - [`docs/`](docs/README.md) - User guides and API documentation
 - [`scripts/`](scripts/README.md) - Automation and setup tools
 - [`templates/`](templates/README.md) - Project starter templates
