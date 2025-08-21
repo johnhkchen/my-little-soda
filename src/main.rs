@@ -97,6 +97,15 @@ enum Commands {
         #[arg(long, help = "Include detailed breakdown of recent integration attempts")]
         detailed: bool,
     },
+    /// Export metrics in JSON format for external monitoring systems
+    ExportMetrics {
+        /// Time window in hours to analyze (default: 24)
+        #[arg(long, default_value = "24", help = "Hours of history to analyze for metrics")]
+        hours: u64,
+        /// Output file path (default: stdout)
+        #[arg(long, help = "File path to write JSON metrics (prints to stdout if not specified)")]
+        output: Option<String>,
+    },
 }
 
 async fn bundle_all_branches(auto_approve: bool) -> Result<()> {
@@ -506,6 +515,11 @@ fn main() -> Result<()> {
         Some(Commands::Metrics { hours, detailed }) => {
             tokio::runtime::Runtime::new()?.block_on(async {
                 metrics_command(hours, detailed).await
+            })
+        }
+        Some(Commands::ExportMetrics { hours, output }) => {
+            tokio::runtime::Runtime::new()?.block_on(async {
+                export_metrics_command(hours, output).await
             })
         }
     }
@@ -3392,16 +3406,113 @@ async fn metrics_command(hours: u64, detailed: bool) -> Result<()> {
     
     let metrics_tracker = MetricsTracker::new();
     
+    // Show integration metrics (existing functionality)
     match metrics_tracker.calculate_metrics(Some(hours)).await {
         Ok(metrics) => {
             let report = metrics_tracker.format_metrics_report(&metrics, detailed);
             println!("{}", report);
         }
         Err(e) => {
-            println!("❌ Unable to load metrics: {:?}", e);
+            println!("❌ Unable to load integration metrics: {:?}", e);
             println!();
             println!("💡 This may be expected if no integrations have been tracked yet.");
             println!("   Metrics are automatically collected during 'clambake land' operations.");
+        }
+    }
+    
+    println!();
+    
+    // Show performance metrics (new functionality)
+    match metrics_tracker.format_performance_report(Some(hours)).await {
+        Ok(performance_report) => {
+            println!("{}", performance_report);
+        }
+        Err(e) => {
+            println!("❌ Unable to load performance metrics: {:?}", e);
+            println!();
+            println!("💡 Performance metrics are collected during routing and coordination operations.");
+            println!("   Use 'clambake pop' or 'clambake route' to generate performance data.");
+        }
+    }
+    
+    // Detect and report current bottlenecks
+    match metrics_tracker.detect_and_store_bottlenecks().await {
+        Ok(bottlenecks) => {
+            if !bottlenecks.is_empty() {
+                println!("🔍 REAL-TIME BOTTLENECK ANALYSIS");
+                println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                
+                let critical_count = bottlenecks.iter()
+                    .filter(|b| matches!(b.severity, crate::metrics::BottleneckSeverity::Critical))
+                    .count();
+                    
+                if critical_count > 0 {
+                    println!("🚨 {} CRITICAL bottlenecks detected - immediate action required!", critical_count);
+                } else {
+                    println!("✅ No critical bottlenecks detected");
+                }
+                
+                for bottleneck in bottlenecks.iter().take(3) {
+                    let severity_icon = match bottleneck.severity {
+                        crate::metrics::BottleneckSeverity::Critical => "🔴",
+                        crate::metrics::BottleneckSeverity::High => "🟡",
+                        crate::metrics::BottleneckSeverity::Medium => "🟠",
+                        crate::metrics::BottleneckSeverity::Low => "🟢",
+                    };
+                    
+                    println!("   {} {}", severity_icon, bottleneck.description);
+                    println!("     → {}", bottleneck.suggested_action);
+                }
+                
+                if bottlenecks.len() > 3 {
+                    println!("   ... and {} more bottlenecks", bottlenecks.len() - 3);
+                }
+                println!();
+            }
+        }
+        Err(e) => {
+            println!("⚠️  Unable to perform bottleneck analysis: {:?}", e);
+        }
+    }
+    
+    Ok(())
+}
+
+async fn export_metrics_command(hours: u64, output: Option<String>) -> Result<()> {
+    use metrics::MetricsTracker;
+    use std::io::Write;
+    
+    let metrics_tracker = MetricsTracker::new();
+    
+    match metrics_tracker.export_metrics_for_monitoring(Some(hours)).await {
+        Ok(metrics_data) => {
+            let json_output = serde_json::to_string_pretty(&metrics_data).unwrap_or_else(|_| {
+                "{}".to_string()
+            });
+            
+            match output {
+                Some(file_path) => {
+                    match std::fs::write(&file_path, &json_output) {
+                        Ok(_) => {
+                            println!("✅ Metrics exported to: {}", file_path);
+                            println!("📊 Contains {} metric fields", metrics_data.len());
+                        }
+                        Err(e) => {
+                            println!("❌ Failed to write metrics to file {}: {}", file_path, e);
+                            return Err(anyhow::anyhow!("File write error: {}", e));
+                        }
+                    }
+                }
+                None => {
+                    println!("{}", json_output);
+                }
+            }
+        }
+        Err(e) => {
+            println!("❌ Unable to export metrics: {:?}", e);
+            println!();
+            println!("💡 Performance metrics are collected during routing and coordination operations.");
+            println!("   Use 'clambake pop' or 'clambake route' to generate performance data.");
         }
     }
     

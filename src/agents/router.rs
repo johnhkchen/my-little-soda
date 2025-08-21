@@ -6,15 +6,18 @@ use crate::agents::{Agent, AgentCoordinator};
 use crate::priority::Priority;
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use crate::git::{GitOperations, Git2Operations};
+use crate::metrics::{MetricsTracker, RoutingDecision};
 use octocrab::models::issues::Issue;
 use std::collections::HashMap;
 use std::process::Command;
+use std::time::Instant;
 use tracing::Instrument;
 
 #[derive(Debug)]
 pub struct AgentRouter {
     github_client: GitHubClient,
     coordinator: AgentCoordinator,
+    metrics_tracker: MetricsTracker,
 }
 
 #[derive(Debug)]
@@ -27,10 +30,12 @@ impl AgentRouter {
     pub async fn new() -> Result<Self, GitHubError> {
         let github_client = GitHubClient::new()?;
         let coordinator = AgentCoordinator::new().await?;
+        let metrics_tracker = MetricsTracker::new();
         
         Ok(Self {
             github_client,
             coordinator,
+            metrics_tracker,
         })
     }
 
@@ -328,6 +333,9 @@ impl AgentRouter {
     }
 
     pub async fn pop_any_available_task(&self) -> Result<Option<RoutingAssignment>, GitHubError> {
+        let routing_start = Instant::now();
+        let correlation_id = generate_correlation_id();
+        
         // Get any available task (unassigned OR assigned to me)
         let all_issues = self.github_client.fetch_issues().await?;
         let current_user = self.github_client.owner();
@@ -335,7 +343,7 @@ impl AgentRouter {
         // Filter for issues that are either unassigned or assigned to current user
         let mut available_issues = Vec::new();
         
-        for issue in all_issues {
+        for issue in &all_issues {
             let is_open = issue.state == octocrab::models::IssueState::Open;
             let has_route_ready = issue.labels.iter()
                 .any(|label| label.name == "route:ready");
@@ -389,7 +397,7 @@ impl AgentRouter {
                 match self.github_client.issue_has_blocking_pr(issue.number).await {
                     Ok(has_blocking_pr) => {
                         if !has_blocking_pr {
-                            available_issues.push(issue);
+                            available_issues.push(issue.clone());
                         }
                         // If has_blocking_pr is true, we skip this issue
                     }
@@ -397,7 +405,7 @@ impl AgentRouter {
                         // Log the error but don't fail the entire operation
                         tracing::warn!("Failed to check PR status for issue #{}: {:?}", issue.number, e);
                         // Include the issue anyway to avoid blocking the entire system
-                        available_issues.push(issue);
+                        available_issues.push(issue.clone());
                     }
                 }
             }
@@ -416,7 +424,8 @@ impl AgentRouter {
         
         // Get the first available agent and the highest priority issue
         let available_agents = self.coordinator.get_available_agents().await?;
-        if let (Some(issue), Some(agent)) = (available_issues.first(), available_agents.first()) {
+        
+        let decision_outcome = if let (Some(issue), Some(agent)) = (available_issues.first(), available_agents.first()) {
             // Check if this is a route:land task - if so, skip assignment but still create branch
             let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
             
@@ -435,14 +444,58 @@ impl AgentRouter {
                 let _ = self.github_client.create_branch(&branch_name, "main").await;
             }
             
+            // Track agent utilization metrics
+            let active_issues = vec![issue.number]; // Current issue
+            let _ = self.metrics_tracker.track_agent_utilization(
+                &agent.id,
+                1, // current capacity (1 issue assigned)
+                agent.capacity,
+                active_issues,
+                &format!("{:?}", agent.state)
+            ).await;
+            
+            let decision = RoutingDecision::TaskAssigned { 
+                issue_number: issue.number, 
+                agent_id: agent.id.clone() 
+            };
+            
+            // Track routing metrics
+            let _ = self.metrics_tracker.track_routing_metrics(
+                correlation_id.clone(),
+                routing_start,
+                all_issues.len() as u64,
+                available_agents.len() as u64,
+                decision.clone(),
+            ).await;
+            
             // Return the assignment
             Ok(Some(RoutingAssignment {
                 issue: issue.clone(),
                 assigned_agent: agent.clone(),
             }))
-        } else {
+        } else if available_agents.is_empty() {
+            let decision = RoutingDecision::NoAgentsAvailable;
+            let _ = self.metrics_tracker.track_routing_metrics(
+                correlation_id.clone(),
+                routing_start,
+                all_issues.len() as u64,
+                0,
+                decision,
+            ).await;
             Ok(None)
-        }
+        } else {
+            let decision = RoutingDecision::NoTasksAvailable;
+            let _ = self.metrics_tracker.track_routing_metrics(
+                correlation_id.clone(),
+                routing_start,
+                all_issues.len() as u64,
+                available_agents.len() as u64,
+                decision,
+            ).await;
+            Ok(None)
+        };
+        
+        decision_outcome
     }
 
     // Legacy method - keeping for backward compatibility
@@ -530,7 +583,11 @@ mod tests {
     impl AgentRouter {
         #[cfg(test)]
         fn new_for_test(github_client: GitHubClient, coordinator: AgentCoordinator) -> Self {
-            Self { github_client, coordinator }
+            Self { 
+                github_client, 
+                coordinator,
+                metrics_tracker: MetricsTracker::new(),
+            }
         }
     }
 

@@ -5,7 +5,7 @@ use crate::github::GitHubError;
 use crate::telemetry::generate_correlation_id;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
+use std::time::{SystemTime, UNIX_EPOCH, Duration, Instant};
 use tokio::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +33,76 @@ pub enum IntegrationOutcome {
     Success,
     Failed,
     InProgress,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoutingMetrics {
+    pub correlation_id: String,
+    pub routing_start_time: u64, // Unix timestamp
+    pub routing_duration_ms: u64,
+    pub issues_evaluated: u64,
+    pub agents_available: u64,
+    pub decision_outcome: RoutingDecision,
+    pub bottlenecks_detected: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RoutingDecision {
+    TaskAssigned { issue_number: u64, agent_id: String },
+    NoTasksAvailable,
+    NoAgentsAvailable,
+    FilteredOut { reason: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentUtilizationMetrics {
+    pub agent_id: String,
+    pub timestamp: u64,
+    pub current_capacity: u32,
+    pub max_capacity: u32,
+    pub utilization_percentage: f64,
+    pub active_issues: Vec<u64>,
+    pub state: String, // Available, Working, etc.
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoordinationDecision {
+    pub correlation_id: String,
+    pub timestamp: u64,
+    pub operation: String, // "assign_agent", "route_issues", "pop_task", etc.
+    pub agent_id: Option<String>,
+    pub issue_number: Option<u64>,
+    pub decision_rationale: String,
+    pub execution_time_ms: u64,
+    pub success: bool,
+    pub metadata: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceBottleneck {
+    pub detected_at: u64,
+    pub bottleneck_type: BottleneckType,
+    pub severity: BottleneckSeverity,
+    pub description: String,
+    pub suggested_action: String,
+    pub metrics: HashMap<String, f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BottleneckType {
+    RoutingLatency,
+    AgentCapacity,
+    GitHubApiRate,
+    WorkCompletion,
+    DecisionTime,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BottleneckSeverity {
+    Low,
+    Medium,
+    High,
+    Critical,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +135,251 @@ impl MetricsTracker {
     pub fn new() -> Self {
         let storage_path = std::path::PathBuf::from(".clambake/metrics");
         Self { storage_path }
+    }
+
+    pub async fn track_routing_metrics(
+        &self,
+        correlation_id: String,
+        routing_start: Instant,
+        issues_evaluated: u64,
+        agents_available: u64,
+        decision_outcome: RoutingDecision,
+    ) -> Result<(), GitHubError> {
+        let routing_duration_ms = routing_start.elapsed().as_millis() as u64;
+        
+        let metrics = RoutingMetrics {
+            correlation_id: correlation_id.clone(),
+            routing_start_time: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            routing_duration_ms,
+            issues_evaluated,
+            agents_available,
+            decision_outcome: decision_outcome.clone(),
+            bottlenecks_detected: self.detect_routing_bottlenecks(
+                routing_duration_ms,
+                issues_evaluated,
+                agents_available,
+                &decision_outcome
+            ),
+        };
+
+        // Log structured metrics for telemetry  
+        tracing::info!(
+            correlation.id = &correlation_id,
+            routing.duration_ms = routing_duration_ms,
+            routing.issues_evaluated = issues_evaluated,
+            routing.agents_available = agents_available,
+            routing.decision = ?decision_outcome,
+            "Routing metrics tracked"
+        );
+
+        self.store_routing_metrics(metrics).await?;
+        Ok(())
+    }
+
+    pub async fn track_agent_utilization(
+        &self,
+        agent_id: &str,
+        current_capacity: u32,
+        max_capacity: u32,
+        active_issues: Vec<u64>,
+        state: &str,
+    ) -> Result<(), GitHubError> {
+        let utilization_percentage = if max_capacity > 0 {
+            (current_capacity as f64 / max_capacity as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        let metrics = AgentUtilizationMetrics {
+            agent_id: agent_id.to_string(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            current_capacity,
+            max_capacity,
+            utilization_percentage,
+            active_issues: active_issues.clone(),
+            state: state.to_string(),
+        };
+
+        // Log structured metrics for telemetry  
+        tracing::info!(
+            agent.id = agent_id,
+            agent.utilization_percentage = utilization_percentage,
+            agent.current_capacity = current_capacity,
+            agent.max_capacity = max_capacity,
+            agent.state = state,
+            agent.active_issues = ?active_issues,
+            "Agent utilization tracked"
+        );
+
+        self.store_agent_utilization_metrics(metrics).await?;
+        Ok(())
+    }
+
+    pub async fn track_coordination_decision(
+        &self,
+        correlation_id: String,
+        operation: &str,
+        agent_id: Option<&str>,
+        issue_number: Option<u64>,
+        decision_rationale: &str,
+        execution_start: Instant,
+        success: bool,
+        metadata: HashMap<String, String>,
+    ) -> Result<(), GitHubError> {
+        let execution_time_ms = execution_start.elapsed().as_millis() as u64;
+
+        let decision = CoordinationDecision {
+            correlation_id: correlation_id.clone(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            operation: operation.to_string(),
+            agent_id: agent_id.map(|s| s.to_string()),
+            issue_number,
+            decision_rationale: decision_rationale.to_string(),
+            execution_time_ms,
+            success,
+            metadata: metadata.clone(),
+        };
+
+        // Log structured metrics for telemetry  
+        tracing::info!(
+            correlation.id = &correlation_id,
+            coordination.operation = operation,
+            coordination.agent_id = agent_id,
+            coordination.issue_number = issue_number,
+            coordination.execution_time_ms = execution_time_ms,
+            coordination.success = success,
+            coordination.rationale = decision_rationale,
+            "Coordination decision tracked"
+        );
+
+        self.store_coordination_decision(decision).await?;
+        Ok(())
+    }
+
+    pub async fn detect_and_store_bottlenecks(&self) -> Result<Vec<PerformanceBottleneck>, GitHubError> {
+        let mut bottlenecks = Vec::new();
+
+        // Check recent routing metrics for latency bottlenecks
+        if let Ok(routing_metrics) = self.load_routing_metrics(Some(1)).await {
+            for metric in routing_metrics {
+                if metric.routing_duration_ms > 2000 { // > 2 seconds
+                    let severity = if metric.routing_duration_ms > 10000 {
+                        BottleneckSeverity::Critical
+                    } else if metric.routing_duration_ms > 5000 {
+                        BottleneckSeverity::High
+                    } else {
+                        BottleneckSeverity::Medium
+                    };
+
+                    let mut metrics_map = HashMap::new();
+                    metrics_map.insert("routing_duration_ms".to_string(), metric.routing_duration_ms as f64);
+                    metrics_map.insert("issues_evaluated".to_string(), metric.issues_evaluated as f64);
+
+                    bottlenecks.push(PerformanceBottleneck {
+                        detected_at: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
+                        bottleneck_type: BottleneckType::RoutingLatency,
+                        severity,
+                        description: format!(
+                            "Routing operation took {}ms (target: <2000ms)",
+                            metric.routing_duration_ms
+                        ),
+                        suggested_action: "Consider optimizing GitHub API calls or filtering logic".to_string(),
+                        metrics: metrics_map,
+                    });
+                }
+            }
+        }
+
+        // Check agent utilization for capacity bottlenecks
+        if let Ok(utilization_metrics) = self.load_agent_utilization_metrics(Some(1)).await {
+            let mut utilization_by_agent = HashMap::new();
+            for metric in utilization_metrics {
+                utilization_by_agent.insert(metric.agent_id.clone(), metric.utilization_percentage);
+            }
+
+            let high_utilization_agents: Vec<_> = utilization_by_agent
+                .iter()
+                .filter(|(_, utilization)| **utilization > 80.0)
+                .collect();
+
+            if !high_utilization_agents.is_empty() {
+                let mut metrics_map = HashMap::new();
+                for (agent_id, utilization) in high_utilization_agents.iter() {
+                    metrics_map.insert(format!("{}_utilization", agent_id), **utilization);
+                }
+
+                bottlenecks.push(PerformanceBottleneck {
+                    detected_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
+                    bottleneck_type: BottleneckType::AgentCapacity,
+                    severity: BottleneckSeverity::High,
+                    description: format!(
+                        "High agent utilization detected: {} agents >80%",
+                        high_utilization_agents.len()
+                    ),
+                    suggested_action: "Consider adding more agent capacity or optimizing task distribution".to_string(),
+                    metrics: metrics_map,
+                });
+            }
+        }
+
+        // Store detected bottlenecks
+        for bottleneck in &bottlenecks {
+            self.store_performance_bottleneck(bottleneck.clone()).await?;
+        }
+
+        Ok(bottlenecks)
+    }
+
+    fn detect_routing_bottlenecks(
+        &self,
+        routing_duration_ms: u64,
+        issues_evaluated: u64,
+        agents_available: u64,
+        decision_outcome: &RoutingDecision,
+    ) -> Vec<String> {
+        let mut bottlenecks = Vec::new();
+
+        if routing_duration_ms > 2000 {
+            bottlenecks.push("routing_latency_high".to_string());
+        }
+
+        if agents_available == 0 {
+            bottlenecks.push("no_agents_available".to_string());
+        }
+
+        if issues_evaluated == 0 {
+            bottlenecks.push("no_issues_to_evaluate".to_string());
+        }
+
+        match decision_outcome {
+            RoutingDecision::NoTasksAvailable => {
+                bottlenecks.push("no_routable_tasks".to_string());
+            }
+            RoutingDecision::NoAgentsAvailable => {
+                bottlenecks.push("agent_capacity_exhausted".to_string());
+            }
+            RoutingDecision::FilteredOut { reason } => {
+                bottlenecks.push(format!("filtered_out_{}", reason.replace(" ", "_").to_lowercase()));
+            }
+            _ => {}
+        }
+
+        bottlenecks
     }
 
     pub async fn track_integration_attempt(
@@ -104,6 +419,62 @@ impl MetricsTracker {
         );
         
         self.store_attempt(attempt).await?;
+
+        Ok(())
+    }
+
+    async fn store_routing_metrics(&self, metrics: RoutingMetrics) -> Result<(), GitHubError> {
+        let file_path = self.storage_path.join("routing_metrics.jsonl");
+        self.store_jsonl_entry(&file_path, &metrics).await
+    }
+
+    async fn store_agent_utilization_metrics(&self, metrics: AgentUtilizationMetrics) -> Result<(), GitHubError> {
+        let file_path = self.storage_path.join("agent_utilization.jsonl");
+        self.store_jsonl_entry(&file_path, &metrics).await
+    }
+
+    async fn store_coordination_decision(&self, decision: CoordinationDecision) -> Result<(), GitHubError> {
+        let file_path = self.storage_path.join("coordination_decisions.jsonl");
+        self.store_jsonl_entry(&file_path, &decision).await
+    }
+
+    async fn store_performance_bottleneck(&self, bottleneck: PerformanceBottleneck) -> Result<(), GitHubError> {
+        let file_path = self.storage_path.join("performance_bottlenecks.jsonl");
+        self.store_jsonl_entry(&file_path, &bottleneck).await
+    }
+
+    async fn store_jsonl_entry<T: serde::Serialize>(&self, file_path: &std::path::Path, entry: &T) -> Result<(), GitHubError> {
+        // Ensure storage directory exists
+        if let Some(parent) = file_path.parent() {
+            fs::create_dir_all(parent).await.map_err(|e| {
+                GitHubError::IoError(e)
+            })?;
+        }
+
+        let entry_json = serde_json::to_string(entry).map_err(|e| {
+            GitHubError::NotImplemented(format!("Failed to serialize entry: {}", e))
+        })?;
+
+        // Append to JSONL file (one JSON object per line)
+        let content = format!("{}\n", entry_json);
+        
+        // Try to append to existing file, or create if it doesn't exist
+        match tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(file_path)
+            .await
+        {
+            Ok(mut file) => {
+                use tokio::io::AsyncWriteExt;
+                file.write_all(content.as_bytes()).await.map_err(|e| {
+                    GitHubError::IoError(e)
+                })?;
+            }
+            Err(e) => {
+                return Err(GitHubError::IoError(e));
+            }
+        }
 
         Ok(())
     }
@@ -162,6 +533,60 @@ impl MetricsTracker {
                     }
                 }
                 Ok(attempts)
+            }
+            Err(_) => {
+                // File doesn't exist yet, return empty vec
+                Ok(Vec::new())
+            }
+        }
+    }
+
+    pub async fn load_routing_metrics(&self, lookback_hours: Option<u64>) -> Result<Vec<RoutingMetrics>, GitHubError> {
+        let file_path = self.storage_path.join("routing_metrics.jsonl");
+        self.load_jsonl_entries(&file_path, lookback_hours).await
+    }
+
+    pub async fn load_agent_utilization_metrics(&self, lookback_hours: Option<u64>) -> Result<Vec<AgentUtilizationMetrics>, GitHubError> {
+        let file_path = self.storage_path.join("agent_utilization.jsonl");
+        self.load_jsonl_entries(&file_path, lookback_hours).await
+    }
+
+    pub async fn load_coordination_decisions(&self, lookback_hours: Option<u64>) -> Result<Vec<CoordinationDecision>, GitHubError> {
+        let file_path = self.storage_path.join("coordination_decisions.jsonl");
+        self.load_jsonl_entries(&file_path, lookback_hours).await
+    }
+
+    pub async fn load_performance_bottlenecks(&self, lookback_hours: Option<u64>) -> Result<Vec<PerformanceBottleneck>, GitHubError> {
+        let file_path = self.storage_path.join("performance_bottlenecks.jsonl");
+        self.load_jsonl_entries(&file_path, lookback_hours).await
+    }
+
+    async fn load_jsonl_entries<T: serde::de::DeserializeOwned>(&self, file_path: &std::path::Path, lookback_hours: Option<u64>) -> Result<Vec<T>, GitHubError> {
+        match fs::read_to_string(file_path).await {
+            Ok(content) => {
+                let mut entries = Vec::new();
+                for line in content.lines() {
+                    if !line.trim().is_empty() {
+                        match serde_json::from_str::<T>(line) {
+                            Ok(entry) => entries.push(entry),
+                            Err(e) => {
+                                tracing::warn!("Failed to parse metrics line: {}", e);
+                            }
+                        }
+                    }
+                }
+                
+                // Filter by lookback period if specified - this is a simple implementation
+                // For proper timestamp filtering, we'd need to extract timestamp from each entry
+                if lookback_hours.is_some() {
+                    // For now, return recent entries (last 1000 for 1 hour lookback)
+                    let limit = lookback_hours.unwrap_or(24) * 100; // approximate recent entries
+                    if entries.len() > limit as usize {
+                        entries = entries.into_iter().rev().take(limit as usize).collect();
+                    }
+                }
+                
+                Ok(entries)
             }
             Err(_) => {
                 // File doesn't exist yet, return empty vec
@@ -400,5 +825,231 @@ impl MetricsTracker {
         }
 
         report
+    }
+
+    pub async fn format_performance_report(&self, lookback_hours: Option<u64>) -> Result<String, GitHubError> {
+        let mut report = String::new();
+        
+        report.push_str("⚡ CLAMBAKE PERFORMANCE METRICS REPORT\n");
+        report.push_str("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
+
+        // Routing Performance
+        let routing_metrics = self.load_routing_metrics(lookback_hours).await?;
+        if !routing_metrics.is_empty() {
+            report.push_str("🚀 ROUTING PERFORMANCE\n");
+            
+            let avg_routing_time: f64 = routing_metrics.iter()
+                .map(|m| m.routing_duration_ms as f64)
+                .sum::<f64>() / routing_metrics.len() as f64;
+            
+            let max_routing_time = routing_metrics.iter()
+                .map(|m| m.routing_duration_ms)
+                .max()
+                .unwrap_or(0);
+            
+            let routing_success_rate = routing_metrics.iter()
+                .filter(|m| matches!(m.decision_outcome, RoutingDecision::TaskAssigned { .. }))
+                .count() as f64 / routing_metrics.len() as f64 * 100.0;
+
+            report.push_str(&format!("   Average Routing Time: {:.0}ms (target: <2000ms)\n", avg_routing_time));
+            report.push_str(&format!("   Max Routing Time:     {}ms\n", max_routing_time));
+            report.push_str(&format!("   Success Rate:         {:.1}%\n", routing_success_rate));
+            
+            let slow_operations = routing_metrics.iter()
+                .filter(|m| m.routing_duration_ms > 2000)
+                .count();
+            if slow_operations > 0 {
+                report.push_str(&format!("   ⚠️  Slow Operations:    {} (>2s)\n", slow_operations));
+            }
+            
+            report.push_str("\n");
+        }
+
+        // Agent Utilization
+        let utilization_metrics = self.load_agent_utilization_metrics(lookback_hours).await?;
+        if !utilization_metrics.is_empty() {
+            report.push_str("🤖 AGENT UTILIZATION\n");
+            
+            let mut agent_stats = HashMap::new();
+            for metric in &utilization_metrics {
+                let entry = agent_stats.entry(metric.agent_id.clone())
+                    .or_insert((Vec::new(), metric.max_capacity));
+                entry.0.push(metric.utilization_percentage);
+            }
+            
+            for (agent_id, (utilizations, max_capacity)) in agent_stats {
+                let avg_utilization = utilizations.iter().sum::<f64>() / utilizations.len() as f64;
+                let max_utilization = utilizations.iter().fold(0.0f64, |a, &b| a.max(b));
+                
+                report.push_str(&format!("   {}: {:.1}% avg, {:.1}% max (capacity: {})\n",
+                    agent_id, avg_utilization, max_utilization, max_capacity));
+            }
+            report.push_str("\n");
+        }
+
+        // Coordination Decisions
+        let decisions = self.load_coordination_decisions(lookback_hours).await?;
+        if !decisions.is_empty() {
+            report.push_str("🎯 COORDINATION DECISIONS\n");
+            
+            let total_decisions = decisions.len();
+            let successful_decisions = decisions.iter()
+                .filter(|d| d.success)
+                .count();
+            let success_rate = successful_decisions as f64 / total_decisions as f64 * 100.0;
+            
+            let avg_execution_time: f64 = decisions.iter()
+                .map(|d| d.execution_time_ms as f64)
+                .sum::<f64>() / decisions.len() as f64;
+            
+            report.push_str(&format!("   Total Decisions:   {}\n", total_decisions));
+            report.push_str(&format!("   Success Rate:      {:.1}%\n", success_rate));
+            report.push_str(&format!("   Avg Execution:     {:.0}ms\n", avg_execution_time));
+            
+            // Operation breakdown
+            let mut operation_counts = HashMap::new();
+            for decision in &decisions {
+                *operation_counts.entry(decision.operation.clone()).or_insert(0) += 1;
+            }
+            
+            if !operation_counts.is_empty() {
+                report.push_str("   Operations:\n");
+                for (operation, count) in operation_counts {
+                    report.push_str(&format!("     • {}: {}\n", operation, count));
+                }
+            }
+            
+            report.push_str("\n");
+        }
+
+        // Performance Bottlenecks
+        let bottlenecks = self.load_performance_bottlenecks(lookback_hours).await?;
+        if !bottlenecks.is_empty() {
+            report.push_str("🚨 PERFORMANCE BOTTLENECKS\n");
+            
+            let critical_count = bottlenecks.iter()
+                .filter(|b| matches!(b.severity, BottleneckSeverity::Critical))
+                .count();
+            let high_count = bottlenecks.iter()
+                .filter(|b| matches!(b.severity, BottleneckSeverity::High))
+                .count();
+            
+            if critical_count > 0 {
+                report.push_str(&format!("   🔴 Critical: {}\n", critical_count));
+            }
+            if high_count > 0 {
+                report.push_str(&format!("   🟡 High:     {}\n", high_count));
+            }
+            
+            // Show recent bottlenecks
+            let mut recent_bottlenecks = bottlenecks.clone();
+            recent_bottlenecks.sort_by(|a, b| b.detected_at.cmp(&a.detected_at));
+            recent_bottlenecks.truncate(5);
+            
+            for bottleneck in recent_bottlenecks {
+                let severity_icon = match bottleneck.severity {
+                    BottleneckSeverity::Critical => "🔴",
+                    BottleneckSeverity::High => "🟡",
+                    BottleneckSeverity::Medium => "🟠",
+                    BottleneckSeverity::Low => "🟢",
+                };
+                
+                report.push_str(&format!("   {} {}\n", severity_icon, bottleneck.description));
+                report.push_str(&format!("     → {}\n", bottleneck.suggested_action));
+            }
+            
+            report.push_str("\n");
+        }
+
+        // System Health Summary
+        report.push_str("📊 SYSTEM HEALTH SUMMARY\n");
+        
+        let routing_health = if routing_metrics.is_empty() {
+            "No data".to_string()
+        } else {
+            let avg_time: f64 = routing_metrics.iter()
+                .map(|m| m.routing_duration_ms as f64)
+                .sum::<f64>() / routing_metrics.len() as f64;
+            
+            if avg_time < 1000.0 {
+                "🟢 EXCELLENT (<1s avg)".to_string()
+            } else if avg_time < 2000.0 {
+                "🟡 GOOD (<2s avg)".to_string()
+            } else {
+                "🔴 NEEDS ATTENTION (>2s avg)".to_string()
+            }
+        };
+        
+        report.push_str(&format!("   Routing Performance: {}\n", routing_health));
+        
+        if !bottlenecks.is_empty() {
+            let critical_bottlenecks = bottlenecks.iter()
+                .filter(|b| matches!(b.severity, BottleneckSeverity::Critical))
+                .count();
+            
+            if critical_bottlenecks > 0 {
+                report.push_str("   System Status: 🔴 CRITICAL ISSUES DETECTED\n");
+                report.push_str("   Action Required: Address critical bottlenecks immediately\n");
+            } else {
+                report.push_str("   System Status: 🟡 MONITORING REQUIRED\n");
+                report.push_str("   Action Required: Review and optimize performance\n");
+            }
+        } else {
+            report.push_str("   System Status: 🟢 HEALTHY\n");
+        }
+
+        Ok(report)
+    }
+
+    pub async fn export_metrics_for_monitoring(&self, lookback_hours: Option<u64>) -> Result<HashMap<String, serde_json::Value>, GitHubError> {
+        let mut export = HashMap::new();
+        
+        // Export routing metrics
+        let routing_metrics = self.load_routing_metrics(lookback_hours).await?;
+        if !routing_metrics.is_empty() {
+            let avg_routing_time: f64 = routing_metrics.iter()
+                .map(|m| m.routing_duration_ms as f64)
+                .sum::<f64>() / routing_metrics.len() as f64;
+            
+            export.insert("routing_avg_duration_ms".to_string(), serde_json::Value::Number(
+                serde_json::Number::from_f64(avg_routing_time).unwrap_or(serde_json::Number::from(0))
+            ));
+            
+            let success_rate = routing_metrics.iter()
+                .filter(|m| matches!(m.decision_outcome, RoutingDecision::TaskAssigned { .. }))
+                .count() as f64 / routing_metrics.len() as f64;
+            
+            export.insert("routing_success_rate".to_string(), serde_json::Value::Number(
+                serde_json::Number::from_f64(success_rate).unwrap_or(serde_json::Number::from(0))
+            ));
+        }
+        
+        // Export agent utilization
+        let utilization_metrics = self.load_agent_utilization_metrics(lookback_hours).await?;
+        if !utilization_metrics.is_empty() {
+            let avg_utilization: f64 = utilization_metrics.iter()
+                .map(|m| m.utilization_percentage)
+                .sum::<f64>() / utilization_metrics.len() as f64;
+            
+            export.insert("agent_avg_utilization_percentage".to_string(), serde_json::Value::Number(
+                serde_json::Number::from_f64(avg_utilization).unwrap_or(serde_json::Number::from(0))
+            ));
+        }
+        
+        // Export bottleneck counts
+        let bottlenecks = self.load_performance_bottlenecks(lookback_hours).await?;
+        export.insert("bottlenecks_critical".to_string(), serde_json::Value::Number(
+            serde_json::Number::from(bottlenecks.iter().filter(|b| matches!(b.severity, BottleneckSeverity::Critical)).count())
+        ));
+        export.insert("bottlenecks_high".to_string(), serde_json::Value::Number(
+            serde_json::Number::from(bottlenecks.iter().filter(|b| matches!(b.severity, BottleneckSeverity::High)).count())
+        ));
+        
+        // Add timestamp
+        export.insert("timestamp".to_string(), serde_json::Value::Number(
+            serde_json::Number::from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs())
+        ));
+        
+        Ok(export)
     }
 }
