@@ -83,41 +83,30 @@ enum Commands {
 }
 
 async fn bundle_all_branches() -> Result<()> {
-    print!("🔍 Scanning for overdue branches... ");
+    print!("🔍 Scanning for completed work... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
     
-    // Get overdue branches that need manual processing
-    match TrainSchedule::get_overdue_branches().await {
-        Ok(overdue_branches) => {
+    // Get all queued branches (overdue and on-schedule) for emergency bundling
+    match TrainSchedule::get_queued_branches().await {
+        Ok(all_queued_branches) => {
             println!("✅");
             
-            if overdue_branches.is_empty() {
+            if all_queued_branches.is_empty() {
                 println!();
-                println!("📦 No overdue branches found");
-                println!("   💡 All branches are on schedule or no completed work exists");
-                
-                // Also check for regular queued branches as fallback
-                match TrainSchedule::get_queued_branches().await {
-                    Ok(queued_branches) if !queued_branches.is_empty() => {
-                        println!();
-                        println!("📋 Found {} on-schedule queued branches", queued_branches.len());
-                        println!("   ⏰ These will be processed at next departure time");
-                        println!("   💡 Use 'clambake land' when departure time arrives");
-                    }
-                    _ => {}
-                }
-                
+                println!("📦 No completed work found");
+                println!("   💡 All work is either in progress or no issues have route:review labels");
                 return Ok(());
             }
             
             println!();
-            println!("🔍 Found {} overdue branches past departure time:", overdue_branches.len());
-            for branch in &overdue_branches {
+            println!("🚂 EARLY TRAIN DEPARTURE - Emergency bundling all completed work");
+            println!("🔍 Found {} branches with completed work:", all_queued_branches.len());
+            for branch in &all_queued_branches {
                 println!("  • {} - {}", branch.branch_name, branch.description);
             }
             
             println!();
-            println!("📋 BUNDLE PROCESSING PROTOCOL:");
+            println!("📋 EMERGENCY BUNDLE PROCESSING PROTOCOL:");
             println!("For each branch, agent will:");
             println!("1. Switch to branch");
             println!("2. Verify commits exist and are meaningful");
@@ -133,7 +122,7 @@ async fn bundle_all_branches() -> Result<()> {
             println!("- All operations logged for audit");
             println!();
             
-            print!("Proceed with overdue branch processing? [y/N]: ");
+            print!("Proceed with emergency bundling of all completed work? [y/N]: ");
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
             
             let mut input = String::new();
@@ -141,7 +130,7 @@ async fn bundle_all_branches() -> Result<()> {
             let input = input.trim().to_lowercase();
             
             if input == "y" || input == "yes" {
-                return process_overdue_branches_interactively(overdue_branches).await;
+                return process_overdue_branches_interactively(all_queued_branches).await;
             } else {
                 println!("❌ Operation cancelled by user");
                 return Ok(());
