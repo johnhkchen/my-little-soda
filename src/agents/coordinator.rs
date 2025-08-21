@@ -3,7 +3,9 @@
 
 use crate::github::{GitHubClient, GitHubError};
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
+use crate::metrics::MetricsTracker;
 use std::collections::HashMap;
+use std::time::Instant;
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use tracing::Instrument;
@@ -32,11 +34,13 @@ pub struct AgentCoordinator {
     // Safe coordination state - prevents race conditions
     assignment_lock: Arc<Mutex<HashMap<u64, String>>>, // issue_number -> agent_id
     agent_capacity: Arc<Mutex<HashMap<String, (u32, u32)>>>, // agent_id -> (current, max)
+    metrics_tracker: MetricsTracker,
 }
 
 impl AgentCoordinator {
     pub async fn new() -> Result<Self, GitHubError> {
         let github_client = GitHubClient::new()?;
+        let metrics_tracker = MetricsTracker::new();
         
         // Agent capacity: Start with agent001, expandable to agent002-agent008
         let mut agent_capacity = HashMap::new();
@@ -46,6 +50,7 @@ impl AgentCoordinator {
             github_client,
             assignment_lock: Arc::new(Mutex::new(HashMap::new())),
             agent_capacity: Arc::new(Mutex::new(agent_capacity)),
+            metrics_tracker,
         })
     }
 
@@ -90,6 +95,7 @@ impl AgentCoordinator {
 
     /// Atomic assignment operation with conflict detection and capacity management
     pub async fn assign_agent_to_issue(&self, agent_id: &str, issue_number: u64) -> Result<(), GitHubError> {
+        let execution_start = Instant::now();
         let correlation_id = generate_correlation_id();
         let span = create_coordination_span(
             "assign_agent_to_issue", 
@@ -116,6 +122,19 @@ impl AgentCoordinator {
             // CONFLICT DETECTION: Check if issue already assigned
             if assignments.contains_key(&issue_number) {
                 let existing_agent = assignments.get(&issue_number).unwrap();
+                
+                // Track failed coordination decision
+                let _ = self.metrics_tracker.track_coordination_decision(
+                    correlation_id.clone(),
+                    "assign_agent_to_issue",
+                    Some(agent_id),
+                    Some(issue_number),
+                    &format!("Assignment conflict: Issue #{} already assigned to agent {}", issue_number, existing_agent),
+                    execution_start,
+                    false,
+                    HashMap::new(),
+                ).await;
+                
                 return Err(GitHubError::IoError(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
                     format!("Issue #{} already assigned to agent {}", issue_number, existing_agent)
@@ -130,6 +149,22 @@ impl AgentCoordinator {
                 )))?.clone();
             
             if current >= max {
+                // Track failed coordination decision
+                let mut metadata = HashMap::new();
+                metadata.insert("current_capacity".to_string(), current.to_string());
+                metadata.insert("max_capacity".to_string(), max.to_string());
+                
+                let _ = self.metrics_tracker.track_coordination_decision(
+                    correlation_id.clone(),
+                    "assign_agent_to_issue",
+                    Some(agent_id),
+                    Some(issue_number),
+                    &format!("Capacity exceeded: Agent {} at capacity ({}/{})", agent_id, current, max),
+                    execution_start,
+                    false,
+                    metadata,
+                ).await;
+                
                 return Err(GitHubError::IoError(std::io::Error::new(
                     std::io::ErrorKind::ResourceBusy,
                     format!("Agent {} at capacity ({}/{})", agent_id, current, max)
@@ -156,6 +191,23 @@ impl AgentCoordinator {
                 // ROLLBACK: Remove reservation on failure
                 self.rollback_assignment(agent_id, issue_number).await;
                 println!("❌ Failed to assign issue #{}: {:?}", issue_number, e);
+                
+                // Track failed coordination decision
+                let mut metadata = HashMap::new();
+                metadata.insert("error_type".to_string(), "github_assignment_failed".to_string());
+                metadata.insert("error_message".to_string(), format!("{:?}", e));
+                
+                let _ = self.metrics_tracker.track_coordination_decision(
+                    correlation_id.clone(),
+                    "assign_agent_to_issue",
+                    Some(agent_id),
+                    Some(issue_number),
+                    &format!("GitHub assignment failed: {:?}", e),
+                    execution_start,
+                    false,
+                    metadata,
+                ).await;
+                
                 return Err(e);
             }
         }
@@ -193,6 +245,23 @@ impl AgentCoordinator {
             issue_number = issue_number,
             "Successfully completed atomic agent assignment"
         );
+        
+        // Track coordination decision
+        let mut metadata = HashMap::new();
+        metadata.insert("branch_name".to_string(), format!("{}/{}", agent_id, issue_number));
+        metadata.insert("github_user".to_string(), github_user.to_string());
+        
+        let _ = self.metrics_tracker.track_coordination_decision(
+            correlation_id.clone(),
+            "assign_agent_to_issue",
+            Some(agent_id),
+            Some(issue_number),
+            &format!("Successfully assigned agent {} to issue #{}", agent_id, issue_number),
+            execution_start,
+            true,
+            metadata,
+        ).await;
+        
         Ok(())
         }.instrument(span).await
     }
