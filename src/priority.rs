@@ -12,6 +12,8 @@ pub enum Priority {
     Medium = 2,
     /// route:priority-high (3)
     High = 3,
+    /// route:priority-very-high (4)
+    VeryHigh = 4,
     /// route:land - merge-ready work (100)
     MergeReady = 100,
     /// route:unblocker - critical system issues (200)
@@ -27,6 +29,7 @@ impl Priority {
             let priority = match label.as_ref() {
                 "route:unblocker" => Priority::Unblocker,
                 "route:land" => Priority::MergeReady,
+                "route:priority-very-high" => Priority::VeryHigh,
                 "route:priority-high" => Priority::High,
                 "route:priority-medium" => Priority::Medium,
                 "route:priority-low" => Priority::Low,
@@ -52,6 +55,7 @@ impl fmt::Display for Priority {
         let label = match self {
             Priority::Unblocker => "UNBLOCKER",
             Priority::MergeReady => "MERGE READY",
+            Priority::VeryHigh => "VERY HIGH",
             Priority::High => "HIGH",
             Priority::Medium => "MEDIUM",
             Priority::Low => "LOW",
@@ -74,6 +78,7 @@ mod tests {
         assert_eq!(Priority::from_labels(&["route:land"]), Priority::MergeReady);
         
         // Test standard priorities
+        assert_eq!(Priority::from_labels(&["route:priority-very-high"]), Priority::VeryHigh);
         assert_eq!(Priority::from_labels(&["route:priority-high"]), Priority::High);
         assert_eq!(Priority::from_labels(&["route:priority-medium"]), Priority::Medium);
         assert_eq!(Priority::from_labels(&["route:priority-low"]), Priority::Low);
@@ -82,8 +87,10 @@ mod tests {
         assert_eq!(Priority::from_labels(&["route:ready"]), Priority::Normal);
         assert_eq!(Priority::from_labels(&[] as &[&str]), Priority::Normal);
         
-        // Test precedence (unblocker wins over high)
-        assert_eq!(Priority::from_labels(&["route:priority-high", "route:unblocker"]), Priority::Unblocker);
+        // Test precedence (unblocker wins over very high)
+        assert_eq!(Priority::from_labels(&["route:priority-very-high", "route:unblocker"]), Priority::Unblocker);
+        // Test precedence (very high wins over high)
+        assert_eq!(Priority::from_labels(&["route:priority-high", "route:priority-very-high"]), Priority::VeryHigh);
     }
 
     #[test]
@@ -92,6 +99,7 @@ mod tests {
         assert_eq!(Priority::Low.value(), 1);
         assert_eq!(Priority::Medium.value(), 2);
         assert_eq!(Priority::High.value(), 3);
+        assert_eq!(Priority::VeryHigh.value(), 4);
         assert_eq!(Priority::MergeReady.value(), 100);
         assert_eq!(Priority::Unblocker.value(), 200);
     }
@@ -99,7 +107,8 @@ mod tests {
     #[test]
     fn test_priority_ordering() {
         assert!(Priority::Unblocker > Priority::MergeReady);
-        assert!(Priority::MergeReady > Priority::High);
+        assert!(Priority::MergeReady > Priority::VeryHigh);
+        assert!(Priority::VeryHigh > Priority::High);
         assert!(Priority::High > Priority::Medium);
         assert!(Priority::Medium > Priority::Low);
         assert!(Priority::Low > Priority::Normal);
@@ -109,6 +118,7 @@ mod tests {
     fn test_priority_display() {
         assert_eq!(Priority::Unblocker.to_string(), "UNBLOCKER");
         assert_eq!(Priority::MergeReady.to_string(), "MERGE READY");
+        assert_eq!(Priority::VeryHigh.to_string(), "VERY HIGH");
         assert_eq!(Priority::High.to_string(), "HIGH");
         assert_eq!(Priority::Medium.to_string(), "MEDIUM");
         assert_eq!(Priority::Low.to_string(), "LOW");
