@@ -125,6 +125,63 @@ pub fn filter_human_available_issues<'a>(issues: &'a [Issue], current_user: &str
         .collect()
 }
 
+/// Create a completed issue (with route:land label indicating merge-ready)
+pub fn create_completed_issue(number: u64, title: &str) -> Issue {
+    let mut base_issue = load_test_issues()[0].clone();
+    
+    base_issue.number = number;
+    base_issue.title = title.to_string();
+    
+    // Create route:land label to indicate completed work
+    let mut land_label = base_issue.labels[0].clone();
+    land_label.name = "route:land".to_string();
+    
+    // Remove agent labels and add route:land
+    base_issue.labels = base_issue.labels.into_iter()
+        .filter(|label| !label.name.starts_with("agent"))
+        .collect();
+    base_issue.labels.push(land_label);
+    
+    base_issue
+}
+
+/// Create a ready issue (route:ready label but no agent assignment)
+pub fn create_ready_issue(number: u64, title: &str) -> Issue {
+    let mut base_issue = load_test_issues()[0].clone();
+    
+    base_issue.number = number;
+    base_issue.title = title.to_string();
+    
+    // Remove agent labels and assignee to make it available
+    base_issue.labels = base_issue.labels.into_iter()
+        .filter(|label| !label.name.starts_with("agent"))
+        .collect();
+    base_issue.assignee = None;
+    base_issue.assignees = vec![];
+    
+    base_issue
+}
+
+/// Filter issues that should be assignable (excludes completed work)
+pub fn filter_assignable_issues(issues: &[Issue]) -> Vec<&Issue> {
+    issues
+        .iter()
+        .filter(|issue| {
+            let is_open = issue.state == octocrab::models::IssueState::Open;
+            let has_route_ready = issue.labels.iter()
+                .any(|label| label.name == "route:ready");
+            let has_route_land = issue.labels.iter()
+                .any(|label| label.name == "route:land");
+            let has_agent_label = issue.labels.iter()
+                .any(|label| label.name.starts_with("agent"));
+            
+            // Issue is assignable if it's open, has route:ready, 
+            // but NOT route:land (completed) and NOT already assigned to agent
+            is_open && has_route_ready && !has_route_land && !has_agent_label
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
