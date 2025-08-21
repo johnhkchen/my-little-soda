@@ -9,12 +9,14 @@ mod agents;
 mod workflows;
 mod priority;
 mod train_schedule;
+mod telemetry;
 
 use agents::AgentRouter;
 use std::process::Command;
 use github::GitHubClient;
 use priority::Priority;
 use train_schedule::TrainSchedule;
+use telemetry::{init_telemetry, shutdown_telemetry};
 
 #[derive(Parser)]
 #[command(name = "clambake")]
@@ -442,6 +444,11 @@ async fn force_land_with_override(client: &github::GitHubClient, queued_branches
 }
 
 fn main() -> Result<()> {
+    // Initialize OpenTelemetry tracing
+    if let Err(e) = init_telemetry() {
+        eprintln!("Warning: Failed to initialize telemetry: {}", e);
+    }
+
     let cli = Cli::parse();
     
     match cli.command {
@@ -3074,6 +3081,9 @@ async fn show_how_to_get_work() -> Result<()> {
             println!("▶️  Use 'clambake pop' to get a task");
         }
     }
+    
+    // Shutdown telemetry gracefully
+    shutdown_telemetry();
     
     Ok(())
 }

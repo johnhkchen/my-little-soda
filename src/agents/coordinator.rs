@@ -2,9 +2,11 @@
 // Following VERBOTEN rules: GitHub is source of truth, no local state files
 
 use crate::github::{GitHubClient, GitHubError};
+use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use std::collections::HashMap;
 use tokio::sync::Mutex;
 use std::sync::Arc;
+use tracing::Instrument;
 
 #[derive(Debug, Clone)]
 pub enum AgentState {
@@ -88,7 +90,23 @@ impl AgentCoordinator {
 
     /// Atomic assignment operation with conflict detection and capacity management
     pub async fn assign_agent_to_issue(&self, agent_id: &str, issue_number: u64) -> Result<(), GitHubError> {
-        println!("🤖 Attempting atomic assignment: agent {} -> issue #{}", agent_id, issue_number);
+        let correlation_id = generate_correlation_id();
+        let span = create_coordination_span(
+            "assign_agent_to_issue", 
+            Some(agent_id), 
+            Some(issue_number), 
+            Some(&correlation_id)
+        );
+        
+        async move {
+            tracing::info!(
+                agent_id = %agent_id,
+                issue_number = issue_number,
+                correlation_id = %correlation_id,
+                "Starting atomic agent assignment"
+            );
+            
+            println!("🤖 Attempting atomic assignment: agent {} -> issue #{}", agent_id, issue_number);
         
         // ATOMIC OPERATION: All-or-nothing assignment with conflict detection
         {
@@ -170,7 +188,13 @@ impl AgentCoordinator {
         }
         
         println!("🎯 ATOMIC ASSIGNMENT COMPLETE: agent {} -> issue #{}", agent_id, issue_number);
+        tracing::info!(
+            agent_id = %agent_id,
+            issue_number = issue_number,
+            "Successfully completed atomic agent assignment"
+        );
         Ok(())
+        }.instrument(span).await
     }
     
     /// Rollback assignment reservation on failure
