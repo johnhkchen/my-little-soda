@@ -18,24 +18,19 @@ use std::sync::{Arc, Mutex};
 
 use tokio;
 
-use crate_ref::*;
-mod crate_ref {
-    // We import the module under test via crate path assumptions.
-    // If crate name differs, replace `crate` with the correct crate name when running tests inside the crate.
-    pub use crate::workflows::state_machine::{
-        StateMachine, StateTransition, TransitionResult,
-    };
-    pub use crate::agents::AgentState;
-    pub use crate::github::GitHubError;
-}
+use clambake::workflows::state_machine::{
+    StateMachine, StateTransition, TransitionResult,
+};
+use clambake::agents::coordinator::AgentState;
+use clambake::github::GitHubError;
 
 // A very minimal "unsafe" constructor solely for tests to obtain a StateMachine instance
 // for methods that do not access fields (parse_issue_number_from_url).
 // This uses MaybeUninit to create an instance without valid inner dependencies.
 // SAFETY: Only safe to use for methods that never dereference self fields.
-fn make_uninit_state_machine_for_pure_methods() -> crate_ref::StateMachine {
+fn make_uninit_state_machine_for_pure_methods() -> StateMachine {
     use std::mem::{MaybeUninit};
-    unsafe { MaybeUninit::<crate_ref::StateMachine>::zeroed().assume_init() }
+    unsafe { MaybeUninit::<StateMachine>::zeroed().assume_init() }
 }
 
 // Helper: Extract parse_issue_number_from_url through a wrapper since the method is non-pub and requires &self.
