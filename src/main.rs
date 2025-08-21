@@ -1554,7 +1554,7 @@ async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase
                     
                     if dry_run {
                         println!("🔍 DRY RUN - Would transition to bundle workflow:");
-                        println!("   📦 Mark work as completed (work:completed label)");
+                        println!("   📦 Mark work as completed (route:review label)");
                         println!("   🏷️  Free agent immediately (remove route:ready label)");
                         println!("   ⏳ Queue for bundling with other completed work");
                         println!("🎯 Agent would be freed immediately - ready for new assignment");
@@ -1745,12 +1745,12 @@ async fn detect_bundle_candidates(client: &github::GitHubClient, current_branch:
         }
     }
     
-    // Look for other ready branches from different agents
+    // Look for completed work ready for bundling from different agents
     let issues = client.fetch_issues().await?;
     let ready_issues: Vec<_> = issues.into_iter()
         .filter(|issue| {
-            issue.state == octocrab::models::IssueState::Open &&
-            issue.labels.iter().any(|label| label.name == "route:ready") &&
+            issue.state == octocrab::models::IssueState::Closed &&
+            issue.labels.iter().any(|label| label.name == "route:review") &&
             issue.labels.iter().any(|label| label.name.starts_with("agent"))
         })
         .collect();
@@ -2019,7 +2019,7 @@ async fn detect_completed_work(client: &github::GitHubClient, include_closed: bo
                 octocrab::models::IssueState::Open => {
                     let has_route_ready = issue.labels.iter().any(|label| label.name == "route:ready");
                     let has_route_land = issue.labels.iter().any(|label| label.name == "route:land");
-                    let has_work_completed = issue.labels.iter().any(|label| label.name == "work:completed");
+                    let has_work_completed = issue.labels.iter().any(|label| label.name == "route:review");
                     
                     if has_route_land {
                         // Phase 2: Issue has route:land label - ready for final merge
@@ -2444,10 +2444,10 @@ async fn transition_to_work_completed(client: &github::GitHubClient, work: &Comp
         }
     }
     
-    // Add work:completed label to queue for bundling
-    match add_label_to_issue(client, work.issue.number, "work:completed").await {
+    // Add route:review label to queue for bundling
+    match add_label_to_issue(client, work.issue.number, "route:review").await {
         Ok(_) => {
-            println!("   ✅ Added work:completed label - queued for bundling");
+            println!("   ✅ Added route:review label - queued for bundling");
             println!("   📦 Work will be bundled with other completed items or get individual PR after 10min");
         }
         Err(e) => {
@@ -2461,12 +2461,12 @@ async fn transition_to_work_completed(client: &github::GitHubClient, work: &Comp
 }
 
 async fn detect_all_completed_work(client: &github::GitHubClient) -> Result<Vec<CompletedWork>, github::GitHubError> {
-    // Get all issues with work:completed label
+    // Get all issues with route:review label
     let issues = client.fetch_issues().await?;
     let mut completed_work = Vec::new();
     
     for issue in issues {
-        if issue.labels.iter().any(|label| label.name == "work:completed") {
+        if issue.labels.iter().any(|label| label.name == "route:review") {
             if let Some(agent_label) = issue.labels.iter().find(|label| label.name.starts_with("agent")) {
                 let agent_id = agent_label.name.clone();
                 let branch_name = format!("{}/{}", agent_id, issue.number);
@@ -2485,7 +2485,7 @@ async fn detect_all_completed_work(client: &github::GitHubClient) -> Result<Vec<
 }
 
 async fn get_work_completion_timestamp(issue: &octocrab::models::issues::Issue) -> Result<Option<chrono::DateTime<chrono::Utc>>, github::GitHubError> {
-    // For MVP, we'll use the updated_at timestamp as a proxy for when work:completed was added
+    // For MVP, we'll use the updated_at timestamp as a proxy for when route:review was added
     // In a full implementation, we could track this more precisely with issue events
     Ok(Some(issue.updated_at))
 }
@@ -2523,8 +2523,8 @@ async fn create_individual_pr_from_completed_work(client: &github::GitHubClient,
         Ok(pr) => {
             println!("   ✅ Created individual PR #{}", pr.number);
             
-            // Remove work:completed and add route:land
-            remove_label_from_issue(client, work.issue.number, "work:completed").await?;
+            // Remove route:review and add route:land
+            remove_label_from_issue(client, work.issue.number, "route:review").await?;
             add_label_to_issue(client, work.issue.number, "route:land").await?;
             
             println!("   ✅ Transitioned to route:land for final merge");
@@ -2579,9 +2579,9 @@ async fn create_bundle_pr_from_completed_work(client: &github::GitHubClient, com
         Ok(pr) => {
             println!("   ✅ Created bundle PR #{} for {} issues", pr.number, completed_work.len());
             
-            // Transition all work items from work:completed to route:land
+            // Transition all work items from route:review to route:land
             for work in &completed_work {
-                remove_label_from_issue(client, work.issue.number, "work:completed").await?;
+                remove_label_from_issue(client, work.issue.number, "route:review").await?;
                 add_label_to_issue(client, work.issue.number, "route:land").await?;
             }
             
