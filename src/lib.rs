@@ -8,6 +8,6 @@ pub mod priority;
 
 // Re-export key types for easy access
 pub use github::{GitHubClient, GitHubError};
-pub use agents::{AgentCoordinator, AgentRouter};
+pub use agents::{AgentCoordinator, AgentRouter, WorkIntegrator, CompletedWork, IntegrationResult};
+pub use workflows::{StateMachine, StateTransition, TransitionResult};
 pub use priority::Priority;
-// Future exports: WorkIntegrator, CompletedWork, StateMachine, StateTransition
