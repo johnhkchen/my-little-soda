@@ -61,11 +61,11 @@ impl AgentRouter {
                 .any(|label| label.name == "route:human-only");
             
             // Route logic:
-            // - route:unblocker tasks: always routable (critical system issues)
+            // - route:unblocker tasks: routable only if no agent assigned (like route:ready, but higher priority)
             // - route:land tasks: always routable (any agent can complete merge)
             // - route:ready tasks: only if no agent assigned
             let is_routable = if has_route_unblocker {
-                true // route:unblocker tasks are always highest priority
+                !has_agent_label // FIX: route:unblocker should not be routable if agent already working
             } else if has_route_land {
                 true // route:land tasks are always routable
             } else if has_route_ready {
