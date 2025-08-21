@@ -1655,17 +1655,65 @@ async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase
     Ok(())
 }
 
+fn normalize_title(raw_title: &str) -> String {
+    // Remove/replace problematic characters and markup
+    let mut normalized = raw_title
+        .chars()
+        .filter(|c| !c.is_control()) // Remove control characters
+        .collect::<String>();
+    
+    // Replace various quote types with standard quotes
+    normalized = normalized
+        .replace('"', "'")
+        .replace('"', "'")
+        .replace('"', "'")
+        .replace('`', "'");
+    
+    // Remove common markdown patterns
+    normalized = normalized
+        .replace("**", "")
+        .replace("__", "")
+        .replace("~~", "")
+        .replace("```", "")
+        .replace("##", "")
+        .replace("###", "");
+    
+    // Collapse multiple whitespace into single spaces
+    while normalized.contains("  ") {
+        normalized = normalized.replace("  ", " ");
+    }
+    
+    normalized.trim().to_string()
+}
+
 async fn generate_pr_content(issue: &octocrab::models::issues::Issue, commits_ahead: u32) -> (String, String) {
-    // Generate PR title
+    // Generate PR title with validation and normalization
     let has_priority_high = issue.labels.iter().any(|label| label.name == "route:priority-high");
     let has_unblocker = issue.labels.iter().any(|label| label.name == "route:unblocker");
+    
+    // Normalize the issue title
+    let normalized_title = normalize_title(&issue.title);
+    
+    // Guard against short titles (minimum 3 characters after normalization)
+    let safe_title = if normalized_title.len() < 3 {
+        "Issue requires attention".to_string()
+    } else {
+        normalized_title
+    };
+    
+    // Conservative length capping (max 60 characters for the issue title part)
+    let capped_title = if safe_title.len() > 60 {
+        format!("{}...", &safe_title[..57])
+    } else {
+        safe_title
+    };
     
     let title = format!("{}#{}: {}", 
         if has_unblocker { "[UNBLOCKER] " } 
         else if has_priority_high { "[HIGH] " } 
         else { "" },
         issue.number, 
-        &issue.title
+        capped_title
     );
     
     // Generate PR body
