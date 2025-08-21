@@ -589,6 +589,29 @@ async fn pop_task_command(mine_only: bool, bundle_branches: bool, auto_approve: 
         return bundle_all_branches(auto_approve).await;
     }
     
+    // Check if we're already on a work branch
+    if let Some(current_branch) = get_current_git_branch() {
+        if let Some((agent_id, issue_number_str)) = current_branch.split_once('/') {
+            if agent_id.starts_with("agent") {
+                if let Ok(issue_number) = issue_number_str.parse::<u64>() {
+                    println!("⚠️  You're already working on something!");
+                    println!();
+                    println!("🌿 Current branch: {}", current_branch);
+                    println!("📋 Working on: Issue #{}", issue_number);
+                    println!();
+                    println!("💡 Suggested actions:");
+                    println!("   → Check progress: clambake status");
+                    println!("   → Complete work: clambake land");
+                    println!("   → Switch to main: git checkout main");
+                    println!("   → Force new task: clambake pop --force (not yet implemented)");
+                    println!();
+                    println!("🎯 To work on multiple issues, complete current work first or switch branches.");
+                    return Ok(());
+                }
+            }
+        }
+    }
+    
     if mine_only {
         println!("🎯 Popping next task assigned to you...");
     } else {
