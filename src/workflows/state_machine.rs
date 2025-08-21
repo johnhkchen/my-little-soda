@@ -210,8 +210,9 @@ impl StateMachine {
         // Remove route:ready label to free agent for new work
         use std::process::Command;
         
+        let repo = format!("{}/{}", self.github_client.owner(), self.github_client.repo());
         let output = Command::new("gh")
-            .args(&["issue", "edit", &issue_number.to_string(), "--remove-label", "route:ready"])
+            .args(&["issue", "edit", &issue_number.to_string(), "-R", &repo, "--remove-label", "route:ready"])
             .output();
         
         match output {
@@ -234,9 +235,10 @@ impl StateMachine {
         // Complete the final integration by removing route:land label and closing issue
         use std::process::Command;
         
+        let repo = format!("{}/{}", self.github_client.owner(), self.github_client.repo());
         // Remove route:land label
         let output = Command::new("gh")
-            .args(&["issue", "edit", &issue_number.to_string(), "--remove-label", "route:land"])
+            .args(&["issue", "edit", &issue_number.to_string(), "-R", &repo, "--remove-label", "route:land"])
             .output();
         
         match output {
