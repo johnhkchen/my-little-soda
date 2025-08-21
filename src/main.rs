@@ -10,6 +10,7 @@ mod workflows;
 mod priority;
 mod train_schedule;
 mod telemetry;
+mod metrics;
 
 use agents::AgentRouter;
 use std::process::Command;
@@ -82,6 +83,15 @@ enum Commands {
     },
     /// Preview the next task in queue without claiming it
     Peek,
+    /// Display integration success metrics and performance analytics
+    Metrics {
+        /// Time window in hours to analyze (default: 24)
+        #[arg(long, default_value = "24", help = "Hours of history to analyze for metrics")]
+        hours: u64,
+        /// Show detailed breakdown including recent attempts
+        #[arg(long, help = "Include detailed breakdown of recent integration attempts")]
+        detailed: bool,
+    },
 }
 
 async fn bundle_all_branches() -> Result<()> {
@@ -491,6 +501,11 @@ fn main() -> Result<()> {
         Some(Commands::Peek) => {
             tokio::runtime::Runtime::new()?.block_on(async {
                 peek_command().await
+            })
+        }
+        Some(Commands::Metrics { hours, detailed }) => {
+            tokio::runtime::Runtime::new()?.block_on(async {
+                metrics_command(hours, detailed).await
             })
         }
     }
@@ -3200,6 +3215,27 @@ async fn show_how_to_get_work() -> Result<()> {
     
     // Shutdown telemetry gracefully
     shutdown_telemetry();
+    
+    Ok(())
+}
+
+async fn metrics_command(hours: u64, detailed: bool) -> Result<()> {
+    use metrics::MetricsTracker;
+    
+    let metrics_tracker = MetricsTracker::new();
+    
+    match metrics_tracker.calculate_metrics(Some(hours)).await {
+        Ok(metrics) => {
+            let report = metrics_tracker.format_metrics_report(&metrics, detailed);
+            println!("{}", report);
+        }
+        Err(e) => {
+            println!("❌ Unable to load metrics: {:?}", e);
+            println!();
+            println!("💡 This may be expected if no integrations have been tracked yet.");
+            println!("   Metrics are automatically collected during 'clambake land' operations.");
+        }
+    }
     
     Ok(())
 }
