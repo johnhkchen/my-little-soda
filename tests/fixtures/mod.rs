@@ -182,6 +182,34 @@ pub fn filter_assignable_issues(issues: &[Issue]) -> Vec<&Issue> {
         .collect()
 }
 
+/// Create an issue with specific labels and assignment (for testing)
+pub fn create_issue_with_labels(number: u64, title: &str, label_names: Vec<String>, assignee_login: Option<String>) -> Issue {
+    let mut base_issue = load_test_issues()[0].clone();
+    
+    base_issue.number = number;
+    base_issue.title = title.to_string();
+    
+    // Create labels from names
+    base_issue.labels = label_names.into_iter().enumerate().map(|(i, name)| {
+        let mut label = base_issue.labels[0].clone();
+        label.name = name;
+        label.id = octocrab::models::LabelId(i as u64 + 1000); // Unique IDs
+        label
+    }).collect();
+    
+    // Set assignee
+    if let Some(login) = assignee_login {
+        let mut assignee = base_issue.assignee.as_ref().unwrap().clone();
+        assignee.login = login;
+        base_issue.assignee = Some(assignee.clone());
+        base_issue.assignees = vec![assignee];
+    } else {
+        base_issue.assignee = None;
+        base_issue.assignees = vec![];
+    }
+    
+    base_issue
+}
 #[cfg(test)]
 mod tests {
     use super::*;
