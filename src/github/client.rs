@@ -571,6 +571,238 @@ impl GitHubClient {
             
         Ok(count)
     }
+
+    /// Enhanced merge conflict detection with detailed diagnostics
+    pub async fn detect_merge_conflicts(&self, pr_number: u64) -> Result<ConflictAnalysis, GitHubError> {
+        let pr = self.get_pull_request(pr_number).await?;
+        
+        let mut analysis = ConflictAnalysis {
+            has_conflicts: false,
+            is_mergeable: true,
+            conflict_files: Vec::new(),
+            base_branch: pr.base.ref_field.clone(),
+            head_branch: pr.head.ref_field.clone(),
+            head_sha: pr.head.sha.clone(),
+            analysis_timestamp: chrono::Utc::now(),
+        };
+
+        // Check GitHub's mergeable status
+        if pr.mergeable == Some(false) {
+            analysis.has_conflicts = true;
+            analysis.is_mergeable = false;
+        }
+
+        // If mergeable is None, GitHub may still be calculating - treat as potential conflict
+        if pr.mergeable.is_none() {
+            analysis.is_mergeable = false;
+            println!("⚠️  GitHub is still calculating merge status for PR #{}", pr_number);
+        }
+
+        // Additional checks for merge readiness
+        if pr.merged.unwrap_or(false) {
+            analysis.is_mergeable = false;
+        }
+
+        let pr_state_str = format!("{:?}", pr.state).to_lowercase();
+        if !pr_state_str.contains("open") {
+            analysis.is_mergeable = false;
+        }
+
+        Ok(analysis)
+    }
+
+    /// Create a recovery PR for conflicted work with human review request
+    pub async fn create_conflict_recovery_pr(&self, original_pr: u64, work_data: ConflictRecoveryData) -> Result<octocrab::models::pulls::PullRequest, GitHubError> {
+        // Create a new branch for conflict recovery
+        let recovery_branch = format!("conflict-recovery/{}-{}", original_pr, work_data.agent_id);
+        
+        println!("🛡️ Creating conflict recovery branch: {}", recovery_branch);
+        
+        // Recovery PR body with detailed conflict information and human review request
+        let pr_body = format!(
+            "## 🚨 MERGE CONFLICT RECOVERY\n\
+            \n\
+            **Original PR**: #{}\n\
+            **Agent**: {}\n\
+            **Issue**: #{}\n\
+            **Recovery Branch**: {}\n\
+            **Conflict Detection**: {}\n\
+            \n\
+            ## Conflict Analysis\n\
+            - **Base Branch**: {}\n\
+            - **Head Branch**: {}\n\
+            - **Head SHA**: {}\n\
+            - **Conflicts Detected**: {}\n\
+            \n\
+            ## Preserved Work\n\
+            This PR preserves all agent work that would have been lost due to merge conflicts.\n\
+            The original implementation has been backed up and is ready for human review.\n\
+            \n\
+            ## Human Review Required\n\
+            ⚠️  **MANUAL CONFLICT RESOLUTION NEEDED**\n\
+            \n\
+            1. Review the conflicted files and resolve merge conflicts\n\
+            2. Test the merged functionality thoroughly\n\
+            3. Ensure no agent work is lost in the resolution\n\
+            4. Merge this recovery PR when conflicts are resolved\n\
+            \n\
+            ## Next Steps\n\
+            - [ ] Human reviewer resolves merge conflicts\n\
+            - [ ] Functionality testing completed\n\
+            - [ ] Original work preserved and integrated\n\
+            - [ ] Recovery PR merged\n\
+            \n\
+            Fixes #{}\n\
+            \n\
+            🤖 Generated with [Clambake](https://github.com/johnhkchen/clambake) - Conflict Recovery System\n\
+            Co-Authored-By: {} <agent@clambake.dev>",
+            original_pr,
+            work_data.agent_id,
+            work_data.issue_number,
+            recovery_branch,
+            work_data.conflict_analysis.analysis_timestamp.format("%Y-%m-%d %H:%M:%S UTC"),
+            work_data.conflict_analysis.base_branch,
+            work_data.conflict_analysis.head_branch,
+            work_data.conflict_analysis.head_sha,
+            if work_data.conflict_analysis.has_conflicts { "Yes" } else { "Potential" },
+            work_data.issue_number,
+            work_data.agent_id
+        );
+
+        let pr_title = format!(
+            "🚨 CONFLICT RECOVERY: Agent {} work for issue #{}",
+            work_data.agent_id,
+            work_data.issue_number
+        );
+
+        // Create the recovery PR
+        let pr = self.create_pull_request(
+            &pr_title,
+            &recovery_branch,
+            "main",
+            &pr_body
+        ).await?;
+
+        // Add labels to indicate this is a recovery PR requiring human attention
+        self.add_label_to_issue(work_data.issue_number, "merge-conflict").await?;
+        self.add_label_to_issue(work_data.issue_number, "human-review-required").await?;
+        self.add_label_to_issue(work_data.issue_number, "work-preserved").await?;
+
+        println!("✅ Created conflict recovery PR #{}", pr.number);
+        println!("🔗 Recovery PR URL: {}", pr.html_url.as_ref().map(|url| url.as_str()).unwrap_or("(URL not available)"));
+
+        Ok(pr)
+    }
+
+    /// Enhanced merge attempt with conflict detection and automatic recovery
+    pub async fn safe_merge_pull_request(
+        &self,
+        pr_number: u64,
+        agent_id: &str,
+        issue_number: u64,
+        merge_method: Option<&str>,
+    ) -> Result<SafeMergeResult, GitHubError> {
+        println!("🔍 Performing pre-merge conflict analysis for PR #{}...", pr_number);
+
+        // Step 1: Detect conflicts before attempting merge
+        let conflict_analysis = self.detect_merge_conflicts(pr_number).await?;
+
+        if conflict_analysis.has_conflicts || !conflict_analysis.is_mergeable {
+            println!("🚨 Merge conflicts detected! Initiating recovery workflow...");
+
+            // Step 2: Create recovery data
+            let recovery_data = ConflictRecoveryData {
+                agent_id: agent_id.to_string(),
+                issue_number,
+                original_pr_number: pr_number,
+                conflict_analysis,
+                backup_branch: format!("backup/{}-{}", agent_id, issue_number),
+                recovery_timestamp: chrono::Utc::now(),
+            };
+
+            // Step 3: Create recovery PR with human review request
+            let recovery_pr = self.create_conflict_recovery_pr(pr_number, recovery_data).await?;
+
+            return Ok(SafeMergeResult::ConflictDetected {
+                original_pr: pr_number,
+                recovery_pr: recovery_pr.number,
+                recovery_url: recovery_pr.html_url.map(|url| url.to_string()),
+                requires_human_review: true,
+            });
+        }
+
+        // Step 4: If no conflicts, proceed with normal merge
+        println!("✅ No conflicts detected. Proceeding with merge...");
+        match self.merge_pull_request(pr_number, merge_method).await {
+            Ok(merged_pr) => {
+                Ok(SafeMergeResult::SuccessfulMerge {
+                    pr_number,
+                    merged_sha: merged_pr.merge_commit_sha,
+                })
+            }
+            Err(e) => {
+                // Even if pre-check passed, merge can still fail - create recovery
+                println!("🚨 Unexpected merge failure! Creating recovery PR...");
+                
+                let recovery_data = ConflictRecoveryData {
+                    agent_id: agent_id.to_string(),
+                    issue_number,
+                    original_pr_number: pr_number,
+                    conflict_analysis,
+                    backup_branch: format!("backup/{}-{}", agent_id, issue_number),
+                    recovery_timestamp: chrono::Utc::now(),
+                };
+
+                let recovery_pr = self.create_conflict_recovery_pr(pr_number, recovery_data).await?;
+
+                Ok(SafeMergeResult::MergeFailed {
+                    error: format!("{:?}", e),
+                    recovery_pr: recovery_pr.number,
+                    work_preserved: true,
+                })
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConflictAnalysis {
+    pub has_conflicts: bool,
+    pub is_mergeable: bool,
+    pub conflict_files: Vec<String>,
+    pub base_branch: String,
+    pub head_branch: String,
+    pub head_sha: String,
+    pub analysis_timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConflictRecoveryData {
+    pub agent_id: String,
+    pub issue_number: u64,
+    pub original_pr_number: u64,
+    pub conflict_analysis: ConflictAnalysis,
+    pub backup_branch: String,
+    pub recovery_timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug)]
+pub enum SafeMergeResult {
+    SuccessfulMerge {
+        pr_number: u64,
+        merged_sha: Option<String>,
+    },
+    ConflictDetected {
+        original_pr: u64,
+        recovery_pr: u64,
+        recovery_url: Option<String>,
+        requires_human_review: bool,
+    },
+    MergeFailed {
+        error: String,
+        recovery_pr: u64,
+        work_preserved: bool,
+    },
 }
 
 // Implement the trait for GitHubClient

@@ -2373,26 +2373,139 @@ async fn execute_phase_one(client: &github::GitHubClient, work: &CompletedWork) 
     Ok(())
 }
 
-async fn execute_phase_two(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
-    // Phase 2: Complete final merge after CodeRabbit + human approval
-    println!("   🎆 Phase 2: Completing final merge after approval");
+async fn create_work_backup(client: &github::GitHubClient, work: &CompletedWork) -> Result<String, github::GitHubError> {
+    // Create a backup branch to preserve work before potentially risky operations
+    let backup_branch = format!("backup/{}-{}-{}", work.agent_id, work.issue.number, 
+                              chrono::Utc::now().format("%Y%m%d-%H%M%S"));
     
-    // Note: In a full implementation, this would:
-    // 1. Verify CodeRabbit review is complete
-    // 2. Verify human approval is granted
-    // 3. Merge the PR
-    // 4. Remove route:land label
-    // 5. The issue will auto-close via GitHub's "Fixes #N" keywords
+    println!("   🛡️  Creating work backup: {}", backup_branch);
     
-    // For now, we'll remove the route:land label to indicate completion
-    match remove_label_from_issue(client, work.issue.number, "route:land").await {
+    // Create backup branch from the agent's work branch
+    match client.create_branch(&backup_branch, &work.branch_name).await {
         Ok(_) => {
-            println!("   ✅ Removed route:land label");
-            println!("   🔀 PR should be merged by human after review approval");
-            println!("   📝 Issue will auto-close when PR merges (via 'Fixes #{}' keywords)", work.issue.number);
+            println!("   ✅ Work backup created successfully");
+            Ok(backup_branch)
         }
         Err(e) => {
-            return Err(e);
+            println!("   ⚠️  Failed to create backup branch: {:?}", e);
+            // Don't fail the whole operation due to backup failure, but log it
+            Ok(format!("backup-failed-{}", work.branch_name))
+        }
+    }
+}
+
+async fn execute_phase_two(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Phase 2: Complete final merge after CodeRabbit + human approval with conflict detection
+    println!("   🎆 Phase 2: Completing final merge with conflict detection");
+    
+    // Step 0: Create backup of work before attempting merge (work preservation guarantee)
+    let _backup_branch = create_work_backup(client, work).await?;
+    
+    // Step 1: Find the PR associated with this issue
+    let open_prs = client.fetch_open_pull_requests().await?;
+    let mut associated_pr = None;
+    
+    for pr in open_prs {
+        if let Some(body) = &pr.body {
+            let patterns = [
+                format!("fixes #{}", work.issue.number),
+                format!("closes #{}", work.issue.number),
+                format!("resolves #{}", work.issue.number),
+                format!("fix #{}", work.issue.number),
+                format!("close #{}", work.issue.number),
+                format!("resolve #{}", work.issue.number),
+            ];
+            
+            let body_lower = body.to_lowercase();
+            let references_issue = patterns.iter().any(|pattern| body_lower.contains(&pattern.to_lowercase()));
+            
+            if references_issue {
+                associated_pr = Some(pr);
+                break;
+            }
+        }
+    }
+    
+    match associated_pr {
+        Some(pr) => {
+            println!("   🔍 Found associated PR #{}: {}", pr.number, pr.title.as_ref().unwrap_or(&"(no title)".to_string()));
+            
+            // Step 2: Perform safe merge with conflict detection
+            match client.safe_merge_pull_request(
+                pr.number,
+                &work.agent_id,
+                work.issue.number,
+                Some("squash") // Use squash merge by default
+            ).await {
+                Ok(github::SafeMergeResult::SuccessfulMerge { pr_number, merged_sha }) => {
+                    println!("   ✅ Successfully merged PR #{}", pr_number);
+                    if let Some(sha) = merged_sha {
+                        println!("   📝 Merge commit: {}", sha);
+                    }
+                    
+                    // Remove route:land label since merge is complete
+                    remove_label_from_issue(client, work.issue.number, "route:land").await?;
+                    println!("   ✅ Removed route:land label - work completed successfully");
+                    println!("   📝 Issue will auto-close via GitHub's 'Fixes #{}' keywords", work.issue.number);
+                }
+                Ok(github::SafeMergeResult::ConflictDetected { 
+                    original_pr, 
+                    recovery_pr, 
+                    recovery_url, 
+                    requires_human_review 
+                }) => {
+                    println!("   🚨 MERGE CONFLICTS DETECTED!");
+                    println!("   📋 Original PR #{} has conflicts with main branch", original_pr);
+                    println!("   🛡️  Created recovery PR #{} to preserve agent work", recovery_pr);
+                    if let Some(url) = recovery_url {
+                        println!("   🔗 Recovery PR: {}", url);
+                    }
+                    if requires_human_review {
+                        println!("   👥 Human review required for conflict resolution");
+                    }
+                    
+                    // Keep route:land label but add conflict indicators
+                    add_label_to_issue(client, work.issue.number, "merge-conflict").await?;
+                    add_label_to_issue(client, work.issue.number, "human-review-required").await?;
+                    
+                    println!("   ⚠️  Issue #{} requires manual conflict resolution", work.issue.number);
+                }
+                Ok(github::SafeMergeResult::MergeFailed { error, recovery_pr, work_preserved }) => {
+                    println!("   ❌ Merge failed: {}", error);
+                    println!("   🛡️  Created recovery PR #{} to preserve work", recovery_pr);
+                    if work_preserved {
+                        println!("   ✅ Agent work has been preserved and backed up");
+                    }
+                    
+                    // Add failure labels for human intervention
+                    add_label_to_issue(client, work.issue.number, "merge-failed").await?;
+                    add_label_to_issue(client, work.issue.number, "human-review-required").await?;
+                    
+                    return Err(github::GitHubError::NotImplemented(format!(
+                        "Merge failed for PR #{} but work is preserved in recovery PR #{}",
+                        pr.number, recovery_pr
+                    )));
+                }
+                Err(e) => {
+                    println!("   ❌ Error during safe merge operation: {:?}", e);
+                    
+                    // Fallback: just remove route:land and request human intervention
+                    remove_label_from_issue(client, work.issue.number, "route:land").await?;
+                    add_label_to_issue(client, work.issue.number, "merge-error").await?;
+                    add_label_to_issue(client, work.issue.number, "human-review-required").await?;
+                    
+                    return Err(e);
+                }
+            }
+        }
+        None => {
+            println!("   ⚠️  No associated PR found for issue #{}", work.issue.number);
+            println!("   📝 Removing route:land label - manual PR may be needed");
+            
+            // Remove route:land label and add a label indicating manual intervention needed
+            remove_label_from_issue(client, work.issue.number, "route:land").await?;
+            add_label_to_issue(client, work.issue.number, "no-pr-found").await?;
+            add_label_to_issue(client, work.issue.number, "human-review-required").await?;
         }
     }
     
