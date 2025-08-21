@@ -1596,7 +1596,7 @@ async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase
                                     
                                 println!("🌿 Switched to main branch");
                                 println!("🎯 Agent {} freed - ready for new assignment via 'clambake pop'", agent_id);
-                                println!("📦 Work queued for bundling - will be bundled with other completed items or get individual PR after 10min timeout");
+                                println!("📦 Work queued for bundling - will be bundled with other work at next train departure or get individual PR after 10min");
                             }
                             Err(e) => {
                                 println!("❌ Failed to transition to bundle workflow: {:?}", e);
@@ -2120,7 +2120,7 @@ async fn cleanup_completed_work_with_mode(client: &github::GitHubClient, work: &
                     transition_to_work_completed(client, work).await?
                 } else {
                     println!("   📝 Bundle: Would mark work complete and free agent");
-                    println!("   📝 No immediate PR creation - work queued for bundling");
+                    println!("   📝 No immediate PR creation - work queued for bundling at next train departure");
                 }
             }
         }
@@ -2138,7 +2138,7 @@ async fn cleanup_completed_work_with_mode(client: &github::GitHubClient, work: &
             if !dry_run {
                 handle_completed_work_bundling(client, work).await?
             } else {
-                println!("   📝 Bundle: Would evaluate for bundling or create individual PR after timeout");
+                println!("   📝 Bundle: Would evaluate for bundling at train departure or create individual PR after 10min");
                 println!("   📝 Agent already freed when work was marked complete");
             }
         }
@@ -2578,7 +2578,7 @@ async fn transition_to_work_completed(client: &github::GitHubClient, work: &Comp
     match add_label_to_issue(client, work.issue.number, "route:review").await {
         Ok(_) => {
             println!("   ✅ Added route:review label - queued for bundling");
-            println!("   📦 Work will be bundled with other completed items or get individual PR after 10min");
+            println!("   📦 Work will be bundled with other completed work at next train departure or get individual PR after 10min");
         }
         Err(e) => {
             return Err(e);
