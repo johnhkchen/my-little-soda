@@ -147,85 +147,93 @@ async fn force_land_with_override(client: &github::GitHubClient, queued_branches
         }
     }
     
-    // Fall back to the original land command logic
-    match detect_completed_work(client, true, 7, true).await {
-        Ok(completed_work) => {
-            if completed_work.is_empty() {
-                println!("ℹ️  No completed work found in legacy scan");
-                println!("   💡 Branches may be queued but not yet marked as completed");
-                
-                // Show the branches that were queued for visibility
-                println!();
-                println!("📦 Queued branches that were detected:");
-                for branch in queued_branches.iter().take(10) {
-                    println!("   • {} ({})", branch.branch_name, branch.description);
-                }
-                if queued_branches.len() > 10 {
-                    println!("   • ... and {} more", queued_branches.len() - 10);
-                }
-                println!();
-                println!("💡 These branches may need their issues to be properly labeled or closed");
-                
-                return Ok(());
-            }
-            
-            // Process the completed work using the same logic as land command
-            println!("✅ Found {} completed work item(s):", completed_work.len());
-            println!();
-            
-            let mut cleaned_up = 0;
-            let mut failed = 0;
-            
-            for work in &completed_work {
-                let status_desc = match work.work_type {
-                    CompletedWorkType::OpenWithMergedBranch => "Legacy: Issue open, branch merged",
-                    CompletedWorkType::ClosedWithLabels => "Legacy: Issue closed, has labels to remove",
-                    CompletedWorkType::ReadyForPhaseOne => "Phase 1: Work complete, ready for PR creation",
-                    CompletedWorkType::ReadyForPhaseTwo => "Phase 2: PR created, ready for merge",
-                    CompletedWorkType::WorkCompleted => "Work completed, ready for bundling",
-                    CompletedWorkType::OrphanedBranch => "Orphaned: Branch merged without matching issue",
-                };
-                
-                println!("📋 Processing: {} ({})", work.issue.title, status_desc);
-                
-                match cleanup_completed_work(client, work, false).await {
-                    Ok(_) => {
-                        cleaned_up += 1;
-                        println!("   ✅ Cleaned up successfully");
+    // Process the queued branches directly instead of trying to re-detect them
+    // Convert queued branches to CompletedWork objects for processing
+    let mut completed_work = Vec::new();
+    
+    for branch in &queued_branches {
+        // Extract issue number from branch name (format: agent001/123)
+        if let Some(issue_num_str) = branch.branch_name.split('/').nth(1) {
+            if let Ok(issue_number) = issue_num_str.parse::<u64>() {
+                // Fetch the issue details
+                match client.fetch_issue(issue_number).await {
+                    Ok(issue) => {
+                        // Extract agent ID from branch name
+                        if let Some(agent_id) = branch.branch_name.split('/').next() {
+                            completed_work.push(CompletedWork {
+                                issue,
+                                branch_name: branch.branch_name.clone(),
+                                agent_id: agent_id.to_string(),
+                                work_type: CompletedWorkType::ReadyForPhaseOne, // Force phase 1 for emergency bundling
+                            });
+                        }
                     }
                     Err(e) => {
-                        failed += 1;
-                        println!("   ❌ Cleanup failed: {:?}", e);
+                        println!("⚠️  Failed to fetch issue #{}: {:?}", issue_number, e);
+                        continue;
                     }
                 }
-                println!();
             }
-            
-            // Summary
-            println!("🎯 EMERGENCY BUNDLING COMPLETE:");
-            if cleaned_up > 0 {
-                println!("   ✅ Successfully completed {} work items", cleaned_up);
-                println!("   🤖 Agents are now available for new assignments");
-            }
-            
-            if failed > 0 {
-                println!("   ⚠️  {} items failed cleanup (may need manual intervention)", failed);
-            }
-            
-            if cleaned_up > 0 {
-                println!();
-                println!("🚀 NEXT STEPS:");
-                println!("   → Check system: clambake status");
-                println!("   → Get new assignment: clambake pop");
-            }
-            
-            Ok(())
-        }
-        Err(e) => {
-            println!("❌ Failed to detect completed work: {:?}", e);
-            Err(anyhow::anyhow!("Completed work detection failed"))
         }
     }
+    
+    if completed_work.is_empty() {
+        println!("❌ Failed to convert queued branches to completed work items");
+        println!("   💡 Check branch naming format (should be agent001/123)");
+        return Ok(());
+    }
+    
+    // Process the completed work using the same logic as land command
+    println!("✅ Found {} completed work item(s):", completed_work.len());
+    println!();
+    
+    let mut cleaned_up = 0;
+    let mut failed = 0;
+    
+    for work in &completed_work {
+        let status_desc = match work.work_type {
+            CompletedWorkType::OpenWithMergedBranch => "Legacy: Issue open, branch merged",
+            CompletedWorkType::ClosedWithLabels => "Legacy: Issue closed, has labels to remove",
+            CompletedWorkType::ReadyForPhaseOne => "Phase 1: Work complete, ready for PR creation",
+            CompletedWorkType::ReadyForPhaseTwo => "Phase 2: PR created, ready for merge",
+            CompletedWorkType::WorkCompleted => "Work completed, ready for bundling",
+            CompletedWorkType::OrphanedBranch => "Orphaned: Branch merged without matching issue",
+        };
+        
+        println!("📋 Processing: {} ({})", work.issue.title, status_desc);
+        
+        match cleanup_completed_work(client, work, false).await {
+            Ok(_) => {
+                cleaned_up += 1;
+                println!("   ✅ Cleaned up successfully");
+            }
+            Err(e) => {
+                failed += 1;
+                println!("   ❌ Cleanup failed: {:?}", e);
+            }
+        }
+        println!();
+    }
+    
+    // Summary
+    println!("🎯 EMERGENCY BUNDLING COMPLETE:");
+    if cleaned_up > 0 {
+        println!("   ✅ Successfully completed {} work items", cleaned_up);
+        println!("   🤖 Agents are now available for new assignments");
+    }
+    
+    if failed > 0 {
+        println!("   ⚠️  {} items failed cleanup (may need manual intervention)", failed);
+    }
+    
+    if cleaned_up > 0 {
+        println!();
+        println!("🚀 NEXT STEPS:");
+        println!("   → Check system: clambake status");
+        println!("   → Get new assignment: clambake pop");
+    }
+    
+    Ok(())
 }
 
 fn main() -> Result<()> {
