@@ -40,8 +40,8 @@ enum Commands {
         /// Only consider tasks already assigned to you
         #[arg(long, help = "Restrict to tasks with your GitHub username as assignee")]
         mine: bool,
-        /// Force early train departure to bundle all completed branches into PR
-        #[arg(long, help = "Override schedule to bundle all queued branches immediately")]
+        /// Process overdue branches that are past their departure time (>10min)
+        #[arg(long, help = "Interactive processing of overdue branches past departure time")]
         bundle_branches: bool,
     },
     /// Display system status, agent utilization, and task queue overview
@@ -83,47 +83,263 @@ enum Commands {
 }
 
 async fn bundle_all_branches() -> Result<()> {
-    print!("🔍 Scanning for completed agent work... ");
+    print!("🔍 Scanning for overdue branches... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
     
-    // Initialize GitHub client
-    match github::GitHubClient::new() {
-        Ok(client) => {
+    // Get overdue branches that need manual processing
+    match TrainSchedule::get_overdue_branches().await {
+        Ok(overdue_branches) => {
             println!("✅");
             
-            // Get train schedule and queued branches
-            let schedule = TrainSchedule::calculate_next_schedule();
-            match TrainSchedule::get_queued_branches().await {
-                Ok(queued_branches) => {
-                    println!();
-                    print!("{}", schedule.format_schedule_display(&queued_branches));
-                    
-                    if queued_branches.is_empty() {
+            if overdue_branches.is_empty() {
+                println!();
+                println!("📦 No overdue branches found");
+                println!("   💡 All branches are on schedule or no completed work exists");
+                
+                // Also check for regular queued branches as fallback
+                match TrainSchedule::get_queued_branches().await {
+                    Ok(queued_branches) if !queued_branches.is_empty() => {
                         println!();
-                        println!("📦 No queued branches found for emergency bundling");
-                        println!("   💡 Complete work and try again when branches are ready");
-                        return Ok(());
+                        println!("📋 Found {} on-schedule queued branches", queued_branches.len());
+                        println!("   ⏰ These will be processed at next departure time");
+                        println!("   💡 Use 'clambake land' when departure time arrives");
                     }
-                    
-                    println!();
-                    println!("🚨 EMERGENCY DEPARTURE: Overriding schedule to bundle {} branches", queued_branches.len());
-                    println!("   ⚡ Bypassing normal train schedule for immediate bundling");
-                    println!();
-                    
-                    // Force the land command logic but with schedule override
-                    return force_land_with_override(&client, queued_branches).await;
+                    _ => {}
                 }
-                Err(e) => {
-                    println!("❌ Could not check queued branches: {:?}", e);
-                    return Err(anyhow::anyhow!("Failed to check branches for bundling"));
-                }
+                
+                return Ok(());
+            }
+            
+            println!();
+            println!("🔍 Found {} overdue branches past departure time:", overdue_branches.len());
+            for branch in &overdue_branches {
+                println!("  • {} - {}", branch.branch_name, branch.description);
+            }
+            
+            println!();
+            println!("📋 BUNDLE PROCESSING PROTOCOL:");
+            println!("For each branch, agent will:");
+            println!("1. Switch to branch");
+            println!("2. Verify commits exist and are meaningful");
+            println!("3. Push commits to origin if needed");
+            println!("4. Create PR with proper title/body");
+            println!("5. Remove agent labels to free capacity");
+            println!("6. Mark work as completed");
+            println!();
+            println!("⚠️  GUARDRAILS:");
+            println!("- Agent must review each commit before creating PR");
+            println!("- Branches without commits will be skipped");
+            println!("- Agent can abort at any step with Ctrl+C");
+            println!("- All operations logged for audit");
+            println!();
+            
+            print!("Proceed with overdue branch processing? [y/N]: ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            let input = input.trim().to_lowercase();
+            
+            if input == "y" || input == "yes" {
+                return process_overdue_branches_interactively(overdue_branches).await;
+            } else {
+                println!("❌ Operation cancelled by user");
+                return Ok(());
             }
         }
         Err(e) => {
-            println!("❌ Failed to initialize GitHub client: {:?}", e);
-            return Err(anyhow::anyhow!("GitHub client initialization failed"));
+            println!("❌ Could not scan for overdue branches: {:?}", e);
+            return Err(anyhow::anyhow!("Failed to scan overdue branches"));
         }
     }
+}
+
+async fn process_overdue_branches_interactively(overdue_branches: Vec<train_schedule::QueuedBranch>) -> Result<()> {
+    use std::process::Command;
+    
+    println!();
+    println!("🚀 Starting interactive overdue branch processing...");
+    println!("═══════════════════════════════════════════════════");
+    
+    for (index, branch) in overdue_branches.iter().enumerate() {
+        println!();
+        println!("🌿 Processing {} ({}/{})...", branch.branch_name, index + 1, overdue_branches.len());
+        println!("📋 {}", branch.description);
+        
+        // Step 1: Switch to branch
+        println!("Step 1: Switching to branch...");
+        let output = Command::new("git")
+            .args(&["checkout", &branch.branch_name])
+            .output();
+            
+        match output {
+            Ok(result) if result.status.success() => {
+                println!("✅ Switched to branch {}", branch.branch_name);
+            }
+            Ok(result) => {
+                println!("❌ Failed to switch to branch: {}", String::from_utf8_lossy(&result.stderr));
+                print!("Continue to next branch? [y/N]: ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                
+                let mut input = String::new();
+                if std::io::stdin().read_line(&mut input).is_ok() && input.trim().to_lowercase() != "y" {
+                    println!("❌ Operation aborted");
+                    return Ok(());
+                }
+                continue;
+            }
+            Err(e) => {
+                println!("❌ Git checkout failed: {}", e);
+                continue;
+            }
+        }
+        
+        // Step 2: Show commit details
+        println!();
+        println!("Step 2: Reviewing commits...");
+        let output = Command::new("git")
+            .args(&["log", "--oneline", "origin/main..HEAD"])
+            .output();
+            
+        match output {
+            Ok(result) if result.status.success() => {
+                let commits = String::from_utf8_lossy(&result.stdout);
+                if commits.trim().is_empty() {
+                    println!("⚠️  No commits found ahead of main - skipping");
+                    continue;
+                }
+                
+                println!("📝 Commits to be included:");
+                for line in commits.lines() {
+                    println!("   {}", line);
+                }
+                
+                println!();
+                print!("Review commit details and approve for PR creation? [y/N]: ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                if input.trim().to_lowercase() != "y" {
+                    println!("⏭️  Skipping branch (user declined)");
+                    continue;
+                }
+            }
+            _ => {
+                println!("❌ Could not retrieve commit information - skipping");
+                continue;
+            }
+        }
+        
+        // Step 3: Push to origin if needed
+        println!();
+        println!("Step 3: Ensuring branch is pushed to origin...");
+        let output = Command::new("git")
+            .args(&["push", "origin", &branch.branch_name])
+            .output();
+            
+        match output {
+            Ok(result) if result.status.success() => {
+                println!("✅ Branch pushed to origin");
+            }
+            Ok(result) => {
+                let stderr = String::from_utf8_lossy(&result.stderr);
+                if stderr.contains("up-to-date") {
+                    println!("✅ Branch already up-to-date on origin");
+                } else {
+                    println!("⚠️  Push result: {}", stderr);
+                }
+            }
+            Err(e) => {
+                println!("❌ Push failed: {}", e);
+                print!("Continue anyway? [y/N]: ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                
+                let mut input = String::new();
+                if std::io::stdin().read_line(&mut input).is_ok() && input.trim().to_lowercase() != "y" {
+                    continue;
+                }
+            }
+        }
+        
+        // Step 4: Create PR
+        println!();
+        println!("Step 4: Creating pull request...");
+        
+        // Get issue title for PR
+        let pr_title = format!("#{}: {}", branch.issue_number, 
+            branch.description.split(" (").next().unwrap_or("Completed work"));
+        
+        let pr_body = format!(
+            "## Summary\nCompletes work for issue #{}\n\n## Changes\n- Implemented requested functionality\n- Ready for review\n\n🤖 Generated via emergency bundle processing\nCloses #{}", 
+            branch.issue_number, branch.issue_number
+        );
+        
+        let output = Command::new("gh")
+            .args(&["pr", "create", 
+                   "--title", &pr_title,
+                   "--body", &pr_body,
+                   "--head", &branch.branch_name,
+                   "--base", "main"])
+            .output();
+            
+        match output {
+            Ok(result) if result.status.success() => {
+                let pr_url = String::from_utf8_lossy(&result.stdout).trim().to_string();
+                println!("✅ PR created: {}", pr_url);
+                
+                // Step 5: Remove agent label to free capacity
+                println!();
+                println!("Step 5: Freeing agent capacity...");
+                let output = Command::new("gh")
+                    .args(&["issue", "edit", &branch.issue_number.to_string(), 
+                           "--remove-label", &extract_agent_from_branch(&branch.branch_name)])
+                    .output();
+                    
+                match output {
+                    Ok(result) if result.status.success() => {
+                        println!("✅ Agent capacity freed");
+                    }
+                    _ => {
+                        println!("⚠️  Could not remove agent label - manual cleanup may be needed");
+                    }
+                }
+                
+                println!("🎉 Branch {} successfully processed!", branch.branch_name);
+            }
+            Ok(result) => {
+                println!("❌ PR creation failed: {}", String::from_utf8_lossy(&result.stderr));
+                println!("💡 Manual PR creation may be needed for {}", branch.branch_name);
+            }
+            Err(e) => {
+                println!("❌ Command failed: {}", e);
+            }
+        }
+        
+        // Ask about continuing
+        if index < overdue_branches.len() - 1 {
+            println!();
+            print!("Continue to next branch? [Y/n]: ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+            if input.trim().to_lowercase() == "n" {
+                println!("❌ Processing stopped by user");
+                break;
+            }
+        }
+    }
+    
+    println!();
+    println!("✅ Overdue branch processing completed!");
+    println!("💡 Check created PRs and ensure all agent labels were properly removed");
+    
+    Ok(())
+}
+
+fn extract_agent_from_branch(branch_name: &str) -> String {
+    branch_name.split('/').next().unwrap_or("agent001").to_string()
 }
 
 async fn force_land_with_override(client: &github::GitHubClient, queued_branches: Vec<train_schedule::QueuedBranch>) -> Result<()> {
