@@ -525,70 +525,81 @@ fn main() -> Result<()> {
     }
 }
 
+async fn with_agent_router<F, Fut, R>(f: F) -> Result<R>
+where
+    F: FnOnce(AgentRouter) -> Fut + Send,
+    Fut: std::future::Future<Output = Result<R>> + Send,
+    R: Send,
+{
+    print!("🔄 Connecting to GitHub... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
+    match AgentRouter::new().await {
+        Ok(router) => {
+            println!("✅");
+            f(router).await
+        }
+        Err(e) => {
+            println!("❌ Failed to initialize AgentRouter: {:?}", e);
+            Err(e.into())
+        }
+    }
+}
+
 async fn route_tickets_command(agents: u32) -> Result<()> {
     println!("🔀 [ADMIN] Routing up to {} tickets to available agents", agents);
     println!();
     
-    // Show progress indicator
-    print!("🔄 Initializing GitHub connection... ");
-    std::io::Write::flush(&mut std::io::stdout()).unwrap();
-    
-    // Use the real AgentRouter implementation
-    match AgentRouter::new().await {
-        Ok(router) => {
-            println!("✅");
-            print!("🔍 Scanning for routable issues... ");
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
-            
-            match router.route_issues_to_agents().await {
-                Ok(assignments) => {
+    with_agent_router(|router| async move {
+        print!("🔍 Scanning for routable issues... ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        
+        match router.route_issues_to_agents().await {
+            Ok(assignments) => {
+                println!("✅");
+                let routed_count = assignments.len().min(agents as usize);
+                
+                if routed_count > 0 {
+                    print!("🎯 Assigning {} tasks to agents... ", routed_count);
+                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
                     println!("✅");
-                    let routed_count = assignments.len().min(agents as usize);
-                    
-                    if routed_count > 0 {
-                        print!("🎯 Assigning {} tasks to agents... ", routed_count);
-                        std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                        println!("✅");
-                        println!();
-                        println!("✅ Successfully routed {} real GitHub issues to agents:", routed_count);
-                        println!("📋 ROUTING STATUS: Issues assigned in GitHub and branches created");
-                        println!();
-                        for (i, assignment) in assignments.iter().take(agents as usize).enumerate() {
-                            println!("Routed issue #{}:", i + 1);
-                            println!("  🎯 Issue #{}: {}", assignment.issue.number, assignment.issue.title);
-                            println!("  👤 Assigned to: {}", assignment.assigned_agent.id);
-                            println!("  🌿 Branch: {}/{}", assignment.assigned_agent.id, assignment.issue.number);
-                            println!("  🔗 URL: {}", assignment.issue.html_url);
-                            println!("  ✅ GitHub assignment and branch creation complete");
-                            println!();
-                        }
-                        println!("🎯 SUCCESS: Real GitHub issue routing implemented and working!");
-                        println!("   All coordination tests should now pass.");
-                    } else {
-                        println!("📋 No routable tasks found");
-                        println!();
-                        println!("🎯 QUICK START:");
-                        println!("   → Create a task: gh issue create --title 'Your task' --label 'route:ready'");
-                        println!("   → Check existing: gh issue list --label 'route:ready'");
-                        println!("   → Or try: clambake pop  # For single-agent workflow");
-                    }
-                }
-                Err(e) => {
-                    println!("{}", e);
                     println!();
-                    println!("🚀 ALTERNATIVE: Try 'clambake pop' for single-agent workflow");
+                    println!("✅ Successfully routed {} real GitHub issues to agents:", routed_count);
+                    println!("📋 ROUTING STATUS: Issues assigned in GitHub and branches created");
+                    println!();
+                    for (i, assignment) in assignments.iter().take(agents as usize).enumerate() {
+                        println!("Routed issue #{}:", i + 1);
+                        println!("  🎯 Issue #{}: {}", assignment.issue.number, assignment.issue.title);
+                        println!("  👤 Assigned to: {}", assignment.assigned_agent.id);
+                        println!("  🌿 Branch: {}/{}", assignment.assigned_agent.id, assignment.issue.number);
+                        println!("  🔗 URL: {}", assignment.issue.html_url);
+                        println!("  ✅ GitHub assignment and branch creation complete");
+                        println!();
+                    }
+                    println!("🎯 SUCCESS: Real GitHub issue routing implemented and working!");
+                    println!("   All coordination tests should now pass.");
+                } else {
+                    println!("📋 No routable tasks found");
+                    println!();
+                    println!("🎯 QUICK START:");
+                    println!("   → Create a task: gh issue create --title 'Your task' --label 'route:ready'");
+                    println!("   → Check existing: gh issue list --label 'route:ready'");
+                    println!("   → Or try: clambake pop  # For single-agent workflow");
                 }
+                Ok(())
+            }
+            Err(e) => {
+                println!("{}", e);
+                println!();
+                println!("🚀 ALTERNATIVE: Try 'clambake pop' for single-agent workflow");
+                Err(e.into())
             }
         }
-        Err(e) => {
-            println!("{}", e);
-            println!();
-            println!("📚 Need setup help? Run: clambake init");
-            println!("🚀 For single tasks: clambake pop");
-        }
-    }
-    
-    Ok(())
+    }).await.or_else(|_| {
+        println!("📚 Need setup help? Run: clambake init");
+        println!("🚀 For single tasks: clambake pop");
+        Ok(())
+    })
 }
 
 async fn pop_task_command(mine_only: bool, bundle_branches: bool, auto_approve: bool) -> Result<()> {
@@ -630,73 +641,67 @@ async fn pop_task_command(mine_only: bool, bundle_branches: bool, auto_approve: 
     }
     println!();
     
-    print!("🔄 Connecting to GitHub... ");
-    std::io::Write::flush(&mut std::io::stdout()).unwrap();
-    
-    // Use the real AgentRouter implementation
-    match AgentRouter::new().await {
-        Ok(router) => {
-            println!("✅");
-            print!("📋 Searching for available tasks... ");
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
-            
-            let result = if mine_only {
-                router.pop_task_assigned_to_me().await
-            } else {
-                router.pop_any_available_task().await
-            };
-            
-            match result {
-                Ok(Some(task)) => {
-                    println!("✅");
-                    print!("🌿 Creating work branch... ");
-                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                    println!("✅");
-                    println!();
-                    println!("✅ Successfully popped task:");
-                    println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
-                    println!("  👤 Assigned to: {}", task.assigned_agent.id);
-                    println!("  🌿 Branch: {}/{}", task.assigned_agent.id, task.issue.number);
-                    println!("  🔗 URL: {}", task.issue.html_url);
-                    println!();
-                    println!("🚀 Ready to work! Issue assigned and branch created/targeted.");
-                    println!("   Next: git checkout {}/{}", task.assigned_agent.id, task.issue.number);
+    with_agent_router(|router| async move {
+        print!("📋 Searching for available tasks... ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        
+        let result = if mine_only {
+            router.pop_task_assigned_to_me().await
+        } else {
+            router.pop_any_available_task().await
+        };
+        
+        match result {
+            Ok(Some(task)) => {
+                println!("✅");
+                print!("🌿 Creating work branch... ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                println!("✅");
+                println!();
+                println!("✅ Successfully popped task:");
+                println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
+                println!("  👤 Assigned to: {}", task.assigned_agent.id);
+                println!("  🌿 Branch: {}/{}", task.assigned_agent.id, task.issue.number);
+                println!("  🔗 URL: {}", task.issue.html_url);
+                println!();
+                println!("🚀 Ready to work! Issue assigned and branch created/targeted.");
+                println!("   Next: git checkout {}/{}", task.assigned_agent.id, task.issue.number);
+                Ok(())
+            }
+            Ok(None) => {
+                println!("📋 No tasks found");
+                println!();
+                if mine_only {
+                    println!("🎯 NO ASSIGNED TASKS:");
+                    println!("   → Try: clambake pop  # Get any available task");
+                    println!("   → Create: gh issue create --title 'Your task' --label 'route:ready' --add-assignee @me");
+                    println!("   → Check: gh issue list --assignee @me --label 'route:ready'");
+                } else {
+                    println!("🎯 NO AVAILABLE TASKS:");
+                    println!("   → Create: gh issue create --title 'Your task' --label 'route:ready'");
+                    println!("   → Check existing: gh issue list --label 'route:ready'");
+                    println!("   → Try assigned: clambake pop --mine");
                 }
-                Ok(None) => {
-                    println!("📋 No tasks found");
-                    println!();
-                    if mine_only {
-                        println!("🎯 NO ASSIGNED TASKS:");
-                        println!("   → Try: clambake pop  # Get any available task");
-                        println!("   → Create: gh issue create --title 'Your task' --label 'route:ready' --add-assignee @me");
-                        println!("   → Check: gh issue list --assignee @me --label 'route:ready'");
-                    } else {
-                        println!("🎯 NO AVAILABLE TASKS:");
-                        println!("   → Create: gh issue create --title 'Your task' --label 'route:ready'");
-                        println!("   → Check existing: gh issue list --label 'route:ready'");
-                        println!("   → Try assigned: clambake pop --mine");
-                    }
+                Ok(())
+            }
+            Err(e) => {
+                println!("{}", e);
+                println!();
+                println!("🎯 TASK-SPECIFIC HELP:");
+                println!("   → Check for available: gh issue list --label 'route:ready'");
+                if mine_only {
+                    println!("   → Check assigned to you: gh issue list --assignee @me --label 'route:ready'");
                 }
-                Err(e) => {
-                    println!("{}", e);
-                    println!();
-                    println!("🎯 TASK-SPECIFIC HELP:");
-                    println!("   → Check for available: gh issue list --label 'route:ready'");
-                    if mine_only {
-                        println!("   → Check assigned to you: gh issue list --assignee @me --label 'route:ready'");
-                    }
-                    println!("   → Create new task: gh issue create --title 'Your task' --label 'route:ready'");
-                }
+                println!("   → Create new task: gh issue create --title 'Your task' --label 'route:ready'");
+                Err(e.into())
             }
         }
-        Err(e) => {
-            println!("{}", e);
-            println!();
-            println!("📚 Full setup guide: clambake init");
-        }
-    }
-    
-    Ok(())
+    }).await.or_else(|_| {
+        println!("❌ Router initialization failed");
+        println!();
+        println!("📚 Full setup guide: clambake init");
+        Ok(())
+    })
 }
 
 async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: bool) -> Result<()> {
@@ -1275,10 +1280,8 @@ async fn peek_command() -> Result<()> {
     println!("👀 Peeking at next task in queue...");
     println!();
     
-    // Use the same router logic as pop, but don't assign anything
-    match AgentRouter::new().await {
-        Ok(router) => {
-            match router.fetch_routable_issues().await {
+    with_agent_router(|router| async move {
+        match router.fetch_routable_issues().await {
                 Ok(mut issues) => {
                     if issues.is_empty() {
                         println!("📋 No routable tasks found");
@@ -1337,18 +1340,17 @@ async fn peek_command() -> Result<()> {
                     
                     println!();
                     println!("▶️  Use 'clambake pop' to assign this task to an agent");
+                    Ok(())
                 }
                 Err(e) => {
                     println!("❌ Failed to fetch routable issues: {:?}", e);
+                    Err(e.into())
                 }
             }
-        }
-        Err(e) => {
-            println!("❌ Failed to initialize AgentRouter: {:?}", e);
-        }
-    }
-    
-    Ok(())
+    }).await.or_else(|_| {
+        println!("❌ Failed to initialize AgentRouter");
+        Ok(())
+    })
 }
 
 // Helper function to get issue priority (mirrors router logic)
