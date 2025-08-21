@@ -462,6 +462,21 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
         Ok(client) => {
             println!("✅");
             
+            // First, check for current landing phase (intelligent detection)
+            // This must happen BEFORE train schedule checks so agents can free themselves
+            match detect_current_landing_phase(&client).await {
+                Ok(Some(phase)) => {
+                    return handle_landing_phase(&client, phase, dry_run, verbose).await;
+                }
+                Ok(None) => {
+                    // No current phase detected, proceed with train schedule and legacy workflow
+                }
+                Err(e) => {
+                    println!("⚠️  Phase detection failed: {:?}", e);
+                    // Continue with train schedule and legacy scan as fallback
+                }
+            }
+            
             // Check train schedule for bundling timing
             let schedule = TrainSchedule::calculate_next_schedule();
             match TrainSchedule::get_queued_branches().await {
@@ -495,20 +510,6 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
                 Err(e) => {
                     println!("⚠️  Could not check train schedule: {:?}", e);
                     println!("   🔄 Proceeding with standard workflow...");
-                }
-            }
-            
-            // First, check for current landing phase (intelligent detection)
-            match detect_current_landing_phase(&client).await {
-                Ok(Some(phase)) => {
-                    return handle_landing_phase(&client, phase, dry_run, verbose).await;
-                }
-                Ok(None) => {
-                    // No current phase detected, proceed with legacy completed work scan
-                }
-                Err(e) => {
-                    println!("⚠️  Phase detection failed: {:?}", e);
-                    // Continue with legacy scan as fallback
                 }
             }
             
@@ -1171,21 +1172,33 @@ async fn detect_current_landing_phase(client: &github::GitHubClient) -> Result<O
                     let commits_ahead_trimmed = commits_ahead_str.trim();
                     if let Ok(commits_ahead) = commits_ahead_trimmed.parse::<u32>() {
                         if commits_ahead > 0 {
-                            // Check if issue already has route:ready label (work completed)
+                            // Check if work is already marked for review
                             let issue = client.fetch_issue(issue_number).await?;
-                            let has_route_ready = issue.labels.iter().any(|label| label.name == "route:ready");
+                            let has_route_review = issue.labels.iter().any(|label| label.name == "route:review");
                             
-                            if has_route_ready {
-                                // Work completed and ready - use bundle workflow instead of immediate PR
-                                // This prevents individual PRs and enables proper bundling
+                            if has_route_review {
+                                // Work completed and ready for bundling
                                 return Ok(Some(LandingPhase::WorkCompleted {
                                     agent_id: agent_id.to_string(),
                                     issue_number,
                                     commits_ahead,
                                 }));
                             } else {
-                                // Work in progress - not ready for bundling yet
-                                return Ok(None);
+                                // Work completed but not marked for review - add route:review label and free agent
+                                if let Err(e) = client.add_label_to_issue(issue_number, "route:review").await {
+                                    return Err(e);
+                                }
+                                
+                                // Remove agent label to free agent capacity
+                                if let Err(e) = remove_label_from_issue(client, issue_number, agent_id).await {
+                                    return Err(e);
+                                }
+                                
+                                return Ok(Some(LandingPhase::WorkCompleted {
+                                    agent_id: agent_id.to_string(),
+                                    issue_number,
+                                    commits_ahead,
+                                }));
                             }
                         }
                     }
