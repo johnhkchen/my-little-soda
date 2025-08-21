@@ -2,8 +2,51 @@ use octocrab::{Octocrab, Error as OctocrabError};
 use octocrab::params::pulls::MergeMethod;
 use std::fs;
 use std::path::Path;
+use std::sync::OnceLock;
 use async_trait::async_trait;
+use regex::Regex;
 // use crate::github::retry::GitHubRetryHandler;
+
+/// Compiled regex patterns for issue references, cached using OnceLock
+static ISSUE_REFERENCE_PATTERNS: OnceLock<Vec<Regex>> = OnceLock::new();
+
+/// Get compiled regex patterns for matching issue references in PR bodies
+fn get_issue_reference_patterns() -> &'static Vec<Regex> {
+    ISSUE_REFERENCE_PATTERNS.get_or_init(|| {
+        // Compile the regex patterns once and cache them
+        let patterns = [
+            r"(?i)fixes\s+#(\d+)",
+            r"(?i)closes\s+#(\d+)", 
+            r"(?i)resolves\s+#(\d+)",
+            r"(?i)fix\s+#(\d+)",
+            r"(?i)close\s+#(\d+)",
+            r"(?i)resolve\s+#(\d+)",
+            r"#(\d+)", // Simple reference
+        ];
+        
+        patterns
+            .iter()
+            .filter_map(|pattern| Regex::new(pattern).ok())
+            .collect()
+    })
+}
+
+/// Check if a PR body references a specific issue number using optimized regex patterns
+fn pr_references_issue(body: &str, issue_number: u64) -> bool {
+    let patterns = get_issue_reference_patterns();
+    let issue_str = issue_number.to_string();
+    
+    for pattern in patterns {
+        if let Some(captures) = pattern.captures(body) {
+            if let Some(captured_number) = captures.get(1) {
+                if captured_number.as_str() == issue_str {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
 
 /// Trait for GitHub operations to enable testing with mocks
 #[async_trait]
@@ -496,23 +539,9 @@ impl GitHubClient {
         let open_prs = self.fetch_open_pull_requests().await?;
         
         for pr in open_prs {
-            // Check if this PR references the issue number
+            // Check if this PR references the issue number using optimized regex patterns
             if let Some(body) = &pr.body {
-                // Look for common patterns like "fixes #123", "closes #123", etc.
-                let patterns = [
-                    format!("fixes #{}", issue_number),
-                    format!("closes #{}", issue_number),
-                    format!("resolves #{}", issue_number),
-                    format!("fix #{}", issue_number),
-                    format!("close #{}", issue_number),
-                    format!("resolve #{}", issue_number),
-                    format!("#{}", issue_number), // Simple reference
-                ];
-                
-                let body_lower = body.to_lowercase();
-                let references_issue = patterns.iter().any(|pattern| body_lower.contains(&pattern.to_lowercase()));
-                
-                if references_issue {
+                if pr_references_issue(body, issue_number) {
                     // Check if this PR has route:land label
                     let has_route_land = pr.labels.as_ref()
                         .map(|labels| labels.iter().any(|label| label.name == "route:land"))
