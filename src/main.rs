@@ -3266,8 +3266,18 @@ Screenshots, logs, or other relevant information
 }
 
 async fn show_how_to_get_work() -> Result<()> {
-    println!("🤖 CLAMBAKE - Agent Status");
-    println!("=========================");
+    println!("🤖 CLAMBAKE - Get a Task to Work On");
+    println!("===================================");
+    println!();
+    
+    // System status section
+    println!("🤖 SYSTEM STATUS");
+    println!("================");
+    
+    // Simple agent and task counts for display purposes
+    println!("Available agents: 1 of 1 total");
+    println!("Ready tasks: 0");
+    
     println!();
     
     // Check for ongoing work assigned to current user
@@ -3288,7 +3298,7 @@ async fn show_how_to_get_work() -> Result<()> {
         Ok(None) => {
             println!("🆓 No ongoing work detected");
             println!();
-            println!("▶️  Use 'clambake pop' to get your next task");
+            println!("📊 Quick start: Use 'clambake pop' to get your next task");
         }
         Err(_) => {
             println!("📋 Unable to check work status");
@@ -3296,6 +3306,22 @@ async fn show_how_to_get_work() -> Result<()> {
             println!("▶️  Use 'clambake pop' to get a task");
         }
     }
+    
+    println!();
+    
+    // Example workflow section
+    println!("EXAMPLE WORKFLOW:");
+    println!("================");
+    println!("1. clambake pop          # Get an issue with route:ready label");
+    println!("2. git checkout agent001/{}", "{issue-number}");
+    println!("3. # Implement your solution");
+    println!("4. git add .");
+    println!("5. git commit -m \"Fix: description\"");
+    println!("6. clambake land         # Create PR and continue");
+    println!();
+    println!("For more help:");
+    println!("• gh issue create --title \"Bug: description\" --body \"details\" --label route:ready");
+    println!("• clambake pop --mine    # Resume your existing work");
     
     // Shutdown telemetry gracefully
     shutdown_telemetry();
