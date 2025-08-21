@@ -262,4 +262,84 @@ impl TrainSchedule {
         
         output
     }
+    
+    /// Get branches that are past their departure time by more than 10 minutes (overdue)
+    pub async fn get_overdue_branches() -> Result<Vec<QueuedBranch>, Box<dyn std::error::Error>> {
+        let mut overdue_branches = Vec::new();
+        
+        // Get all agent branches
+        let output = Command::new("git")
+            .args(&["branch", "-r", "--list", "origin/agent*"])
+            .output()?;
+            
+        if !output.status.success() {
+            return Ok(overdue_branches);
+        }
+        
+        let branches_str = String::from_utf8_lossy(&output.stdout);
+        
+        for line in branches_str.lines() {
+            let branch = line.trim().strip_prefix("origin/").unwrap_or(line.trim());
+            
+            // Parse agent001/123 format
+            if let Some((agent_part, issue_number_str)) = branch.split_once('/') {
+                if agent_part.starts_with("agent") {
+                    if let Ok(issue_number) = issue_number_str.parse::<u64>() {
+                        // Check if this branch has work and is overdue
+                        if Self::branch_has_completed_work(branch).await? {
+                            // Get the last commit time on this branch
+                            if let Ok(minutes_since_commit) = Self::get_minutes_since_last_commit(branch).await {
+                                // Calculate expected departure time based on commit time
+                                let departure_delay = Self::calculate_departure_delay(minutes_since_commit);
+                                
+                                // Branch is overdue if it's been more than 10 minutes past expected departure
+                                if departure_delay > 10 {
+                                    let description = Self::get_branch_description(issue_number).await
+                                        .unwrap_or_else(|_| "Work completed".to_string());
+                                        
+                                    overdue_branches.push(QueuedBranch {
+                                        branch_name: branch.to_string(),
+                                        issue_number,
+                                        description: format!("{} ({} min overdue)", description, departure_delay),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(overdue_branches)
+    }
+    
+    /// Get minutes since last commit on a branch
+    async fn get_minutes_since_last_commit(branch_name: &str) -> Result<i64, Box<dyn std::error::Error>> {
+        let output = Command::new("git")
+            .args(&["log", "-1", "--format=%ct", &format!("origin/{}", branch_name)])
+            .output()?;
+            
+        if !output.status.success() {
+            return Err("Failed to get commit time".into());
+        }
+        
+        let timestamp_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let timestamp: i64 = timestamp_str.parse()?;
+        
+        let commit_time = DateTime::from_timestamp(timestamp, 0)
+            .ok_or("Invalid timestamp")?
+            .with_timezone(&Local);
+        let now = Local::now();
+        
+        Ok((now - commit_time).num_minutes())
+    }
+    
+    /// Calculate how many minutes past expected departure time
+    fn calculate_departure_delay(minutes_since_commit: i64) -> i64 {
+        // Find the next 10-minute departure time after the commit
+        let expected_departure_minutes = ((minutes_since_commit / 10) + 1) * 10;
+        
+        // How many minutes past that departure time are we now?
+        std::cmp::max(0, minutes_since_commit - expected_departure_minutes)
+    }
 }
