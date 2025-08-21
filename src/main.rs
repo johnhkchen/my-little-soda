@@ -898,6 +898,11 @@ enum LandingPhase {
         issue_number: u64,  
         agent_id: String,
     },
+    WorkCompleted {
+        agent_id: String,
+        issue_number: u64,
+        commits_ahead: u32,
+    },
     CleanupOnly {
         // Current behavior for orphaned work
     },
@@ -944,12 +949,22 @@ async fn detect_current_landing_phase(client: &github::GitHubClient) -> Result<O
                     let commits_ahead_trimmed = commits_ahead_str.trim();
                     if let Ok(commits_ahead) = commits_ahead_trimmed.parse::<u32>() {
                         if commits_ahead > 0 {
-                            // Phase 1: We have commits ready for PR creation
-                            return Ok(Some(LandingPhase::CreatePR {
-                                agent_id: agent_id.to_string(),
-                                issue_number,
-                                commits_ahead,
-                            }));
+                            // Check if issue already has route:ready label (work completed)
+                            let issue = client.fetch_issue(issue_number).await?;
+                            let has_route_ready = issue.labels.iter().any(|label| label.name == "route:ready");
+                            
+                            if has_route_ready {
+                                // Work completed and ready - use bundle workflow instead of immediate PR
+                                // This prevents individual PRs and enables proper bundling
+                                return Ok(Some(LandingPhase::WorkCompleted {
+                                    agent_id: agent_id.to_string(),
+                                    issue_number,
+                                    commits_ahead,
+                                }));
+                            } else {
+                                // Work in progress - not ready for bundling yet
+                                return Ok(None);
+                            }
                         }
                     }
                 }
@@ -1075,6 +1090,58 @@ async fn handle_landing_phase(client: &github::GitHubClient, phase: LandingPhase
             println!("🔍 Detected approved PR #{} for issue #{}", pr_number, issue_number);
             // TODO: Implement Phase 2 logic
             println!("🚧 Phase 2 implementation coming soon");
+        }
+        LandingPhase::WorkCompleted { agent_id, issue_number, commits_ahead } => {
+            println!("Bundle Workflow: Work Completed");
+            println!("🔍 Detected {}/{} with {} commits ahead of main", agent_id, issue_number, commits_ahead);
+            
+            // Fetch the issue to get title and details
+            match client.fetch_issue(issue_number).await {
+                Ok(issue) => {
+                    let title_str = &issue.title;
+                    println!("📋 Issue #{}: {}", issue.number, title_str);
+                    
+                    if dry_run {
+                        println!("🔍 DRY RUN - Would transition to bundle workflow:");
+                        println!("   📦 Mark work as completed (work:completed label)");
+                        println!("   🏷️  Free agent immediately (remove route:ready label)");
+                        println!("   ⏳ Queue for bundling with other completed work");
+                        println!("🎯 Agent would be freed immediately - ready for new assignment");
+                    } else {
+                        // Create CompletedWork structure and use existing bundle workflow
+                        let completed_work = CompletedWork {
+                            issue: issue.clone(),
+                            branch_name: format!("{}/{}", agent_id, issue_number),
+                            agent_id: agent_id.clone(),
+                            work_type: CompletedWorkType::ReadyForPhaseOne,
+                        };
+                        
+                        // Use existing transition logic to bundle workflow
+                        match transition_to_work_completed(client, &completed_work).await {
+                            Ok(_) => {
+                                println!("✅ Work transitioned to bundle workflow");
+                                
+                                // Switch back to main branch to free the agent
+                                let _ = Command::new("git")
+                                    .args(&["checkout", "main"])
+                                    .output();
+                                    
+                                println!("🌿 Switched to main branch");
+                                println!("🎯 Agent {} freed - ready for new assignment via 'clambake pop'", agent_id);
+                                println!("📦 Work queued for bundling - will be bundled with other completed items or get individual PR after 10min timeout");
+                            }
+                            Err(e) => {
+                                println!("❌ Failed to transition to bundle workflow: {:?}", e);
+                                return Err(anyhow::anyhow!("Bundle workflow transition failed: {:?}", e));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("❌ Failed to fetch issue #{}: {:?}", issue_number, e);
+                    return Err(anyhow::anyhow!("Failed to fetch issue: {:?}", e));
+                }
+            }
         }
         LandingPhase::CleanupOnly {} => {
             println!("Legacy Mode: Cleanup Only");
