@@ -717,6 +717,9 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
                     if TrainSchedule::is_departure_time() {
                         println!();
                         println!("🚀 DEPARTURE TIME: Proceeding with PR bundling for {} branches", queued_branches.len());
+                        
+                        // Actually perform the bundling when departure time is reached
+                        return bundle_all_branches().await;
                     }
                 }
                 Err(e) => {
