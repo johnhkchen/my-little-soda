@@ -8,11 +8,13 @@ mod github;
 mod agents;
 mod workflows;
 mod priority;
+mod train_schedule;
 
 use agents::AgentRouter;
 use std::process::Command;
 use github::GitHubClient;
 use priority::Priority;
+use train_schedule::TrainSchedule;
 
 #[derive(Parser)]
 #[command(name = "clambake")]
@@ -294,6 +296,42 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
     match github::GitHubClient::new() {
         Ok(client) => {
             println!("✅");
+            
+            // Check train schedule for bundling timing
+            let schedule = TrainSchedule::calculate_next_schedule();
+            match TrainSchedule::get_queued_branches().await {
+                Ok(queued_branches) => {
+                    println!();
+                    print!("{}", schedule.format_schedule_display(&queued_branches));
+                    
+                    // Only proceed with bundling if at departure time or explicitly forcing
+                    if !TrainSchedule::is_departure_time() && !queued_branches.is_empty() {
+                        println!();
+                        println!("⏰ BUNDLING SCHEDULE: Not yet time for departure");
+                        println!("   🚂 Next bundling window: {} (in {} min)", 
+                                schedule.next_departure.format("%H:%M"), 
+                                schedule.minutes_until_departure);
+                        println!("   💡 Run 'clambake land' at or after departure time to bundle queued work");
+                        return Ok(());
+                    }
+                    
+                    if queued_branches.is_empty() {
+                        println!();
+                        println!("📦 No queued branches found for bundling");
+                        println!("   💡 Complete work and use 'clambake land' when branches are ready");
+                        return Ok(());
+                    }
+                    
+                    if TrainSchedule::is_departure_time() {
+                        println!();
+                        println!("🚀 DEPARTURE TIME: Proceeding with PR bundling for {} branches", queued_branches.len());
+                    }
+                }
+                Err(e) => {
+                    println!("⚠️  Could not check train schedule: {:?}", e);
+                    println!("   🔄 Proceeding with standard workflow...");
+                }
+            }
             
             // First, check for current landing phase (intelligent detection)
             match detect_current_landing_phase(&client).await {
@@ -771,6 +809,23 @@ async fn status_command() -> Result<()> {
                 }
             } else {
                 println!(" 🌿 Current branch: HEAD (detached) or git error");
+            }
+            
+            // Train schedule information
+            println!();
+            let schedule = TrainSchedule::calculate_next_schedule();
+            match TrainSchedule::get_queued_branches().await {
+                Ok(queued_branches) => {
+                    print!("{}", schedule.format_schedule_display(&queued_branches));
+                }
+                Err(e) => {
+                    println!("🚄 PR BUNDLING SCHEDULE:");
+                    println!("─────────────────────");
+                    println!("❌ Unable to check queued branches: {:?}", e);
+                    let time_str = schedule.next_departure.format("%H:%M").to_string();
+                    println!("🔵 Next train: {} (in {} min)", time_str, schedule.minutes_until_departure);
+                    println!("⏰ Schedule: :00, :10, :20, :30, :40, :50");
+                }
             }
         }
         Err(e) => {

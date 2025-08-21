@@ -1,0 +1,215 @@
+//! Train Schedule Module
+//! 
+//! Implements predictable PR bundling schedule visibility for agents.
+//! PRs are bundled at 10-minute intervals (:00, :10, :20, :30, :40, :50)
+//! but only when clambake land is manually triggered at/after departure time.
+
+use chrono::{DateTime, Local, Timelike};
+use std::process::Command;
+
+#[derive(Debug, Clone)]
+pub struct TrainSchedule {
+    /// Next bundling opportunity
+    pub next_departure: DateTime<Local>,
+    /// Minutes until next departure
+    pub minutes_until_departure: i64,
+    /// Current schedule status
+    pub status: ScheduleStatus,
+}
+
+#[derive(Debug, Clone)]
+pub enum ScheduleStatus {
+    /// Agents can still add work before next departure
+    Boarding,
+    /// At/past departure time, ready for bundling
+    Departing,
+    /// No work queued, waiting for next cycle
+    Waiting,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueuedBranch {
+    pub branch_name: String,
+    pub issue_number: u64,
+    pub description: String,
+}
+
+impl TrainSchedule {
+    /// Calculate the next train schedule based on current time
+    pub fn calculate_next_schedule() -> Self {
+        let now = Local::now();
+        let current_minute = now.minute();
+        
+        // Calculate next 10-minute mark
+        let next_departure_minute = ((current_minute / 10) + 1) * 10;
+        let minutes_to_add = if next_departure_minute >= 60 {
+            60 - current_minute  // Roll to next hour
+        } else {
+            next_departure_minute - current_minute
+        };
+        
+        let next_departure = now
+            .with_second(0)
+            .unwrap()
+            .with_nanosecond(0)
+            .unwrap()
+            + chrono::Duration::minutes(minutes_to_add as i64);
+            
+        let minutes_until = (next_departure - now).num_minutes();
+        
+        let status = if minutes_until <= 0 {
+            ScheduleStatus::Departing
+        } else if minutes_until <= 3 {
+            ScheduleStatus::Boarding
+        } else {
+            ScheduleStatus::Waiting
+        };
+        
+        TrainSchedule {
+            next_departure,
+            minutes_until_departure: minutes_until,
+            status,
+        }
+    }
+    
+    /// Check if we're at or past a departure time
+    pub fn is_departure_time() -> bool {
+        let schedule = Self::calculate_next_schedule();
+        matches!(schedule.status, ScheduleStatus::Departing)
+    }
+    
+    /// Get all agent branches that are ready for bundling
+    pub async fn get_queued_branches() -> Result<Vec<QueuedBranch>, Box<dyn std::error::Error>> {
+        let mut queued_branches = Vec::new();
+        
+        // Get all branches with pattern agent*/issue_number
+        let output = Command::new("git")
+            .args(&["branch", "-r", "--list", "origin/agent*"])
+            .output()?;
+            
+        if !output.status.success() {
+            return Ok(queued_branches);
+        }
+        
+        let branches_str = String::from_utf8_lossy(&output.stdout);
+        
+        for line in branches_str.lines() {
+            let branch = line.trim().strip_prefix("origin/").unwrap_or(line.trim());
+            
+            // Parse agent001/123 format
+            if let Some((agent_part, issue_number_str)) = branch.split_once('/') {
+                if agent_part.starts_with("agent") {
+                    if let Ok(issue_number) = issue_number_str.parse::<u64>() {
+                        // Check if this branch has work ready for bundling
+                        if Self::branch_has_completed_work(branch).await? {
+                            let description = Self::get_branch_description(issue_number).await
+                                .unwrap_or_else(|_| "Work completed".to_string());
+                                
+                            queued_branches.push(QueuedBranch {
+                                branch_name: branch.to_string(),
+                                issue_number,
+                                description,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(queued_branches)
+    }
+    
+    /// Check if a branch has completed work (commits ahead and route:ready label)
+    async fn branch_has_completed_work(branch_name: &str) -> Result<bool, Box<dyn std::error::Error>> {
+        // Check if branch has commits ahead of main
+        let output = Command::new("git")
+            .args(&["rev-list", "--count", &format!("origin/{}..origin/main", branch_name)])
+            .output()?;
+            
+        if !output.status.success() {
+            return Ok(false);
+        }
+        
+        let commits_behind_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let _commits_behind: u32 = commits_behind_str.parse().unwrap_or(0);
+        
+        // Check commits ahead
+        let output = Command::new("git")
+            .args(&["rev-list", "--count", &format!("origin/main..origin/{}", branch_name)])
+            .output()?;
+            
+        if !output.status.success() {
+            return Ok(false);
+        }
+        
+        let commits_ahead_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let commits_ahead: u32 = commits_ahead_str.parse().unwrap_or(0);
+        
+        // Branch has work if it has commits ahead
+        Ok(commits_ahead > 0)
+    }
+    
+    /// Get a description for the branch work from the issue
+    async fn get_branch_description(issue_number: u64) -> Result<String, Box<dyn std::error::Error>> {
+        let output = Command::new("gh")
+            .args(&["issue", "view", &issue_number.to_string(), "--json", "title"])
+            .output()?;
+            
+        if output.status.success() {
+            let json_str = String::from_utf8_lossy(&output.stdout);
+            // Simple JSON parsing for title field
+            if let Some(start) = json_str.find("\"title\":\"") {
+                let start = start + 9; // length of "title":"
+                if let Some(end) = json_str[start..].find("\"}") {
+                    let title = &json_str[start..start + end];
+                    return Ok(title.to_string());
+                }
+            }
+        }
+        
+        Ok(format!("Issue #{}", issue_number))
+    }
+    
+    /// Format the schedule for display
+    pub fn format_schedule_display(&self, queued_branches: &[QueuedBranch]) -> String {
+        let mut output = String::new();
+        
+        output.push_str("🚄 PR BUNDLING SCHEDULE:\n");
+        output.push_str("─────────────────────\n");
+        
+        // Status line with time
+        let time_str = self.next_departure.format("%H:%M").to_string();
+        match self.status {
+            ScheduleStatus::Departing => {
+                output.push_str(&format!("🟢 Next train: {} (READY TO DEPART)\n", time_str));
+            }
+            ScheduleStatus::Boarding => {
+                output.push_str(&format!("🟡 Next train: {} (in {} min)\n", time_str, self.minutes_until_departure));
+            }
+            ScheduleStatus::Waiting => {
+                output.push_str(&format!("🔵 Next train: {} (in {} min)\n", time_str, self.minutes_until_departure));
+            }
+        }
+        
+        // Queued branches
+        if queued_branches.is_empty() {
+            output.push_str("📦 Queued branches: None\n");
+        } else {
+            output.push_str(&format!("📦 Queued branches: {}\n", queued_branches.len()));
+            for branch in queued_branches.iter().take(5) { // Show max 5
+                output.push_str(&format!("   • {} ({})\n", branch.branch_name, branch.description));
+            }
+            if queued_branches.len() > 5 {
+                output.push_str(&format!("   • ... and {} more\n", queued_branches.len() - 5));
+            }
+        }
+        
+        output.push_str("⏰ Schedule: :00, :10, :20, :30, :40, :50\n");
+        
+        if matches!(self.status, ScheduleStatus::Departing) && !queued_branches.is_empty() {
+            output.push_str("\n💡 Run 'clambake land' to bundle queued branches into PR\n");
+        }
+        
+        output
+    }
+}
