@@ -7,4 +7,4 @@ pub mod integrator;
 
 pub use coordinator::{AgentCoordinator, Agent, AgentState};
 pub use router::AgentRouter;
-// pub use integrator::{WorkIntegrator, CompletedWork}; // Future: Work integration pipeline
+pub use integrator::{WorkIntegrator, CompletedWork, IntegrationResult};
