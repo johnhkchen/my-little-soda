@@ -210,7 +210,6 @@ pub fn create_issue_with_labels(number: u64, title: &str, label_names: Vec<Strin
     
     base_issue
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
