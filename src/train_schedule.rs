@@ -82,26 +82,47 @@ impl TrainSchedule {
     pub async fn get_queued_branches() -> Result<Vec<QueuedBranch>, Box<dyn std::error::Error>> {
         let mut queued_branches = Vec::new();
         
-        // Get all branches with pattern agent*/issue_number
-        let output = Command::new("git")
+        // Check both local and remote agent branches
+        let mut all_branches = std::collections::HashSet::new();
+        
+        // Get local agent branches
+        let local_output = Command::new("git")
+            .args(&["branch", "--list", "agent*"])
+            .output()?;
+            
+        if local_output.status.success() {
+            let local_branches_str = String::from_utf8_lossy(&local_output.stdout);
+            for line in local_branches_str.lines() {
+                let branch = line.trim().trim_start_matches("* ").trim();
+                if !branch.is_empty() {
+                    all_branches.insert(branch.to_string());
+                }
+            }
+        }
+        
+        // Get remote agent branches
+        let remote_output = Command::new("git")
             .args(&["branch", "-r", "--list", "origin/agent*"])
             .output()?;
             
-        if !output.status.success() {
-            return Ok(queued_branches);
+        if remote_output.status.success() {
+            let remote_branches_str = String::from_utf8_lossy(&remote_output.stdout);
+            for line in remote_branches_str.lines() {
+                let branch = line.trim().strip_prefix("origin/").unwrap_or(line.trim());
+                if !branch.is_empty() {
+                    all_branches.insert(branch.to_string());
+                }
+            }
         }
         
-        let branches_str = String::from_utf8_lossy(&output.stdout);
-        
-        for line in branches_str.lines() {
-            let branch = line.trim().strip_prefix("origin/").unwrap_or(line.trim());
-            
+        // Check each unique branch for completed work
+        for branch in all_branches {
             // Parse agent001/123 format
             if let Some((agent_part, issue_number_str)) = branch.split_once('/') {
                 if agent_part.starts_with("agent") {
                     if let Ok(issue_number) = issue_number_str.parse::<u64>() {
-                        // Check if this branch has work ready for bundling
-                        if Self::branch_has_completed_work(branch).await? {
+                        // Check if this branch has work ready for bundling (handles both local and remote)
+                        if Self::branch_has_completed_work(&branch).await? {
                             let description = Self::get_branch_description(issue_number).await
                                 .unwrap_or_else(|_| "Work completed".to_string());
                                 
@@ -119,7 +140,7 @@ impl TrainSchedule {
         Ok(queued_branches)
     }
     
-    /// Check if a branch has completed work (issue has route:review label)
+    /// Check if a branch has completed work (local commits or route:review label)
     async fn branch_has_completed_work(branch_name: &str) -> Result<bool, Box<dyn std::error::Error>> {
         // Parse issue number from branch name (agent001/123 -> 123)
         let issue_number = if let Some((_, issue_number_str)) = branch_name.split_once('/') {
@@ -132,22 +153,50 @@ impl TrainSchedule {
             return Ok(false);
         }
         
-        // Check if the issue has route:review label (indicating completed work)
+        // First check if the issue has route:review label (work already landed)
         let output = Command::new("gh")
             .args(&["issue", "view", &issue_number.to_string(), "--json", "labels,state"])
             .output()?;
             
-        if !output.status.success() {
-            return Ok(false);
+        if output.status.success() {
+            let json_str = String::from_utf8_lossy(&output.stdout);
+            let is_open = json_str.contains("\"state\":\"OPEN\"");
+            let has_route_review = json_str.contains("\"name\":\"route:review\"");
+            
+            // If issue has route:review label, it's definitely ready for bundling
+            if is_open && has_route_review {
+                return Ok(true);
+            }
         }
         
-        let json_str = String::from_utf8_lossy(&output.stdout);
+        // Check if local branch exists and has commits ahead of main
+        let local_commits_output = Command::new("git")
+            .args(&["rev-list", "--count", &format!("main..{}", branch_name)])
+            .output()?;
+            
+        if local_commits_output.status.success() {
+            let commits_ahead_str = String::from_utf8_lossy(&local_commits_output.stdout).trim().to_string();
+            let commits_ahead: u32 = commits_ahead_str.parse().unwrap_or(0);
+            
+            // If there are local commits ahead, this branch has work to bundle
+            if commits_ahead > 0 {
+                return Ok(true);
+            }
+        }
         
-        // Check if issue is open and has route:review label
-        let is_open = json_str.contains("\"state\":\"OPEN\"");
-        let has_route_review = json_str.contains("\"name\":\"route:review\"");
+        // Check if remote branch has commits ahead of main (fallback)
+        let remote_commits_output = Command::new("git")
+            .args(&["rev-list", "--count", &format!("main..origin/{}", branch_name)])
+            .output()?;
+            
+        if remote_commits_output.status.success() {
+            let commits_ahead_str = String::from_utf8_lossy(&remote_commits_output.stdout).trim().to_string();
+            let commits_ahead: u32 = commits_ahead_str.parse().unwrap_or(0);
+            
+            return Ok(commits_ahead > 0);
+        }
         
-        Ok(is_open && has_route_review)
+        Ok(false)
     }
     
     /// Get a description for the branch work from the issue

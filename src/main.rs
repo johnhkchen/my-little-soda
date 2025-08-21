@@ -2620,7 +2620,81 @@ async fn get_work_completion_timestamp(issue: &octocrab::models::issues::Issue) 
     Ok(Some(issue.updated_at))
 }
 
+/// Ensure a branch is pushed to origin, pushing local commits if needed
+async fn ensure_branch_pushed(branch_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+    
+    // Check if the branch exists locally
+    let local_exists = Command::new("git")
+        .args(&["show-ref", "--verify", &format!("refs/heads/{}", branch_name)])
+        .output()?
+        .status
+        .success();
+    
+    if !local_exists {
+        // Branch doesn't exist locally, nothing to push
+        return Ok(());
+    }
+    
+    // Check if local branch has commits ahead of main
+    let local_commits_output = Command::new("git")
+        .args(&["rev-list", "--count", &format!("main..{}", branch_name)])
+        .output()?;
+        
+    if !local_commits_output.status.success() {
+        return Ok(()); // Can't determine commits, skip push
+    }
+    
+    let local_commits_ahead_str = String::from_utf8_lossy(&local_commits_output.stdout).trim().to_string();
+    let local_commits_ahead: u32 = local_commits_ahead_str.parse().unwrap_or(0);
+    
+    if local_commits_ahead == 0 {
+        return Ok(()); // No local commits to push
+    }
+    
+    // Check if remote branch exists and how many commits it has
+    let remote_commits_output = Command::new("git")
+        .args(&["rev-list", "--count", &format!("main..origin/{}", branch_name)])
+        .output();
+        
+    let remote_commits_ahead = if let Ok(output) = remote_commits_output {
+        if output.status.success() {
+            let remote_commits_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            remote_commits_str.parse::<u32>().unwrap_or(0)
+        } else {
+            0 // Remote branch doesn't exist
+        }
+    } else {
+        0
+    };
+    
+    // If local has more commits than remote, push is needed
+    if local_commits_ahead > remote_commits_ahead {
+        println!("   🔄 Pushing {} local commits from {} to origin", 
+                local_commits_ahead - remote_commits_ahead, branch_name);
+        
+        let push_output = Command::new("git")
+            .args(&["push", "origin", branch_name])
+            .output()?;
+            
+        if !push_output.status.success() {
+            let error_msg = String::from_utf8_lossy(&push_output.stderr);
+            return Err(format!("Failed to push branch {}: {}", branch_name, error_msg).into());
+        }
+        
+        println!("   ✅ Successfully pushed {} to origin", branch_name);
+    }
+    
+    Ok(())
+}
+
 async fn create_individual_pr_from_completed_work(client: &github::GitHubClient, work: &CompletedWork) -> Result<(), github::GitHubError> {
+    // Ensure branch is pushed to origin before creating PR
+    if let Err(e) = ensure_branch_pushed(&work.branch_name).await {
+        eprintln!("⚠️  Warning: Failed to push branch {}: {:?}", work.branch_name, e);
+        println!("   🔄 Continuing with PR creation (assuming remote branch exists)");
+    }
+    
     // Create individual PR and transition to route:land
     println!("   🚀 Creating individual PR for timed-out work");
     
@@ -2668,6 +2742,13 @@ async fn create_individual_pr_from_completed_work(client: &github::GitHubClient,
 }
 
 async fn create_bundle_pr_from_completed_work(client: &github::GitHubClient, completed_work: Vec<CompletedWork>) -> Result<(), github::GitHubError> {
+    // Ensure all branches are pushed to origin before creating bundle PR
+    for work in &completed_work {
+        if let Err(e) = ensure_branch_pushed(&work.branch_name).await {
+            eprintln!("⚠️  Warning: Failed to push branch {}: {:?}", work.branch_name, e);
+        }
+    }
+    
     // Create bundle PR for 2+ completed work items
     let issue_numbers: Vec<u64> = completed_work.iter().map(|w| w.issue.number).collect();
     let branch_names: Vec<String> = completed_work.iter().map(|w| w.branch_name.clone()).collect();
