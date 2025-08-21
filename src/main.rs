@@ -8,11 +8,13 @@ mod github;
 mod agents;
 mod workflows;
 mod priority;
+mod train_schedule;
 
 use agents::AgentRouter;
 use std::process::Command;
 use github::GitHubClient;
 use priority::Priority;
+use train_schedule::TrainSchedule;
 
 #[derive(Parser)]
 #[command(name = "clambake")]
@@ -38,6 +40,9 @@ enum Commands {
         /// Only consider tasks already assigned to you
         #[arg(long, help = "Restrict to tasks with your GitHub username as assignee")]
         mine: bool,
+        /// Force early train departure to bundle all completed branches into PR
+        #[arg(long, help = "Override schedule to bundle all queued branches immediately")]
+        bundle_branches: bool,
     },
     /// Display system status, agent utilization, and task queue overview
     Status,
@@ -77,6 +82,152 @@ enum Commands {
     Peek,
 }
 
+async fn bundle_all_branches() -> Result<()> {
+    print!("🔍 Scanning for completed agent work... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    
+    // Initialize GitHub client
+    match github::GitHubClient::new() {
+        Ok(client) => {
+            println!("✅");
+            
+            // Get train schedule and queued branches
+            let schedule = TrainSchedule::calculate_next_schedule();
+            match TrainSchedule::get_queued_branches().await {
+                Ok(queued_branches) => {
+                    println!();
+                    print!("{}", schedule.format_schedule_display(&queued_branches));
+                    
+                    if queued_branches.is_empty() {
+                        println!();
+                        println!("📦 No queued branches found for emergency bundling");
+                        println!("   💡 Complete work and try again when branches are ready");
+                        return Ok(());
+                    }
+                    
+                    println!();
+                    println!("🚨 EMERGENCY DEPARTURE: Overriding schedule to bundle {} branches", queued_branches.len());
+                    println!("   ⚡ Bypassing normal train schedule for immediate bundling");
+                    println!();
+                    
+                    // Force the land command logic but with schedule override
+                    return force_land_with_override(&client, queued_branches).await;
+                }
+                Err(e) => {
+                    println!("❌ Could not check queued branches: {:?}", e);
+                    return Err(anyhow::anyhow!("Failed to check branches for bundling"));
+                }
+            }
+        }
+        Err(e) => {
+            println!("❌ Failed to initialize GitHub client: {:?}", e);
+            return Err(anyhow::anyhow!("GitHub client initialization failed"));
+        }
+    }
+}
+
+async fn force_land_with_override(client: &github::GitHubClient, queued_branches: Vec<train_schedule::QueuedBranch>) -> Result<()> {
+    println!("🚀 FORCED BUNDLING: Processing {} queued branches", queued_branches.len());
+    println!();
+    
+    // Use the existing landing phase detection but skip schedule checks
+    match detect_current_landing_phase(client).await {
+        Ok(Some(phase)) => {
+            // Force handle the landing phase regardless of schedule
+            println!("📋 Detected current landing phase, processing...");
+            return handle_landing_phase(client, phase, false, true).await;
+        }
+        Ok(None) => {
+            // No current phase detected, proceed with legacy completed work scan
+            println!("📋 No current landing phase, scanning for completed work...");
+        }
+        Err(e) => {
+            println!("⚠️  Phase detection failed: {:?}", e);
+            println!("   🔄 Proceeding with legacy scan...");
+        }
+    }
+    
+    // Fall back to the original land command logic
+    match detect_completed_work(client, true, 7, true).await {
+        Ok(completed_work) => {
+            if completed_work.is_empty() {
+                println!("ℹ️  No completed work found in legacy scan");
+                println!("   💡 Branches may be queued but not yet marked as completed");
+                
+                // Show the branches that were queued for visibility
+                println!();
+                println!("📦 Queued branches that were detected:");
+                for branch in queued_branches.iter().take(10) {
+                    println!("   • {} ({})", branch.branch_name, branch.description);
+                }
+                if queued_branches.len() > 10 {
+                    println!("   • ... and {} more", queued_branches.len() - 10);
+                }
+                println!();
+                println!("💡 These branches may need their issues to be properly labeled or closed");
+                
+                return Ok(());
+            }
+            
+            // Process the completed work using the same logic as land command
+            println!("✅ Found {} completed work item(s):", completed_work.len());
+            println!();
+            
+            let mut cleaned_up = 0;
+            let mut failed = 0;
+            
+            for work in &completed_work {
+                let status_desc = match work.work_type {
+                    CompletedWorkType::OpenWithMergedBranch => "Legacy: Issue open, branch merged",
+                    CompletedWorkType::ClosedWithLabels => "Legacy: Issue closed, has labels to remove",
+                    CompletedWorkType::ReadyForPhaseOne => "Phase 1: Work complete, ready for PR creation",
+                    CompletedWorkType::ReadyForPhaseTwo => "Phase 2: PR created, ready for merge",
+                    CompletedWorkType::WorkCompleted => "Work completed, ready for bundling",
+                    CompletedWorkType::OrphanedBranch => "Orphaned: Branch merged without matching issue",
+                };
+                
+                println!("📋 Processing: {} ({})", work.issue.title, status_desc);
+                
+                match cleanup_completed_work(client, work, false).await {
+                    Ok(_) => {
+                        cleaned_up += 1;
+                        println!("   ✅ Cleaned up successfully");
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        println!("   ❌ Cleanup failed: {:?}", e);
+                    }
+                }
+                println!();
+            }
+            
+            // Summary
+            println!("🎯 EMERGENCY BUNDLING COMPLETE:");
+            if cleaned_up > 0 {
+                println!("   ✅ Successfully completed {} work items", cleaned_up);
+                println!("   🤖 Agents are now available for new assignments");
+            }
+            
+            if failed > 0 {
+                println!("   ⚠️  {} items failed cleanup (may need manual intervention)", failed);
+            }
+            
+            if cleaned_up > 0 {
+                println!();
+                println!("🚀 NEXT STEPS:");
+                println!("   → Check system: clambake status");
+                println!("   → Get new assignment: clambake pop");
+            }
+            
+            Ok(())
+        }
+        Err(e) => {
+            println!("❌ Failed to detect completed work: {:?}", e);
+            Err(anyhow::anyhow!("Completed work detection failed"))
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     
@@ -92,9 +243,9 @@ fn main() -> Result<()> {
                 route_tickets_command(agents).await
             })
         },
-        Some(Commands::Pop { mine }) => {
+        Some(Commands::Pop { mine, bundle_branches }) => {
             tokio::runtime::Runtime::new()?.block_on(async {
-                pop_task_command(mine).await
+                pop_task_command(mine, bundle_branches).await
             })
         },
         Some(Commands::Status) => {
@@ -191,7 +342,15 @@ async fn route_tickets_command(agents: u32) -> Result<()> {
     Ok(())
 }
 
-async fn pop_task_command(mine_only: bool) -> Result<()> {
+async fn pop_task_command(mine_only: bool, bundle_branches: bool) -> Result<()> {
+    // Handle bundle branches special case first
+    if bundle_branches {
+        println!("🚄 EMERGENCY TRAIN DEPARTURE - Bundling all queued branches");
+        println!("========================================================");
+        println!();
+        return bundle_all_branches().await;
+    }
+    
     if mine_only {
         println!("🎯 Popping next task assigned to you...");
     } else {
@@ -294,6 +453,42 @@ async fn land_command(include_closed: bool, days: u32, dry_run: bool, verbose: b
     match github::GitHubClient::new() {
         Ok(client) => {
             println!("✅");
+            
+            // Check train schedule for bundling timing
+            let schedule = TrainSchedule::calculate_next_schedule();
+            match TrainSchedule::get_queued_branches().await {
+                Ok(queued_branches) => {
+                    println!();
+                    print!("{}", schedule.format_schedule_display(&queued_branches));
+                    
+                    // Only proceed with bundling if at departure time or explicitly forcing
+                    if !TrainSchedule::is_departure_time() && !queued_branches.is_empty() {
+                        println!();
+                        println!("⏰ BUNDLING SCHEDULE: Not yet time for departure");
+                        println!("   🚂 Next bundling window: {} (in {} min)", 
+                                schedule.next_departure.format("%H:%M"), 
+                                schedule.minutes_until_departure);
+                        println!("   💡 Run 'clambake land' at or after departure time to bundle queued work");
+                        return Ok(());
+                    }
+                    
+                    if queued_branches.is_empty() {
+                        println!();
+                        println!("📦 No queued branches found for bundling");
+                        println!("   💡 Complete work and use 'clambake land' when branches are ready");
+                        return Ok(());
+                    }
+                    
+                    if TrainSchedule::is_departure_time() {
+                        println!();
+                        println!("🚀 DEPARTURE TIME: Proceeding with PR bundling for {} branches", queued_branches.len());
+                    }
+                }
+                Err(e) => {
+                    println!("⚠️  Could not check train schedule: {:?}", e);
+                    println!("   🔄 Proceeding with standard workflow...");
+                }
+            }
             
             // First, check for current landing phase (intelligent detection)
             match detect_current_landing_phase(&client).await {
@@ -771,6 +966,23 @@ async fn status_command() -> Result<()> {
                 }
             } else {
                 println!(" 🌿 Current branch: HEAD (detached) or git error");
+            }
+            
+            // Train schedule information
+            println!();
+            let schedule = TrainSchedule::calculate_next_schedule();
+            match TrainSchedule::get_queued_branches().await {
+                Ok(queued_branches) => {
+                    print!("{}", schedule.format_schedule_display(&queued_branches));
+                }
+                Err(e) => {
+                    println!("🚄 PR BUNDLING SCHEDULE:");
+                    println!("─────────────────────");
+                    println!("❌ Unable to check queued branches: {:?}", e);
+                    let time_str = schedule.next_departure.format("%H:%M").to_string();
+                    println!("🔵 Next train: {} (in {} min)", time_str, schedule.minutes_until_departure);
+                    println!("⏰ Schedule: :00, :10, :20, :30, :40, :50");
+                }
             }
         }
         Err(e) => {
