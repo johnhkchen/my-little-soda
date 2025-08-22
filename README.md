@@ -11,6 +11,36 @@ Turn GitHub Issues into a job queue for AI coding agents—coordinate multiple a
 **Development Status: Early Alpha**  
 This tool is under active development with compilation warnings and incomplete features. Use for experimentation only.
 
+## Table of Contents
+
+- [What It Currently Does](#what-it-currently-does)
+- [Prerequisites](#prerequisites)
+  - [System Requirements](#system-requirements)
+  - [GitHub Requirements](#github-requirements)
+  - [Authentication Setup](#authentication-setup)
+  - [Repository Configuration](#repository-configuration)
+- [Installation](#installation)
+- [Configuration](#configuration)
+  - [Configuration File Setup](#configuration-file-setup)
+  - [Environment Variable Reference](#environment-variable-reference)
+- [AI Agent Coordination Domain](#ai-agent-coordination-domain)
+  - [What Clambake Does](#what-clambake-does)
+  - [Domain-Specific Setup Requirements](#domain-specific-setup-requirements)
+  - [Agent Workflow Understanding](#agent-workflow-understanding)
+  - [AI Service Integration](#ai-service-integration)
+- [Basic Usage](#basic-usage)
+- [Required GitHub Labels](#required-github-labels)
+- [Troubleshooting](#troubleshooting)
+  - [Authentication Issues](#authentication-issues)
+  - [Configuration Issues](#configuration-issues)
+  - [GitHub API Issues](#github-api-issues)
+  - [Build Issues](#build-issues)
+  - [Runtime Issues](#runtime-issues)
+  - [Getting Help](#getting-help)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## What It Currently Does
 
 Routes GitHub Issues labeled `route:ready` to available agents by:
