@@ -2,7 +2,7 @@ use octocrab::Octocrab;
 use super::errors::GitHubError;
 
 /// Handler for GitHub comment operations
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CommentHandler {
     octocrab: Octocrab,
     owner: String,

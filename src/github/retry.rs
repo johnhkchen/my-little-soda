@@ -26,7 +26,7 @@ impl Default for RetryConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GitHubRetryHandler {
     config: RetryConfig,
 }

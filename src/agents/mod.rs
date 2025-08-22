@@ -6,8 +6,10 @@ pub mod router;
 pub mod integrator;
 pub mod routing;
 pub mod validation;
+pub mod recovery;
 
 pub use coordinator::{AgentCoordinator, Agent, AgentState};
 pub use router::AgentRouter;
 pub use integrator::{WorkIntegrator, CompletedWork, IntegrationResult};
 pub use validation::{StateValidator, StateValidation, ValidationReport, SystemValidationReport};
+pub use recovery::{AutoRecovery, AutomaticRecovery, RecoveryAction, RecoveryAttempt, ComprehensiveRecoveryReport};

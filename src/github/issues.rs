@@ -2,7 +2,7 @@ use octocrab::Octocrab;
 use super::errors::GitHubError;
 
 /// Handler for GitHub issue operations
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IssueHandler {
     octocrab: Octocrab,
     owner: String,
@@ -76,6 +76,21 @@ impl IssueHandler {
         self.octocrab
             .issues(&self.owner, &self.repo)
             .add_labels(issue_number, &[label.to_string()])
+            .await
+            .map_err(GitHubError::ApiError)?;
+        Ok(())
+    }
+
+    /// Add a label to an issue (convenience method with shorter name)
+    pub async fn add_label(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
+        self.add_label_to_issue(issue_number, label).await
+    }
+
+    /// Remove a label from an issue
+    pub async fn remove_label(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
+        self.octocrab
+            .issues(&self.owner, &self.repo)
+            .remove_label(issue_number, label)
             .await
             .map_err(GitHubError::ApiError)?;
         Ok(())
