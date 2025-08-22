@@ -124,17 +124,35 @@ mod tests {
     
     #[test]
     fn test_parse_agent_branch() {
+        // Test legacy format: agent001/123
         assert_eq!(parse_agent_branch("agent001/123"), Some(("agent001".to_string(), 123)));
         assert_eq!(parse_agent_branch("agent002/456"), Some(("agent002".to_string(), 456)));
+        
+        // Test new descriptive format: agent001/123-description  
+        assert_eq!(parse_agent_branch("agent001/123-fix-clambake-land"), Some(("agent001".to_string(), 123)));
+        assert_eq!(parse_agent_branch("agent002/456-implement-new-feature"), Some(("agent002".to_string(), 456)));
+        assert_eq!(parse_agent_branch("agent001/789-very-long-descriptive-title-here"), Some(("agent001".to_string(), 789)));
+        
+        // Test invalid formats
         assert_eq!(parse_agent_branch("main"), None);
         assert_eq!(parse_agent_branch("feature/branch"), None);
         assert_eq!(parse_agent_branch("agent001/notanumber"), None);
+        assert_eq!(parse_agent_branch("agent001/notanumber-with-description"), None);
+        assert_eq!(parse_agent_branch("agent001"), None);
+        assert_eq!(parse_agent_branch("agent001/123/extra/parts"), None);
     }
     
     #[test]
     fn test_extract_agent_from_branch() {
+        // Test legacy format
         assert_eq!(extract_agent_from_branch("agent001/123"), "agent001");
         assert_eq!(extract_agent_from_branch("agent002/456"), "agent002");
+        
+        // Test descriptive format
+        assert_eq!(extract_agent_from_branch("agent001/123-fix-clambake-land"), "agent001");
+        assert_eq!(extract_agent_from_branch("agent003/789-implement-feature"), "agent003");
+        
+        // Test invalid formats
         assert_eq!(extract_agent_from_branch("main"), "unknown");
         assert_eq!(extract_agent_from_branch("invalid"), "unknown");
     }
