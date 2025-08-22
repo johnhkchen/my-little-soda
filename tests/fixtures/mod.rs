@@ -170,14 +170,14 @@ pub fn filter_assignable_issues(issues: &[Issue]) -> Vec<&Issue> {
             let is_open = issue.state == octocrab::models::IssueState::Open;
             let has_route_ready = issue.labels.iter()
                 .any(|label| label.name == "route:ready");
-            let has_route_land = issue.labels.iter()
+            let has_route_ready_to_merge = issue.labels.iter()
                 .any(|label| label.name == "route:ready_to_merge");
             let has_agent_label = issue.labels.iter()
                 .any(|label| label.name.starts_with("agent"));
             
             // Issue is assignable if it's open, has route:ready, 
             // but NOT route:ready_to_merge (completed) and NOT already assigned to agent
-            is_open && has_route_ready && !has_route_land && !has_agent_label
+            is_open && has_route_ready && !has_route_ready_to_merge && !has_agent_label
         })
         .collect()
 }

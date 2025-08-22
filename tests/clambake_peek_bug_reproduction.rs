@@ -91,7 +91,7 @@ async fn test_correct_behavior_after_agent_completes_work() {
 }
 
 #[tokio::test] 
-async fn test_route_land_issues_should_not_appear_in_new_work_queue() {
+async fn test_route_ready_to_merge_issues_should_not_appear_in_new_work_queue() {
     // GIVEN: An issue that is merge-ready (route:ready_to_merge) 
     let merge_ready_issue = fixtures::create_issue_with_labels(
         95,
@@ -131,7 +131,7 @@ fn filter_routable_issues_logic(issues: &[octocrab::models::issues::Issue]) -> V
             let is_open = issue.state == octocrab::models::IssueState::Open;
             
             let has_route_ready = issue.labels.iter().any(|l| l.name == "route:ready");
-            let has_route_land = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");  
+            let has_route_ready_to_merge = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");  
             let has_route_unblocker = issue.labels.iter().any(|l| l.name == "route:unblocker");
             
             let has_agent_label = issue.labels.iter().any(|l| l.name.starts_with("agent"));
@@ -139,7 +139,7 @@ fn filter_routable_issues_logic(issues: &[octocrab::models::issues::Issue]) -> V
             // CORRECTED logic: unblocker tasks should not be routable if agent already working
             let is_routable = if has_route_unblocker {
                 !has_agent_label // FIXED: route:unblocker should not be routable if agent already working
-            } else if has_route_land {
+            } else if has_route_ready_to_merge {
                 true 
             } else if has_route_ready {
                 !has_agent_label // route:ready only if no agent assigned
