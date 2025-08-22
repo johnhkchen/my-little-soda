@@ -79,8 +79,8 @@ async fn main() -> Result<()> {
         Some(Commands::Land { open_only, days, dry_run, verbose }) => {
             LandCommand::new(!open_only, days, dry_run, verbose).execute().await
         }
-        Some(Commands::Bundle { force, dry_run, verbose }) => {
-            BundleCommand::new(force, dry_run, verbose).execute().await
+        Some(Commands::Bundle { force, dry_run, verbose, diagnose }) => {
+            BundleCommand::new(force, dry_run, verbose, diagnose).execute().await
         }
         Some(Commands::Peek) => {
             PeekCommand::new().execute().await

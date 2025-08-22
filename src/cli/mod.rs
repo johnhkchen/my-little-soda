@@ -78,6 +78,9 @@ pub enum Commands {
         /// Show detailed information about the bundling process
         #[arg(long, short = 'v', help = "Show detailed bundling information")]
         verbose: bool,
+        /// Show bundling system status and diagnostics
+        #[arg(long, help = "Display bundling system diagnostics and troubleshooting information")]
+        diagnose: bool,
     },
     /// Preview the next task in queue without claiming it
     Peek,
