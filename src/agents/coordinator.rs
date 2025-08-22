@@ -42,7 +42,7 @@ impl AgentCoordinator {
         let github_client = GitHubClient::new()?;
         let metrics_tracker = MetricsTracker::new();
         
-        // Agent capacity: Start with agent001, expandable to agent002-agent008
+        // Agent capacity: Solo agent system - agent001 only
         let mut agent_capacity = HashMap::new();
         agent_capacity.insert("agent001".to_string(), (0, 1)); // 0 current, 1 max per agent
         
@@ -55,30 +55,29 @@ impl AgentCoordinator {
     }
 
     pub async fn get_available_agents(&self) -> Result<Vec<Agent>, GitHubError> {
-        // Check which agents have work by looking at agent labels (agent001, agent002, etc.)
-        let issues = self.github_client.fetch_issues().await?;
+        // Solo agent system: Check if agent001 is actively working on a branch
         let capacities = self.agent_capacity.lock().await;
         let mut agents = Vec::new();
         
-        // For each configured agent, check if they have work
+        // Check current git branch to see if agent is actively working
+        let current_branch = self.get_current_git_branch();
+        let is_agent_working = current_branch
+            .as_ref()
+            .map(|branch| branch.starts_with("agent001/"))
+            .unwrap_or(false);
+        
+        // For each configured agent, check availability
         for (agent_id, (_current, max_capacity)) in capacities.iter() {
-            let assigned_count = issues
-                .iter()
-                .filter(|issue| {
-                    issue.state == octocrab::models::IssueState::Open
-                        && issue.labels.iter().any(|label| label.name == *agent_id)
-                        && issue.labels.iter().any(|label| label.name == "route:ready")
-                })
-                .count();
-            
-            let agent_state = if assigned_count > 0 {
-                AgentState::Working(format!("Working on {} task(s)", assigned_count))
+            let agent_state = if is_agent_working && agent_id == "agent001" {
+                AgentState::Working(format!("Active on branch: {}", current_branch.as_ref().unwrap()))
             } else {
                 AgentState::Available
             };
             
-            // Agent is available if under capacity
-            if assigned_count < *max_capacity as usize {
+            // In solo mode, agent is available unless actively working on a branch
+            let is_available = !(is_agent_working && agent_id == "agent001");
+            
+            if is_available {
                 agents.push(Agent {
                     id: agent_id.clone(),
                     capacity: *max_capacity,
@@ -91,6 +90,26 @@ impl AgentCoordinator {
         let total_agents = capacities.len();
         println!("📊 Available agents: {} of {} total", available_count, total_agents);
         Ok(agents)
+    }
+    
+    fn get_current_git_branch(&self) -> Option<String> {
+        std::process::Command::new("git")
+            .args(&["branch", "--show-current"])
+            .output()
+            .ok()
+            .and_then(|output| {
+                if output.status.success() {
+                    let branch = String::from_utf8(output.stdout).ok()?;
+                    let trimmed = branch.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                } else {
+                    None
+                }
+            })
     }
 
     /// Atomic assignment operation with conflict detection and capacity management
