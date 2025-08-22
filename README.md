@@ -1,6 +1,8 @@
 # Clambake
 
-**Multi-agent AI orchestration for GitHub repositories.** Clambake coordinates multiple AI coding assistants working on your GitHub Issues simultaneously, preventing conflicts and managing their progress through proper development workflows.
+**Multi-agent AI orchestration for GitHub repositories.** 
+
+Clambake coordinates multiple AI coding assistants working on your GitHub Issues simultaneously. It prevents conflicts and manages their progress through proper development workflows.
 
 [![Property-Based Tests](https://github.com/johnhkchen/clambake/actions/workflows/property-tests.yml/badge.svg)](https://github.com/johnhkchen/clambake/actions/workflows/property-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -41,7 +43,7 @@
 - **Windows users:** Use `.\target\release\clambake.exe` instead of `./target/release/clambake`
 - **Windows paths:** Commands use backslashes (`\`) for path separators
 - **Git behavior:** Cross-platform - same commands work on all operating systems
-- **GitHub CLI:** Available on all platforms via package managers (Homebrew, Chocolatey, apt, etc.)
+- **GitHub CLI:** Available on all platforms via package managers
 
 ### Option 1: Build from Source
 
@@ -87,7 +89,14 @@ After installation, set up the required GitHub labels:
 
 ## Quick Start
 
-**Already installed?** Jump straight to using Clambake with your GitHub repository.
+**Already installed?** Here's the essential workflow:
+
+1. **Get a task:** `./target/release/clambake pop`
+2. **Work on it:** Make your changes and commit
+3. **Submit work:** `./target/release/clambake land`
+4. **Repeat:** System automatically assigns next task
+
+See [Usage Examples](#usage-examples) for detailed commands.
 
 ## Usage Examples
 
@@ -107,10 +116,10 @@ Start your development session by claiming work:
 .\target\release\clambake.exe pop
 ```
 
-This will:
-- Assign you the highest priority issue
-- Create a dedicated branch (e.g., `agent001/42-fix-bug`)
-- Switch you to that branch automatically
+**What this does:**
+- Assigns you the highest priority issue
+- Creates a dedicated branch (e.g., `agent001/42-fix-bug`)
+- Switches you to that branch automatically
 
 ### Working on Your Task
 
@@ -134,7 +143,7 @@ git commit -m "Implement feature X"
 .\target\release\clambake.exe land
 ```
 
-The `land` command:
+**What `land` does:**
 - Creates a pull request from your branch
 - Marks your work ready for review
 - Frees you to work on the next task
@@ -314,7 +323,7 @@ Comprehensive documentation is organized for different audiences and use cases:
 
 ## Support & Community
 
-Need help? Start with:
+**Need help? Start with:**
 - **[Complete Documentation](docs/README.md)** - User guides, troubleshooting, and configuration
 - **[GitHub Issues](https://github.com/johnhkchen/clambake/issues)** - Bug reports, feature requests, and questions
 - **[System Specification](spec.md)** - Architecture and design principles
@@ -322,6 +331,7 @@ Need help? Start with:
 ## Contributing
 
 We welcome contributions! See the [comprehensive contributing guide](docs/README.md#contributing) for:
+
 - Development setup and guidelines  
 - Code quality standards
 - Testing approach
