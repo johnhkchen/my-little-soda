@@ -130,4 +130,58 @@ pub enum Commands {
         #[arg(long, short = 'v', help = "Show detailed workflow information")]
         verbose: bool,
     },
+    /// Agent state management and diagnostic commands
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommands,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AgentCommands {
+    /// Show agent status and current work
+    Status {
+        /// Specific agent to show status for
+        #[arg(long, help = "Show status for specific agent (e.g., agent001)")]
+        agent: Option<String>,
+    },
+    /// Diagnose agent state and validate consistency
+    Diagnose {
+        /// Specific agent to diagnose
+        #[arg(long, help = "Diagnose specific agent (e.g., agent001)")]
+        agent: Option<String>,
+        /// Diagnose all agents
+        #[arg(long, help = "Diagnose all agents")]
+        all: bool,
+    },
+    /// Recover agents from stuck states
+    Recover {
+        /// Specific agent to recover
+        #[arg(long, help = "Recover specific agent (e.g., agent001)")]
+        agent: Option<String>,
+        /// Recover all agents with issues
+        #[arg(long, help = "Recover all agents with detected issues")]
+        all: bool,
+        /// Show what would be recovered without making changes
+        #[arg(long, help = "Preview recovery actions without making changes")]
+        dry_run: bool,
+    },
+    /// Force reset agent to idle state
+    ForceReset {
+        /// Agent to reset
+        #[arg(long, help = "Agent to reset (e.g., agent001)", required = true)]
+        agent: String,
+        /// Preserve current work when possible
+        #[arg(long, help = "Attempt to preserve current work when resetting")]
+        preserve_work: bool,
+    },
+    /// Validate agent states against external reality
+    Validate {
+        /// Specific agent to validate
+        #[arg(long, help = "Validate specific agent (e.g., agent001)")]
+        agent: Option<String>,
+        /// Validate all agents
+        #[arg(long, help = "Validate all agents")]
+        all: bool,
+    },
 }

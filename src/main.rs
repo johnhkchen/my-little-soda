@@ -17,9 +17,10 @@ mod config;
 mod shutdown;
 mod database;
 
-use cli::{Cli, Commands};
+use cli::{Cli, Commands, AgentCommands};
 use cli::commands::{
     show_how_to_get_work,
+    Command,
     pop::PopCommand,
     route::RouteCommand,
     land::LandCommand,
@@ -30,6 +31,7 @@ use cli::commands::{
     reset::ResetCommand,
     metrics::{MetricsCommand, ExportMetricsCommand},
     actions::ActionsCommand,
+    agent::{AgentStatusCommand, AgentDiagnoseCommand, AgentRecoverCommand, AgentForceResetCommand, AgentValidateCommand},
 };
 use telemetry::init_telemetry;
 use config::init_config;
@@ -95,6 +97,25 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Actions { trigger_bundle, status, logs, run_id, force, dry_run, verbose }) => {
             ActionsCommand::new(trigger_bundle, status, logs, run_id, force, dry_run, verbose).with_ci_mode(cli.ci_mode).execute().await
+        }
+        Some(Commands::Agent { command }) => {
+            match command {
+                AgentCommands::Status { agent } => {
+                    AgentStatusCommand::new(agent.clone()).with_ci_mode(cli.ci_mode).execute().await
+                }
+                AgentCommands::Diagnose { agent, all } => {
+                    AgentDiagnoseCommand::new(agent.clone(), all).with_ci_mode(cli.ci_mode).execute().await
+                }
+                AgentCommands::Recover { agent, all, dry_run } => {
+                    AgentRecoverCommand::new(agent.clone(), all, dry_run).with_ci_mode(cli.ci_mode).execute().await
+                }
+                AgentCommands::ForceReset { agent, preserve_work } => {
+                    AgentForceResetCommand::new(agent.clone(), preserve_work).with_ci_mode(cli.ci_mode).execute().await
+                }
+                AgentCommands::Validate { agent, all } => {
+                    AgentValidateCommand::new(agent.clone(), all).with_ci_mode(cli.ci_mode).execute().await
+                }
+            }
         }
     };
 
