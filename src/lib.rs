@@ -12,6 +12,10 @@ pub mod metrics;
 pub mod git;
 pub mod bundling;
 pub mod http;
+pub mod observability;
+pub mod config;
+pub mod shutdown;
+pub mod database;
 
 // Re-export key types for easy access
 pub use github::{GitHubClient, GitHubError};
@@ -25,3 +29,7 @@ pub use metrics::{MetricsTracker, IntegrationAttempt, IntegrationPhase, Integrat
 pub use git::{GitOperations, Git2Operations, CommitInfo};
 pub use bundling::{BundleManager, BundleResult, BundleWindow};
 pub use http::{RateLimitedHttpClient};
+pub use observability::{GitHubApiMetrics, github_metrics, create_workflow_span, OperationTimer};
+pub use config::{ClambakeConfig, config, init_config};
+pub use shutdown::ShutdownCoordinator;
+pub use database::{init_database, shutdown_database};
