@@ -1,0 +1,1 @@
+{"correlation_id":"1fccc962-a1c7-480c-88a6-25e8f43d229b","routing_start_time":1755865652,"routing_duration_ms":2018,"issues_evaluated":14,"agents_available":1,"decision_outcome":{"TaskAssigned":{"issue_number":127,"agent_id":"agent001"}},"bottlenecks_detected":["routing_latency_high"]}
