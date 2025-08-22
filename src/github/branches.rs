@@ -2,7 +2,7 @@ use octocrab::Octocrab;
 use super::errors::GitHubError;
 
 /// Handler for GitHub branch operations
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BranchHandler {
     octocrab: Octocrab,
     owner: String,

@@ -29,7 +29,7 @@ pub trait GitHubOps {
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GitHubClient {
     pub issues: IssueHandler,
     pub pulls: PullRequestHandler,

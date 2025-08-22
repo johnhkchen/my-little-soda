@@ -424,6 +424,69 @@ impl AgentStateMachine {
         // For now, check based on internal state
         self.current_issue.is_some() && self.commits_ahead == 0
     }
+
+    /// Attempt automatic recovery from detected inconsistencies
+    /// This method serves as the integration point for the recovery system
+    pub async fn attempt_automatic_recovery(&self, github_client: crate::github::GitHubClient) -> Result<crate::agents::recovery::ComprehensiveRecoveryReport, StateError> {
+        use crate::agents::recovery::{AutoRecovery, AutomaticRecovery};
+        
+        let recovery = AutoRecovery::new(github_client, true); // preserve_work = true for safety
+        
+        recovery.recover_all_inconsistencies().await
+            .map_err(|e| StateError::ValidationError(format!("Recovery failed: {:?}", e)))
+    }
+
+    /// Apply a recovery action to this state machine instance
+    /// This allows the recovery system to trigger state machine events
+    pub fn apply_recovery_action(&mut self, action: &crate::agents::recovery::RecoveryAction) -> Result<(), StateError> {
+        match action {
+            crate::agents::recovery::RecoveryAction::ResetToAssigned { agent_id, issue } => {
+                if self.agent_id != *agent_id {
+                    return Err(StateError::ValidationError(format!(
+                        "Agent ID mismatch: expected {}, got {}", 
+                        self.agent_id, 
+                        agent_id
+                    )));
+                }
+                
+                // Reset to assigned state
+                self.current_issue = Some(*issue);
+                self.commits_ahead = 0;
+                
+                tracing::info!(
+                    agent_id = %self.agent_id,
+                    issue = %issue,
+                    "Applied recovery action: reset to assigned state"
+                );
+                
+                Ok(())
+            }
+            crate::agents::recovery::RecoveryAction::ForceReset { agent_id } => {
+                if self.agent_id != *agent_id {
+                    return Err(StateError::ValidationError(format!(
+                        "Agent ID mismatch: expected {}, got {}", 
+                        self.agent_id, 
+                        agent_id
+                    )));
+                }
+                
+                // Force reset to idle
+                self.reset_state();
+                
+                tracing::info!(
+                    agent_id = %self.agent_id,
+                    "Applied recovery action: force reset to idle"
+                );
+                
+                Ok(())
+            }
+            _ => {
+                // Other recovery actions (label/branch operations) are handled by the recovery system
+                // and don't require state machine changes
+                Ok(())
+            }
+        }
+    }
     
     // Note: Validation methods will be added via extension trait to avoid circular dependencies
     // /// Validate this agent's state against external GitHub/Git reality

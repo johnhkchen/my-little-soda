@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use super::{errors::GitHubError, types::{ConflictAnalysis, ConflictRecoveryData, SafeMergeResult}};
 
 /// Handler for GitHub pull request operations
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PullRequestHandler {
     octocrab: Octocrab,
     owner: String,
