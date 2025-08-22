@@ -4,7 +4,8 @@
 use crate::github::{GitHubClient, GitHubError};
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use crate::metrics::MetricsTracker;
-use crate::agent_lifecycle::state_machine::{AgentStateMachine, AgentEvent};
+// Temporarily commented out to avoid import issues
+// use crate::agent_lifecycle::{AgentStateMachine, AgentEvent};
 use statig::prelude::*;
 use statig::blocking::*;
 use std::collections::HashMap;

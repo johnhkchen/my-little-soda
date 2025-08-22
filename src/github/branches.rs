@@ -78,10 +78,19 @@ impl BranchHandler {
     }
 
     /// Check if a branch exists
-    pub async fn branch_exists(&self, _branch_name: &str) -> Result<bool, GitHubError> {
-        // TODO: Implement proper branch existence check
-        // For now, assume branch exists
-        Ok(true)
+    pub async fn branch_exists(&self, branch_name: &str) -> Result<bool, GitHubError> {
+        match self.octocrab
+            .repos(&self.owner, &self.repo)
+            .get_ref(&octocrab::params::repos::Reference::Branch(branch_name.to_string()))
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(octocrab::Error::GitHub { 
+                source, 
+                .. 
+            }) if source.status_code.as_u16() == 404 => Ok(false),
+            Err(e) => Err(GitHubError::ApiError(e)),
+        }
     }
 
     /// Get the default branch of the repository

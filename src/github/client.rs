@@ -157,6 +157,10 @@ impl GitHubClient {
         self.branches.delete_branch(branch_name).await
     }
 
+    pub async fn branch_exists(&self, branch_name: &str) -> Result<bool, GitHubError> {
+        self.branches.branch_exists(branch_name).await
+    }
+
     pub async fn create_pull_request(
         &self,
         title: &str,

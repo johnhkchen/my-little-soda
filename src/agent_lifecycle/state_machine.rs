@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use statig::prelude::*;
+// Forward declare to avoid circular dependency
+// use crate::agents::validation::{StateValidator, StateValidation};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AgentEvent {
@@ -42,14 +44,14 @@ pub enum StateError {
     ValidationError(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Inconsistency {
     pub agent_id: String,
     pub pattern: StuckAgentPattern,
     pub detected_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StuckAgentPattern {
     LabeledButNoBranch { agent_id: String, issue: u64 },
     BranchButNoLabel { agent_id: String, branch: String },
@@ -422,6 +424,28 @@ impl AgentStateMachine {
         // For now, check based on internal state
         self.current_issue.is_some() && self.commits_ahead == 0
     }
+    
+    // Note: Validation methods will be added via extension trait to avoid circular dependencies
+    // /// Validate this agent's state against external GitHub/Git reality
+    // pub async fn validate_state(&self, validator: &StateValidator) -> Result<crate::agents::validation::ValidationReport, StateError> {
+    //     validator.validate_agent_state(&self.agent_id).await
+    // }
+    // 
+    // /// Detect inconsistencies for this specific agent
+    // pub async fn detect_inconsistencies(&self, validator: &StateValidator) -> Result<Vec<Inconsistency>, StateError> {
+    //     let all_inconsistencies = validator.detect_all_inconsistencies().await?;
+    //     
+    //     // Filter to only this agent's inconsistencies
+    //     Ok(all_inconsistencies.into_iter()
+    //         .filter(|inc| inc.agent_id == self.agent_id)
+    //         .collect())
+    // }
+    // 
+    // /// Check if this agent's current state is consistent with external reality
+    // pub async fn is_state_consistent(&self, validator: &StateValidator) -> Result<bool, StateError> {
+    //     let report = self.validate_state(validator).await?;
+    //     Ok(report.is_consistent)
+    // }
 }
 
 #[cfg(test)]
