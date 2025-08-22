@@ -33,6 +33,11 @@ impl LandCommand {
         let current_branch = self.get_current_branch()?;
         let (agent_id, issue_number) = self.parse_agent_branch(&current_branch)?;
         
+        // Validate ready to land (unless dry run - we want to show what would happen)
+        if !self.dry_run {
+            self.validate_ready_to_land(&current_branch)?;
+        }
+        
         if self.verbose {
             println!("🔧 Configuration:");
             println!("   🌿 Current branch: {}", current_branch);
@@ -148,6 +153,40 @@ impl LandCommand {
         if !output.status.success() {
             let error_msg = String::from_utf8_lossy(&output.stderr);
             return Err(anyhow!("Failed to remove agent label: {}", error_msg));
+        }
+        
+        Ok(())
+    }
+    
+    /// Validate that the branch is ready to land
+    fn validate_ready_to_land(&self, branch_name: &str) -> Result<()> {
+        // Check for uncommitted changes
+        let status_output = Command::new("git")
+            .args(&["status", "--porcelain"])
+            .output()?;
+        
+        if !status_output.stdout.is_empty() {
+            let uncommitted_files = String::from_utf8_lossy(&status_output.stdout);
+            return Err(anyhow!(
+                "⚠️  You have uncommitted changes. Please commit your work first:\n\n{}\nCommands to fix:\n   git add .\n   git commit -m \"Your commit message\"",
+                uncommitted_files.trim()
+            ));
+        }
+        
+        // Check for commits ahead of main
+        let commits_output = Command::new("git")
+            .args(&["rev-list", "--count", "main..HEAD"])
+            .output()?;
+            
+        let commits_ahead: u32 = String::from_utf8_lossy(&commits_output.stdout)
+            .trim()
+            .parse()
+            .unwrap_or(0);
+            
+        if commits_ahead == 0 {
+            return Err(anyhow!(
+                "⚠️  No commits to land. Make sure you've committed your changes.\n\nCommands to fix:\n   git add .\n   git commit -m \"Your commit message\""
+            ));
         }
         
         Ok(())
