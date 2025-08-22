@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="500" fill="#1e1e1e"/>
+  <text x="20" y="40" fill="#00ff00" font-family="monospace" font-size="14">$ ./target/release/clambake status</text>
+  <text x="20" y="80" fill="#ffffff" font-family="monospace" font-size="14" font-weight="bold">🤖 CLAMBAKE SYSTEM STATUS</text>
+  <text x="20" y="100" fill="#ffffff" font-family="monospace" font-size="14">==========================</text>
+  <text x="20" y="140" fill="#00aaff" font-family="monospace" font-size="12">🔄 Gathering system information... ✅</text>
+  <text x="20" y="180" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold">📊 AGENT UTILIZATION:</text>
+  <text x="20" y="200" fill="#ffffff" font-family="monospace" font-size="12">────────────────────</text>
+  <text x="20" y="220" fill="#ff6666" font-family="monospace" font-size="12">🔴 agent001 - BUSY (1/1)</text>
+  <text x="20" y="260" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold">💼 CAPACITY OVERVIEW:</text>
+  <text x="20" y="280" fill="#ffffff" font-family="monospace" font-size="12">   🎯 Total agents: 1</text>
+  <text x="20" y="300" fill="#ffffff" font-family="monospace" font-size="12">   ✅ Available: 0</text>
+  <text x="20" y="320" fill="#ffffff" font-family="monospace" font-size="12">   🔴 Busy: 1</text>
+  <text x="20" y="340" fill="#ffaa00" font-family="monospace" font-size="12">   ⏳ All agents busy - work will queue</text>
+  <text x="20" y="380" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold">📋 TASK QUEUE:</text>
+  <text x="20" y="400" fill="#ffffff" font-family="monospace" font-size="12">──────────────</text>
+  <text x="20" y="420" fill="#ffffff" font-family="monospace" font-size="12">📊 29 tasks waiting for assignment</text>
+  <text x="20" y="440" fill="#00ff00" font-family="monospace" font-size="12">   🟢 1 Priority: Normal tasks</text>
+  <text x="20" y="460" fill="#ff6666" font-family="monospace" font-size="12">   🔴 8 Priority: High tasks</text>
+</svg>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="400" fill="#1e1e1e"/>
+  <text x="20" y="40" fill="#00ff00" font-family="monospace" font-size="14">$ ./target/release/clambake pop</text>
+  <text x="20" y="70" fill="#ffffff" font-family="monospace" font-size="12">🎯 Popping next available task...</text>
+  <text x="20" y="100" fill="#00aaff" font-family="monospace" font-size="12">🔄 Connecting to GitHub... ✅</text>
+  <text x="20" y="130" fill="#ffffff" font-family="monospace" font-size="12">📋 Searching for available tasks...</text>
+  <text x="20" y="160" fill="#00ff00" font-family="monospace" font-size="12">✅ Successfully popped task:</text>
+  <text x="20" y="190" fill="#ffffff" font-family="monospace" font-size="12">  📋 Issue #197: README Do #7</text>
+  <text x="20" y="220" fill="#ffffff" font-family="monospace" font-size="12">  👤 Assigned to: agent001</text>
+  <text x="20" y="250" fill="#ffffff" font-family="monospace" font-size="12">  🌿 Branch: agent001/197-readme-do-7</text>
+  <text x="20" y="280" fill="#ffffff" font-family="monospace" font-size="12">  🔗 URL: https://github.com/johnhkchen/clambake/issues/197</text>
+  <text x="20" y="320" fill="#00ff00" font-family="monospace" font-size="12">🚀 Ready to work! Issue assigned and branch created.</text>
+  <text x="20" y="350" fill="#ffaa00" font-family="monospace" font-size="12">   Next: git checkout agent001/197-readme-do-7</text>
+</svg>

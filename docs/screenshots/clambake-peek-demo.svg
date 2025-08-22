@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="450" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="450" fill="#1e1e1e"/>
+  <text x="20" y="40" fill="#00ff00" font-family="monospace" font-size="14">$ ./target/release/clambake peek</text>
+  <text x="20" y="80" fill="#ffffff" font-family="monospace" font-size="12">👀 Peeking at next task in queue...</text>
+  <text x="20" y="110" fill="#00aaff" font-family="monospace" font-size="12">🔄 Connecting to GitHub... ✅</text>
+  <text x="20" y="150" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold">🎯 NEXT TASK TO BE ASSIGNED:</text>
+  <text x="20" y="180" fill="#ffffff" font-family="monospace" font-size="12">   📋 Issue #209: README Don't #10</text>
+  <text x="20" y="210" fill="#ff6666" font-family="monospace" font-size="12">   🏷️  Priority: VERY HIGH (4)</text>
+  <text x="20" y="240" fill="#00aaff" font-family="monospace" font-size="12">   🏷️  Labels: route:ready, route:priority-very-high</text>
+  <text x="20" y="270" fill="#ffffff" font-family="monospace" font-size="12">   📄 Description: ## Issue to Avoid</text>
+  <text x="20" y="300" fill="#ffffff" font-family="monospace" font-size="12">   **Don't**: Prioritize developer-centric info...</text>
+  <text x="20" y="330" fill="#00aaff" font-family="monospace" font-size="12">   🔗 URL: https://github.com/johnhkchen/clambake/issues/209</text>
+  <text x="20" y="370" fill="#ffaa00" font-family="monospace" font-size="12">📈 QUEUE DEPTH: 29 total routable tasks available</text>
+  <text x="20" y="400" fill="#00ff00" font-family="monospace" font-size="12">💡 Run 'clambake pop' to claim this task</text>
+</svg>

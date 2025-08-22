@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#1e1e1e"/>
+  
+  <!-- Step 1 Header -->
+  <text x="20" y="40" fill="#00ff00" font-family="monospace" font-size="14" font-weight="bold">Step 1: Agent Claims Task</text>
+  <text x="20" y="70" fill="#00ff00" font-family="monospace" font-size="12">$ ./target/release/clambake pop</text>
+  <text x="20" y="90" fill="#ffffff" font-family="monospace" font-size="11">🎯 Popping next available task...</text>
+  <text x="20" y="110" fill="#00ff00" font-family="monospace" font-size="11">✅ Successfully popped task:</text>
+  <text x="20" y="130" fill="#ffffff" font-family="monospace" font-size="11">  📋 Issue #42: Fix authentication bug</text>
+  <text x="20" y="150" fill="#ffffff" font-family="monospace" font-size="11">  👤 Assigned to: agent001</text>
+  <text x="20" y="170" fill="#ffffff" font-family="monospace" font-size="11">  🌿 Branch: agent001/42-fix-authentication-bug</text>
+  
+  <!-- Separator -->
+  <line x1="20" y1="200" x2="780" y2="200" stroke="#444" stroke-width="1"/>
+  
+  <!-- Step 2 Header -->
+  <text x="20" y="240" fill="#00aaff" font-family="monospace" font-size="14" font-weight="bold">Step 2: Agent Implements Solution</text>
+  <text x="20" y="270" fill="#00aaff" font-family="monospace" font-size="12">$ git checkout agent001/42-fix-authentication-bug</text>
+  <text x="20" y="290" fill="#888" font-family="monospace" font-size="11"># Make code changes...</text>
+  <text x="20" y="310" fill="#00aaff" font-family="monospace" font-size="12">$ git add . && git commit -m "Fix authentication validation logic"</text>
+  <text x="20" y="330" fill="#ffffff" font-family="monospace" font-size="11">[agent001/42-fix-authentication-bug a1b2c3d] Fix authentication validation logic</text>
+  <text x="20" y="350" fill="#ffffff" font-family="monospace" font-size="11"> 2 files changed, 15 insertions(+), 8 deletions(-)</text>
+  
+  <!-- Separator -->
+  <line x1="20" y1="380" x2="780" y2="380" stroke="#444" stroke-width="1"/>
+  
+  <!-- Step 3 Header -->
+  <text x="20" y="420" fill="#ffaa00" font-family="monospace" font-size="14" font-weight="bold">Step 3: Agent Lands Work (Creates PR)</text>
+  <text x="20" y="450" fill="#ffaa00" font-family="monospace" font-size="12">$ ./target/release/clambake land</text>
+  <text x="20" y="470" fill="#ffffff" font-family="monospace" font-size="11">🚀 Landing completed work...</text>
+  <text x="20" y="490" fill="#ffffff" font-family="monospace" font-size="11">📝 Creating pull request...</text>
+  <text x="20" y="510" fill="#00ff00" font-family="monospace" font-size="11">✅ Pull request created: #123</text>
+  <text x="20" y="530" fill="#00ff00" font-family="monospace" font-size="11">🎯 Agent freed - ready for next task!</text>
+  
+  <!-- Workflow Arrow -->
+  <path d="M 750 100 Q 770 100 770 300 Q 770 500 750 500" stroke="#00ff00" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>
+  
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00ff00"/>
+    </marker>
+  </defs>
+  
+  <text x="730" y="300" fill="#00ff00" font-family="monospace" font-size="10" transform="rotate(-90 730 300)">CONTINUOUS CYCLE</text>
+</svg>

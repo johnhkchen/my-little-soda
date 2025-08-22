@@ -21,6 +21,8 @@ Turn GitHub Issues into a job queue for AI coding agents—coordinate multiple a
 
 **Why Choose Clambake?** Scale your development team with AI agents that work like human developers—isolated branches, proper reviews, and coordinated effort without stepping on each other's work.
 
+> 💡 **Visual Examples**: This README includes live terminal output examples and workflow demonstrations to help you understand how Clambake works in practice. Look for the 📊 console output sections throughout the documentation.
+
 **Development Status: Early Alpha**  
 This tool is under active development with compilation warnings and incomplete features. Use for experimentation only.
 
@@ -204,17 +206,31 @@ Simulate an AI agent picking up work:
 ./target/release/clambake pop
 ```
 
-Expected output:
-```
+**Live Example Output:**
+![Clambake Pop Command](docs/screenshots/clambake-pop-demo.svg)
+```console
 🎯 Popping next available task...
-✅ Successfully popped task:
-  📋 Issue #42: Fix bug in user authentication
-  👤 Assigned to: agent001
-  🌿 Branch: agent001/42-fix-bug-in-user-authentication
-  🔗 URL: https://github.com/yourusername/yourrepo/issues/42
 
-🚀 Ready to work! Issue assigned and branch created.
-   Next: git checkout agent001/42-fix-bug-in-user-authentication
+🔄 Connecting to GitHub... ✅
+📋 Searching for available tasks... 📊 Available agents: 1 of 1 total
+🤖 Attempting atomic assignment: agent agent001 -> issue #197
+✅ Reserved assignment: agent agent001 -> issue #197 (capacity: 1/1)
+✅ Issue #197 assigned to GitHub user: johnhkchen
+🏷️  Adding agent label: agent001
+✅ Added agent label: agent001
+🌿 Creating agent branch: agent001/197-readme-do-7-use-screenshots-or
+🌿 Creating branch 'agent001/197-readme-do-7-use-screenshots-or' from 'main'
+✅ Branch 'agent001/197-readme-do-7-use-screenshots-or' created successfully
+🎯 ATOMIC ASSIGNMENT COMPLETE: agent agent001 -> issue #197
+
+✅ Successfully popped task:
+  📋 Issue #197: README Do #7: Use screenshots or GIFs to demonstrate functionality
+  👤 Assigned to: agent001
+  🌿 Branch: agent001/197-readme-do-7-use-screenshots-or
+  🔗 URL: https://github.com/johnhkchen/clambake/issues/197
+
+🚀 Ready to work! Issue assigned and branch created/targeted.
+   Next: git checkout agent001/197-readme-do-7-use-screenshots-or
 ```
 
 ### 4. Check system status
@@ -223,22 +239,38 @@ See what's happening across all agents:
 ./target/release/clambake status
 ```
 
-Expected output:
-```
-📊 Clambake Status Report
+**Live Example Output:**
+![Clambake Status Command](docs/screenshots/clambake-status-demo.svg)
+```console
+🤖 CLAMBAKE SYSTEM STATUS
+==========================
 
-🤖 Agents (1/4 active):
-  • agent001: Working on issue #42 (Fix bug in user authentication)
+🔄 Gathering system information... ✅
 
-📋 Issue Queue:
-  • 3 issues ready for assignment (route:ready)
-  • 1 issue in progress (agent001)
-  • 0 issues awaiting merge (route:land)
+📊 AGENT UTILIZATION:
+────────────────────
+🔴 agent001 - BUSY (1/1)
 
-🌿 Active Branches:
-  • agent001/42-fix-bug-in-user-authentication
+💼 CAPACITY OVERVIEW:
+   🎯 Total agents: 1
+   ✅ Available: 0
+   🔴 Busy: 1
+   ⏳ All agents busy - work will queue
 
-⚡ System Health: ✅ All systems operational
+📋 TASK QUEUE:
+──────────────
+📊 29 tasks waiting for assignment
+   🟢 1 Priority: Normal tasks
+   🔴 8 Priority: High tasks
+   🔴 13 Priority: Very High tasks
+   🟢 2 Priority: Low tasks
+   🟡 5 Priority: Medium tasks
+
+🎯 QUICK ACTIONS:
+   → clambake pop      # Claim next task
+   → clambake peek     # Preview next task
+   → clambake route    # Route tasks to agents
+   → clambake land     # Complete lifecycle
 ```
 
 ### 5. Complete the work cycle
@@ -259,6 +291,36 @@ Here's how Clambake works in practice:
 5. **System routes next task** automatically
 
 The 3-phase workflow (Work → Review → Merge) ensures code quality while maintaining development velocity.
+
+#### Visual Workflow Demonstration
+The following example shows a complete agent workflow cycle:
+
+![Agent Workflow Demo](docs/screenshots/agent-workflow-demo.svg)
+
+**Step 1: Agent Claims Task**
+```console
+$ ./target/release/clambake pop
+🎯 Popping next available task...
+✅ Successfully popped task:
+  📋 Issue #42: Fix authentication bug
+  👤 Assigned to: agent001
+  🌿 Branch: agent001/42-fix-authentication-bug
+```
+
+**Step 2: Agent Implements Solution**
+```console
+$ git checkout agent001/42-fix-authentication-bug
+$ # Make code changes...
+$ git add . && git commit -m "Fix authentication validation logic"
+```
+
+**Step 3: Agent Lands Work (Creates PR)**
+```console
+$ ./target/release/clambake land
+🚀 Landing completed work...
+✅ Pull request created: #123
+🎯 Agent freed - ready for next task!
+```
 
 ## Configuration
 
@@ -386,6 +448,28 @@ Check detailed system status:
 View available work without assignment:
 ```bash
 ./target/release/clambake peek
+```
+
+**Example: Previewing Next Task**
+![Clambake Peek Command](docs/screenshots/clambake-peek-demo.svg)
+```console
+👀 Peeking at next task in queue...
+
+🔄 Connecting to GitHub... ✅
+🎯 NEXT TASK TO BE ASSIGNED:
+   📋 Issue #209: README Don't #10: Don't prioritize dev info over user needs
+   🏷️  Priority: VERY HIGH (4)
+   🏷️  Labels: route:ready, route:priority-very-high
+   📄 Description: ## Issue to Avoid
+
+**Don't**: Prioritize developer-centric info over user needs in the README.
+
+## Problem
+Starting README with build instructions or internal design notes forces users to scroll to fi...
+   🔗 URL: https://github.com/johnhkchen/clambake/issues/209
+
+📈 QUEUE DEPTH: 29 total routable tasks available
+💡 Run 'clambake pop' to claim this task
 ```
 
 ## Required GitHub Labels
