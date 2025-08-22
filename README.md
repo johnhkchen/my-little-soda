@@ -1,6 +1,6 @@
 # Clambake
 
-A Rust CLI tool for routing GitHub Issues to AI coding agents using labels and branch management.
+Turn GitHub Issues into a job queue for AI coding agents—coordinate multiple autonomous developers working on your repository simultaneously.
 
 **Development Status: Early Alpha**  
 This tool is under active development with compilation warnings and incomplete features. Use for experimentation only.
