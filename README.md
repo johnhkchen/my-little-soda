@@ -27,10 +27,36 @@ Clambake coordinates multiple AI coding assistants working on your GitHub Issues
 
 ## Installation
 
-### Requirements
+### Prerequisites
+
+Before installing Clambake, ensure you have the following:
+
+#### Required
 - **GitHub CLI**: `gh auth login` (for GitHub API access)
+  - Install: https://cli.github.com/
+  - Authenticate: `gh auth login` (required for repository operations)
+  - Verify: `gh auth status`
 - **Git**: Standard git installation
 - **Rust**: 1.75+ (for building from source)
+- **GitHub Personal Access Token**: Required for API operations
+  - Create at: https://github.com/settings/tokens
+  - Required scopes: `repo`, `read:org` (for private repos)
+  - Can be set via `GITHUB_TOKEN` or `CLAMBAKE_GITHUB_TOKEN` environment variable
+
+#### Repository Permissions
+- **Write access** to the target repository (for creating branches, PRs, and labels)
+- **Issues permission** (to read, create, and modify issues)
+- **Pull requests permission** (to create and manage PRs)
+
+#### Optional Dependencies
+- **Database** (SQLite): For persistent state storage and metrics
+  - Auto-created at `.clambake/clambake.db` if enabled
+  - Enable in `clambake.toml` or via `CLAMBAKE_DATABASE_URL`
+- **OpenTelemetry Endpoint**: For distributed tracing and observability
+  - Defaults to stdout export if not configured
+  - Set via `CLAMBAKE_OBSERVABILITY_OTLP_ENDPOINT`
+
+> **Note**: Clambake is a coordination tool for GitHub repositories. It does not require API keys for AI services (OpenAI, Anthropic, etc.) as it manages workflows for external AI agents that handle their own authentication.
 
 ### Platform Support
 - **Linux** (x86_64, aarch64)
@@ -52,8 +78,34 @@ Executable location: `./target/release/clambake` (Windows: `.\target\release\cla
 ### Option 2: Pre-built Binaries
 Pre-built binaries are planned for future releases.
 
+### Configuration
+
+Clambake supports multiple configuration methods in order of precedence:
+
+#### Option 1: Environment Variables (Recommended for CI/CD)
+```bash
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxxx"
+export CLAMBAKE_GITHUB_OWNER="your-username"
+export CLAMBAKE_GITHUB_REPO="your-repo"
+```
+
+#### Option 2: Configuration File (Recommended for local development)
+Copy the example configuration and customize:
+```bash
+cp clambake.example.toml clambake.toml
+# Edit clambake.toml with your repository details
+```
+
+#### Option 3: .env File
+Create a `.env` file in your project root:
+```bash
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
+CLAMBAKE_GITHUB_OWNER=your-username
+CLAMBAKE_GITHUB_REPO=your-repo
+```
+
 ### Setup Your Repository
-After installation, set up the required GitHub labels:
+After installation and configuration, set up the required GitHub labels:
 
 ```bash
 ./target/release/clambake setup-labels
