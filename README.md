@@ -1,12 +1,27 @@
 # Clambake
 
+**Clambake is a command-line tool that manages multiple AI coding assistants working on your GitHub repository simultaneously.** Think of it as a project manager that assigns coding tasks from your GitHub Issues to AI agents (like Claude Code, ChatGPT Code Interpreter, or GitHub Copilot Workspace), coordinates their work to prevent conflicts, and manages their progress through proper code review cycles.
+
+## The Problem It Solves
+
+Development teams often have backlogs of coding tasks—bug fixes, feature requests, refactoring work—that pile up faster than developers can complete them. While AI coding assistants are getting remarkably capable at implementing solutions, they typically work in isolation, can't coordinate with each other, and often require manual project management.
+
+## What Clambake Does
+
+Clambake turns your GitHub Issues into a managed workflow for AI agents:
+- **Task Distribution**: Multiple AI agents can work on different issues simultaneously without conflicts
+- **Automatic Coordination**: Each agent gets its own isolated branch, preventing merge conflicts
+- **Quality Control**: Built-in code review integration ensures all changes meet quality standards
+- **Progress Tracking**: Native GitHub integration means all work is visible through labels, branches, and pull requests
+- **No External Dependencies**: Uses only GitHub's existing features—no databases or external services required
+
+**In simple terms:** Clambake lets you scale your development team with AI assistants that work together like human developers—taking on tasks, implementing solutions, and collaborating through proper development workflows.
+
 [![Property-Based Tests](https://github.com/johnhkchen/clambake/actions/workflows/property-tests.yml/badge.svg)](https://github.com/johnhkchen/clambake/actions/workflows/property-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/johnhkchen/clambake)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
 [![Status](https://img.shields.io/badge/status-Early%20Alpha-red.svg)](https://github.com/johnhkchen/clambake)
-
-Turn GitHub Issues into a job queue for AI coding agents—coordinate multiple autonomous developers working on your repository simultaneously.
 
 ## 🚀 Key Features & Benefits
 
