@@ -10,7 +10,7 @@ use super::{
     types::{ConflictAnalysis, ConflictRecoveryData, SafeMergeResult},
     errors::GitHubError
 };
-// use crate::github::retry::GitHubRetryHandler;
+use crate::github::retry::GitHubRetryHandler;
 
 
 /// Trait for GitHub operations to enable testing with mocks
@@ -37,7 +37,7 @@ pub struct GitHubClient {
     pub comments: CommentHandler,
     owner: String,
     repo: String,
-    // retry_handler: GitHubRetryHandler,
+    retry_handler: GitHubRetryHandler,
 }
 
 impl GitHubClient {
@@ -56,7 +56,7 @@ impl GitHubClient {
             comments: CommentHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
             owner,
             repo,
-            // retry_handler: GitHubRetryHandler::default(),
+            retry_handler: GitHubRetryHandler::default(),
         })
     }
 

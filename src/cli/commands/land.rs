@@ -251,7 +251,7 @@ impl LandCommand {
         println!("═══════════════════════════════════════");
         
         // Initialize bundle manager
-        let bundle_manager = BundleManager::new()
+        let mut bundle_manager = BundleManager::new()
             .map_err(|e| anyhow!("Failed to initialize bundle manager: {}", e))?;
         
         // Create bundle using the existing bundling system

@@ -1,5 +1,6 @@
-use chrono::{DateTime, Local, Timelike};
+use chrono::{DateTime, Local, Timelike, Utc};
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 /// Represents a bundling time window (10-minute intervals)
 #[derive(Debug, Clone)]
@@ -68,4 +69,71 @@ pub struct BundleBranch {
     pub base_branch: String,
     pub included_branches: Vec<String>,
     pub included_issues: Vec<u64>,
+}
+
+/// Comprehensive error types for bundling operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BundleErrorType {
+    GitOperation { operation: String, details: String },
+    GitHubApi { status_code: Option<u16>, message: String, retry_after: Option<u64> },
+    ConflictResolution { conflicted_files: Vec<String>, branches: Vec<String> },
+    NetworkTimeout { operation: String, duration_ms: u64 },
+    PermissionDenied { resource: String, required_permission: String },
+    RateLimit { limit_type: String, reset_time: DateTime<Utc>, remaining: u32 },
+    PartialFailure { completed_operations: Vec<String>, failed_operations: Vec<String> },
+}
+
+/// Recovery strategy for failed bundling operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RecoveryStrategy {
+    Retry { max_attempts: u32, backoff_ms: u64 },
+    Fallback { to_operation: String },
+    Abort { cleanup_required: bool },
+    Manual { instructions: String },
+}
+
+/// Audit trail entry for bundling operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundleAuditEntry {
+    pub timestamp: DateTime<Utc>,
+    pub operation: String,
+    pub branch_name: Option<String>,
+    pub affected_issues: Vec<u64>,
+    pub status: BundleOperationStatus,
+    pub error: Option<BundleErrorType>,
+    pub recovery_action: Option<RecoveryStrategy>,
+    pub execution_time_ms: u64,
+    pub correlation_id: String,
+}
+
+/// Status of a bundling operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BundleOperationStatus {
+    Started,
+    InProgress { progress_percent: u8 },
+    Completed,
+    Failed,
+    Recovered,
+    Aborted,
+}
+
+/// Bundling state for recovery purposes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundleState {
+    pub bundle_branch: String,
+    pub target_branches: Vec<String>,
+    pub completed_branches: Vec<String>,
+    pub failed_branches: Vec<String>,
+    pub current_operation: Option<String>,
+    pub audit_trail: Vec<BundleAuditEntry>,
+    pub recovery_data: Option<RecoveryData>,
+}
+
+/// Recovery data for resuming failed operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecoveryData {
+    pub last_successful_commit: Option<String>,
+    pub cleanup_commands: Vec<String>,
+    pub rollback_branch: Option<String>,
+    pub temp_files: Vec<String>,
 }

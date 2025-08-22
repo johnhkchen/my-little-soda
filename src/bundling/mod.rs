@@ -8,4 +8,7 @@ pub mod types;
 
 pub use bundler::BundleManager;
 pub use git_ops::{GitOperations, ConflictStrategy, ConflictCompatibilityReport, ConflictPrediction};
-pub use types::{BundleWindow, BundleResult, BundleBranch};
+pub use types::{
+    BundleWindow, BundleResult, BundleBranch, BundleErrorType, RecoveryStrategy,
+    BundleAuditEntry, BundleOperationStatus, BundleState, RecoveryData
+};
