@@ -67,6 +67,18 @@ pub enum Commands {
         #[arg(long, short = 'v', help = "Show detailed scan information")]
         verbose: bool,
     },
+    /// Bundle multiple completed branches into a single PR for efficient review
+    Bundle {
+        /// Force bundling outside of scheduled departure times
+        #[arg(long, help = "Force bundling even when not at departure time")]
+        force: bool,
+        /// Show what would be bundled without making changes
+        #[arg(long, help = "Preview what would be bundled without making changes")]
+        dry_run: bool,
+        /// Show detailed information about the bundling process
+        #[arg(long, short = 'v', help = "Show detailed bundling information")]
+        verbose: bool,
+    },
     /// Preview the next task in queue without claiming it
     Peek,
     /// Display integration success metrics and performance analytics

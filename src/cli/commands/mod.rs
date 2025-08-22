@@ -4,6 +4,7 @@ use crate::agents::AgentRouter;
 pub mod pop;
 pub mod route;
 pub mod land;
+pub mod bundle;
 pub mod peek;
 pub mod status;
 pub mod init;

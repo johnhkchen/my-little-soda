@@ -9,6 +9,7 @@ mod train_schedule;
 mod telemetry;
 mod metrics;
 mod git;
+mod bundling;
 mod cli;
 
 use cli::{Cli, Commands};
@@ -17,6 +18,7 @@ use cli::commands::{
     pop::PopCommand,
     route::RouteCommand,
     land::LandCommand,
+    bundle::BundleCommand,
     peek::PeekCommand,
     status::StatusCommand,
     init::InitCommand,
@@ -68,6 +70,11 @@ fn main() -> Result<()> {
         Some(Commands::Land { open_only, days, dry_run, verbose }) => {
             tokio::runtime::Runtime::new()?.block_on(async {
                 LandCommand::new(!open_only, days, dry_run, verbose).execute().await
+            })
+        }
+        Some(Commands::Bundle { force, dry_run, verbose }) => {
+            tokio::runtime::Runtime::new()?.block_on(async {
+                BundleCommand::new(force, dry_run, verbose).execute().await
             })
         }
         Some(Commands::Peek) => {

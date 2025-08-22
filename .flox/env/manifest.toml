@@ -34,6 +34,9 @@ ripgrep.pkg-path = "ripgrep"
 
 # Optional: GUI tools for development
 gum.pkg-path = "gum"
+openssl_3_0.pkg-path = "openssl_3_0"
+pkg-config.pkg-path = "pkg-config"
+gcc.pkg-path = "gcc"
 
 
 ## Environment Variables ---------------------------------------------
