@@ -23,11 +23,46 @@ Turn GitHub Issues into a job queue for AI coding agents—coordinate multiple a
 
 > 💡 **Visual Examples**: This README includes live terminal output examples and workflow demonstrations to help you understand how Clambake works in practice. Look for the 📊 console output sections throughout the documentation.
 
-**Development Status: Early Alpha**  
-This tool is under active development with compilation warnings and incomplete features. Use for experimentation only.
+## Project Status
+
+**Current Version: 0.1.0 - Early Alpha** 🔴
+
+Clambake is under active development and **not recommended for production use**. Here's what you need to know:
+
+### ✅ What Works
+- **Core Coordination**: Multi-agent task routing and branch isolation
+- **GitHub Integration**: Native label-based coordination and PR creation  
+- **Basic Commands**: `pop`, `peek`, `status`, `land` commands are functional
+- **Cross-Platform**: Builds and runs on Linux, macOS, and Windows
+
+### ⚠️ What's In Progress
+- **Testing Framework**: Comprehensive test coverage being developed
+- **Error Handling**: Many edge cases need proper error handling
+- **Performance**: Rate limiting and optimization improvements ongoing
+- **Documentation**: User guides and API docs being expanded
+
+### 🚧 Known Limitations
+- **Compilation Warnings**: Run `cargo check` to see areas needing implementation
+- **Incomplete Features**: Many features are stubbed out or partially implemented
+- **API Stability**: Commands and configuration may change between versions
+- **Error Messages**: Some error cases may not provide clear feedback
+
+### 🎯 Recommended Use
+- **Experimentation**: Great for understanding AI agent coordination concepts
+- **Development**: Contribute to the codebase and help shape the future
+- **Testing**: Help identify bugs and missing features
+- **Feedback**: Share use cases and requirements to guide development
+
+### 📈 Roadmap
+- **Beta Release**: Comprehensive testing and error handling
+- **Stable Release**: Production-ready with semantic versioning
+- **Extensions**: Plugin system and advanced coordination features
+
+**Want to Help?** Check the [Contributing](#contributing) section below to get involved!
 
 ## Table of Contents
 
+- [Project Status](#project-status)
 - [What It Currently Does](#what-it-currently-does)
 - [Prerequisites](#prerequisites)
   - [System Requirements](#system-requirements)
@@ -54,7 +89,8 @@ This tool is under active development with compilation warnings and incomplete f
   - [Runtime Issues](#runtime-issues)
   - [Getting Help](#getting-help)
 - [Documentation](#documentation)
-- [Contributing](#contributing)
+- [Support & Community](#support--community)
+- [Contributing](#contributing)  
 - [License](#license)
 
 ## What It Currently Does
@@ -605,10 +641,118 @@ Comprehensive documentation organized for different audiences and use cases:
 - **[Contributing Guidelines](specs/README.md#contributing-to-specs)** - How to contribute to the project
 - **[Scripts Documentation](scripts/README.md)** - Development and maintenance scripts
 
+## Support & Community
+
+### Getting Help
+
+If you need assistance with Clambake, here are the best ways to get support:
+
+#### 📋 Issue Tracker
+- **Bug Reports**: [Create a bug report](https://github.com/johnhkchen/clambake/issues/new?labels=bug) for unexpected behavior or crashes
+- **Feature Requests**: [Request new features](https://github.com/johnhkchen/clambake/issues/new?labels=enhancement) or improvements
+- **Questions**: [Ask questions](https://github.com/johnhkchen/clambake/issues/new?labels=question) about usage, configuration, or implementation
+
+#### 📖 Documentation Resources
+- **[Comprehensive Documentation](docs/README.md)** - Complete user guide and reference
+- **[Troubleshooting Guide](#troubleshooting)** - Common issues and solutions
+- **[Configuration Guide](#configuration)** - Setup and customization options
+- **[System Specification](spec.md)** - Architecture and design principles
+
+#### 🔍 Self-Help Resources
+1. **Check the troubleshooting section** above for common issues
+2. **Enable debug logging**: `export CLAMBAKE_OBSERVABILITY_LOG_LEVEL=debug`
+3. **Review existing issues** in the GitHub issue tracker
+4. **Check the documentation** in the `/docs` directory
+
+### Community Guidelines
+
+When seeking help or contributing:
+- **Be specific**: Include error messages, configuration details, and steps to reproduce issues
+- **Be patient**: This is an Early Alpha project with active development
+- **Be helpful**: Share solutions you discover with others
+- **Search first**: Check if your question has been asked before
+
+### Response Times
+
+As an Early Alpha project:
+- **Bug reports**: We aim to acknowledge within 48-72 hours
+- **Feature requests**: Evaluated during regular development cycles
+- **Questions**: Community and maintainer responses vary
+
+### Giving Feedback
+
+Your feedback shapes Clambake's development:
+- **What works well**: Share successful use cases and workflows
+- **What doesn't work**: Report bugs, performance issues, or confusing documentation
+- **What's missing**: Suggest features or improvements that would help your use case
+
+We appreciate detailed feedback that helps us understand real-world usage patterns and pain points.
+
 ## Contributing
 
-See build warnings when running `cargo check`. Many features are stubbed out and need implementation.
+We welcome contributions to Clambake! Whether you're fixing bugs, adding features, or improving documentation, your help is appreciated.
+
+### Getting Started
+
+1. **Fork and Clone**: Fork the repository and clone your fork locally
+2. **Build**: Run `cargo build --release` to compile the project
+3. **Test**: Run the test suite to ensure everything works
+4. **Branch**: Create a feature branch for your changes
+
+### Development Setup
+
+```bash
+# Clone your fork
+git clone https://github.com/your-username/clambake.git
+cd clambake
+
+# Build the project
+cargo build --release
+
+# Run tests (when available)
+cargo test
+
+# Check for compilation issues
+cargo check
+```
+
+### Contributing Guidelines
+
+- **Code Quality**: Follow existing code patterns and run `cargo clippy` for linting
+- **Documentation**: Update documentation for any new features or changes
+- **Testing**: Add tests for new functionality when the testing framework is established
+- **Commit Messages**: Use clear, descriptive commit messages
+- **Pull Requests**: Create focused PRs that address specific issues or features
+
+### Development Status Note
+
+This project is in **Early Alpha** with compilation warnings and incomplete features. Many areas need implementation:
+- Review `cargo check` output for areas needing work
+- Check the issue tracker for specific improvement opportunities
+- Documentation and testing infrastructure are still being developed
+
+### Submitting Changes
+
+1. **Create an Issue**: For significant changes, create an issue first to discuss the approach
+2. **Make Changes**: Implement your changes on a feature branch
+3. **Test Locally**: Ensure your changes build and work as expected
+4. **Submit PR**: Create a pull request with a clear description of your changes
+
+We use GitHub's native coordination features (labels, issues, PRs) for project management, making it easy to track contributions and collaborate.
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
+**Clambake is open source software licensed under the MIT License.**
+
+This means you are free to:
+- Use Clambake commercially or personally
+- Modify and distribute the software
+- Include Clambake in other projects (open source or proprietary)
+
+**Requirements:**
+- Include the original copyright notice and license text in any distributions
+- The software is provided "as is" without warranty
+
+**Full License Text:** See [LICENSE](LICENSE) file for complete terms.
+
+**Copyright © 2025 John Chen**
