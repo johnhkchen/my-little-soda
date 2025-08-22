@@ -3,28 +3,21 @@
 
 use crate::github::{GitHubClient, GitHubError};
 use crate::agents::{Agent, AgentCoordinator};
-use crate::priority::Priority;
-use crate::telemetry::{generate_correlation_id, create_coordination_span};
-use crate::git::{GitOperations, Git2Operations};
-use crate::metrics::{MetricsTracker, RoutingDecision};
+use crate::agents::routing::{
+    AssignmentOperations, IssueFilter, RoutingDecisions, RoutingCoordinator, RoutingAssignment
+};
+use crate::metrics::MetricsTracker;
 use octocrab::models::issues::Issue;
 use std::collections::HashMap;
-use std::process::Command;
-use std::time::Instant;
-use tracing::Instrument;
 
 #[derive(Debug)]
 pub struct AgentRouter {
-    github_client: GitHubClient,
+    routing_coordinator: RoutingCoordinator,
     coordinator: AgentCoordinator,
-    metrics_tracker: MetricsTracker,
+    github_client: GitHubClient,
 }
 
-#[derive(Debug)]
-pub struct RoutingAssignment {
-    pub issue: Issue,
-    pub assigned_agent: Agent,
-}
+// RoutingAssignment is already imported above
 
 impl AgentRouter {
     pub async fn new() -> Result<Self, GitHubError> {
@@ -32,538 +25,49 @@ impl AgentRouter {
         let coordinator = AgentCoordinator::new().await?;
         let metrics_tracker = MetricsTracker::new();
         
-        Ok(Self {
-            github_client,
-            coordinator,
+        // Create routing components
+        let assignment_ops = AssignmentOperations::new();
+        let issue_filter = IssueFilter::new(assignment_ops);
+        let decisions = RoutingDecisions::new();
+        let routing_coordinator = RoutingCoordinator::new(
+            AssignmentOperations::new(),
+            issue_filter,
+            decisions,
             metrics_tracker,
+        );
+        
+        Ok(Self {
+            routing_coordinator,
+            coordinator,
+            github_client,
         })
     }
 
-    /// Generate branch name following the pattern: agent-{id}/{issue-number}-{slug}
-    fn generate_branch_name(&self, agent_id: &str, issue_number: u64, issue_title: &str) -> String {
-        // Create slug from issue title
-        let slug = issue_title
-            .to_lowercase()
-            .chars()
-            .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-')
-            .collect::<String>()
-            .split_whitespace()
-            .collect::<Vec<&str>>()
-            .join("-")
-            .chars()
-            .take(30) // Limit slug length
-            .collect::<String>();
-        
-        format!("{}/{}-{}", agent_id, issue_number, slug)
-    }
-
-    /// Create branch for agent work with atomic operation
     pub async fn create_agent_branch(&self, agent_id: &str, issue_number: u64, issue_title: &str) -> Result<String, GitHubError> {
-        let branch_name = self.generate_branch_name(agent_id, issue_number, issue_title);
-        
-        // Create branch atomically
-        match self.github_client.create_branch(&branch_name, "main").await {
-            Ok(()) => {
-                println!("✅ Branch '{}' created successfully", branch_name);
-                Ok(branch_name)
-            }
-            Err(e) => {
-                // Log but don't fail - branch creation failure shouldn't block task assignment
-                tracing::warn!("Branch creation failed for {}: {:?}", branch_name, e);
-                println!("⚠️  Branch creation failed for '{}', continuing with task assignment", branch_name);
-                Ok(branch_name) // Return the branch name anyway for consistency
-            }
-        }
+        self.routing_coordinator.assignment_ops.create_agent_branch(&self.github_client, agent_id, issue_number, issue_title).await
     }
 
-    /// Check if an agent branch has completed work (has commits ahead of main)
-    fn is_agent_branch_completed(&self, issue_number: u64, agent_labels: &[&str]) -> bool {
-        // First try to extract agent ID from agent labels (e.g., "agent001")
-        if let Some(agent_label) = agent_labels.iter().find(|label| label.starts_with("agent")) {
-            let agent_id = agent_label;
-            
-            // Check both old and new branch naming patterns
-            let old_branch_name = format!("{}/{}", agent_id, issue_number);
-            if self.branch_has_commits_ahead_of_main(&old_branch_name) {
-                return true;
-            }
-            
-            // Check new pattern by looking for branches that match agent_id/issue_number-*
-            return self.check_agent_branch_with_slug(agent_id, issue_number);
-        }
-        
-        // If no agent label, check for any existing agent branches for this issue
-        // This handles the case where work is completed but agent label was removed
-        self.check_any_agent_branch_completed(issue_number)
-    }
-
-    /// Check if agent branch with slug pattern has completed work
-    /// Since we can't efficiently list all branches, we use git command as fallback
-    fn check_agent_branch_with_slug(&self, agent_id: &str, issue_number: u64) -> bool {
-        // Use git command to find branches matching pattern
-        let pattern = format!("{}/{}-", agent_id, issue_number);
-        
-        if let Ok(output) = std::process::Command::new("git")
-            .args(&["branch", "-a"])
-            .output()
-        {
-            if output.status.success() {
-                let branches = String::from_utf8_lossy(&output.stdout);
-                for line in branches.lines() {
-                    let branch_name = line.trim().trim_start_matches("* ").trim_start_matches("remotes/origin/");
-                    if branch_name.starts_with(&pattern) {
-                        if self.branch_has_commits_ahead_of_main(branch_name) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        
-        false
-    }
-
-    /// Check if any agent branch exists for this issue with completed work
-    fn check_any_agent_branch_completed(&self, issue_number: u64) -> bool {
-        // Check common agent IDs that might have worked on this issue
-        let common_agents = ["agent001", "agent002", "agent003", "agent004", "agent005"];
-        
-        for agent_id in &common_agents {
-            // Check old pattern
-            let old_branch_name = format!("{}/{}", agent_id, issue_number);
-            if self.branch_has_commits_ahead_of_main(&old_branch_name) {
-                return true;
-            }
-            
-            // Check new pattern with slug
-            if self.check_agent_branch_with_slug(agent_id, issue_number) {
-                return true;
-            }
-        }
-        
-        false
-    }
-
-    /// Check if a branch has commits ahead of main branch
-    fn branch_has_commits_ahead_of_main(&self, branch_name: &str) -> bool {
-        let git_ops = match Git2Operations::new(".") {
-            Ok(ops) => ops,
-            Err(_) => return false,
-        };
-        
-        // First check if branch exists locally
-        let branch_exists = git_ops.branch_exists(branch_name).unwrap_or(false);
-        
-        if !branch_exists {
-            // Check if branch exists on remote
-            let remote_branch_exists = git_ops.remote_branch_exists("origin", branch_name).unwrap_or(false);
-            
-            if !remote_branch_exists {
-                return false; // Branch doesn't exist
-            }
-            
-            // Fetch the remote branch
-            let _ = git_ops.fetch("origin");
-        }
-        
-        // Check if branch has commits ahead of main
-        match git_ops.get_commits(Some("main"), Some(branch_name)) {
-            Ok(commits) => !commits.is_empty(), // Has commits ahead of main
-            Err(_) => false, // Git operation failed, assume not ready
-        }
-    }
 
     pub async fn fetch_routable_issues(&self) -> Result<Vec<Issue>, GitHubError> {
-        // GitHub-native: Only route issues that exist in GitHub
-        let all_issues = self.github_client.fetch_issues().await?;
-        
-        // Filter for issues that can be routed to agents
-        // Include both route:ready and route:land labeled issues
-        let mut routable_issues = Vec::new();
-        
-        for issue in all_issues {
-            // Must be open
-            let is_open = issue.state == octocrab::models::IssueState::Open;
-            
-            // Check for routing labels
-            let has_route_ready = issue.labels.iter()
-                .any(|label| label.name == "route:ready");
-            let has_route_land = issue.labels.iter()
-                .any(|label| label.name == "route:land");
-            let has_route_unblocker = issue.labels.iter()
-                .any(|label| label.name == "route:unblocker");
-            let has_route_review = issue.labels.iter()
-                .any(|label| label.name == "route:review");
-            
-            // For route:ready - agent must NOT be assigned yet
-            // For route:land - agent assignment doesn't matter (any agent can complete merge)
-            // For route:unblocker - always routable (critical issues)
-            let has_agent_label = issue.labels.iter()
-                .any(|label| label.name.starts_with("agent"));
-            
-            // Human-only filtering: Exclude issues marked for human-only assignment
-            let is_human_only = issue.labels.iter()
-                .any(|label| label.name == "route:human-only");
-            
-            // Route logic:
-            // - route:review tasks: not routable (awaiting bundling)
-            // - route:unblocker tasks: routable only if no agent assigned AND work not completed
-            // - route:land tasks: always routable (any agent can complete merge)
-            // - route:ready tasks: only if no agent assigned AND work not completed
-            let is_routable = if has_route_review {
-                false // route:review issues are not routable (awaiting bundling)
-            } else if has_route_unblocker {
-                if has_agent_label {
-                    // Check if this agent branch has completed work - if so, exclude from routing
-                    let agent_labels: Vec<&str> = issue.labels.iter()
-                        .filter(|label| label.name.starts_with("agent"))
-                        .map(|label| label.name.as_str())
-                        .collect();
-                    !self.is_agent_branch_completed(issue.number, &agent_labels)
-                } else {
-                    true // No agent assigned yet, routable
-                }
-            } else if has_route_land {
-                true // route:land tasks are always routable
-            } else if has_route_ready {
-                let agent_labels: Vec<&str> = issue.labels.iter()
-                    .filter(|label| label.name.starts_with("agent"))
-                    .map(|label| label.name.as_str())
-                    .collect();
-                // Check if work is completed (whether or not agent label is present)
-                // If work is completed, not routable (awaiting bundling)
-                !self.is_agent_branch_completed(issue.number, &agent_labels)
-            } else {
-                false // no routing label
-            };
-            
-            if is_open && is_routable && !is_human_only {
-                // Check if issue has blocking PR (open PR without route:land)
-                match self.github_client.issue_has_blocking_pr(issue.number).await {
-                    Ok(has_blocking_pr) => {
-                        if !has_blocking_pr {
-                            routable_issues.push(issue);
-                        }
-                        // If has_blocking_pr is true, we skip this issue
-                    }
-                    Err(e) => {
-                        // Log the error but don't fail the entire operation
-                        tracing::warn!("Failed to check PR status for issue #{}: {:?}", issue.number, e);
-                        // Include the issue anyway to avoid blocking the entire system
-                        routable_issues.push(issue);
-                    }
-                }
-            }
-        }
-            
-        Ok(routable_issues)
+        self.routing_coordinator.issue_filter.fetch_routable_issues(&self.github_client).await
     }
 
     fn get_issue_priority(&self, issue: &Issue) -> u32 {
-        let label_names: Vec<&str> = issue.labels.iter()
-            .map(|label| label.name.as_str())
-            .collect();
-        Priority::from_labels(&label_names).value()
+        self.routing_coordinator.decisions.get_issue_priority(issue)
     }
 
     pub async fn route_issues_to_agents(&self) -> Result<Vec<RoutingAssignment>, GitHubError> {
-        let correlation_id = generate_correlation_id();
-        let span = create_coordination_span("route_issues_to_agents", None, None, Some(&correlation_id));
-        
-        async move {
-            tracing::info!(correlation_id = %correlation_id, "Starting issue routing");
-            
-            let mut issues = self.fetch_routable_issues().await?;
-            let available_agents = self.coordinator.get_available_agents().await?;
-            
-            tracing::info!(
-                issue_count = issues.len(),
-                available_agent_count = available_agents.len(),
-                "Fetched issues and agents for routing"
-            );
-        
-        // Sort issues by priority: high priority first
-        issues.sort_by(|a, b| {
-            let a_priority = self.get_issue_priority(a);
-            let b_priority = self.get_issue_priority(b);
-            b_priority.cmp(&a_priority) // Reverse order: high priority first
-        });
-        
-        let mut assignments = Vec::new();
-        
-        // Simplified: Single agent model - assign one task if available
-        if let Some(agent) = available_agents.first() {
-            if let Some(issue) = issues.first() {
-                let assignment = RoutingAssignment {
-                    issue: issue.clone(),
-                    assigned_agent: agent.clone(),
-                };
-                
-                // Check if this is a route:land task - if so, skip assignment
-                let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
-                
-                if !is_route_land {
-                    // Only assign for non-route:land tasks
-                    self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
-                    tracing::info!(
-                        agent_id = %agent.id,
-                        issue_number = issue.number,
-                        issue_title = %issue.title,
-                        "Assigned agent to issue"
-                    );
-                } else {
-                    tracing::info!(
-                        issue_number = issue.number,
-                        issue_title = %issue.title,
-                        "Skipped assignment for route:land task"
-                    );
-                }
-                
-                assignments.push(assignment);
-            }
-        }
-        
-        tracing::info!(assignment_count = assignments.len(), "Completed issue routing");
-        Ok(assignments)
-        }.instrument(span).await
+        self.routing_coordinator.route_issues_to_agents(&self.coordinator, &self.github_client).await
     }
 
     pub async fn pop_task_assigned_to_me(&self) -> Result<Option<RoutingAssignment>, GitHubError> {
-        let correlation_id = generate_correlation_id();
-        let span = create_coordination_span("pop_task_assigned_to_me", None, None, Some(&correlation_id));
-        
-        async move {
-            tracing::info!(correlation_id = %correlation_id, "Starting task pop operation");
-            
-            // Get issues assigned to current user (repo owner) only
-            let all_issues = self.github_client.fetch_issues().await?;
-            let current_user = self.github_client.owner();
-            
-            tracing::debug!(
-                current_user = %current_user,
-                total_issues = all_issues.len(),
-                "Fetched issues for task filtering"
-            );
-        
-        // Filter for issues assigned to current user with route:ready label
-        let mut my_issues: Vec<_> = all_issues
-            .into_iter()
-            .filter(|issue| {
-                let is_open = issue.state == octocrab::models::IssueState::Open;
-                let is_assigned_to_me = issue.assignee.as_ref()
-                    .map(|assignee| assignee.login == current_user)
-                    .unwrap_or(false);
-                let has_route_label = issue.labels.iter()
-                    .any(|label| label.name == "route:ready");
-                let has_route_review = issue.labels.iter()
-                    .any(|label| label.name == "route:review");
-                
-                let basic_filter = is_open && is_assigned_to_me && has_route_label && !has_route_review;
-                
-                if basic_filter {
-                    // Check if work is completed on this issue (prevents re-assignment of completed work)
-                    let agent_labels: Vec<&str> = issue.labels.iter()
-                        .filter(|label| label.name.starts_with("agent"))
-                        .map(|label| label.name.as_str())
-                        .collect();
-                    
-                    // If work is completed, exclude this issue (awaiting bundling)
-                    !self.is_agent_branch_completed(issue.number, &agent_labels)
-                } else {
-                    false
-                }
-            })
-            .collect();
-            
-        if my_issues.is_empty() {
-            return Ok(None);
-        }
-        
-        // Sort by priority
-        my_issues.sort_by(|a, b| {
-            let a_priority = self.get_issue_priority(a);
-            let b_priority = self.get_issue_priority(b);
-            b_priority.cmp(&a_priority)
-        });
-        
-        // Get the first available agent and the highest priority assigned issue
-        let available_agents = self.coordinator.get_available_agents().await?;
-        if let (Some(issue), Some(agent)) = (my_issues.first(), available_agents.first()) {
-            // Create branch for the assigned issue (no need to assign again)
-            let branch_name = self.create_agent_branch(&agent.id, issue.number, &issue.title).await?;
-            
-            // Return the assignment
-            Ok(Some(RoutingAssignment {
-                issue: issue.clone(),
-                assigned_agent: agent.clone(),
-            }))
-        } else {
-            tracing::info!("No assigned tasks available for current user");
-            Ok(None)
-        }
-        }.instrument(span).await
+        let current_user = self.github_client.owner();
+        self.routing_coordinator.pop_task_assigned_to_me(&self.coordinator, &self.github_client, current_user).await
     }
 
     pub async fn pop_any_available_task(&self) -> Result<Option<RoutingAssignment>, GitHubError> {
-        let routing_start = Instant::now();
-        let correlation_id = generate_correlation_id();
-        
-        // Get any available task (unassigned OR assigned to me)
-        let all_issues = self.github_client.fetch_issues().await?;
         let current_user = self.github_client.owner();
-        
-        // Filter for issues that are either unassigned or assigned to current user
-        let mut available_issues = Vec::new();
-        
-        for issue in &all_issues {
-            let is_open = issue.state == octocrab::models::IssueState::Open;
-            let has_route_ready = issue.labels.iter()
-                .any(|label| label.name == "route:ready");
-            let has_route_land = issue.labels.iter()
-                .any(|label| label.name == "route:land");
-            let has_route_unblocker = issue.labels.iter()
-                .any(|label| label.name == "route:unblocker");
-            let has_route_review = issue.labels.iter()
-                .any(|label| label.name == "route:review");
-            
-            if !is_open || (!has_route_ready && !has_route_land && !has_route_unblocker) {
-                continue;
-            }
-            
-            // Skip route:review issues (awaiting bundling)
-            if has_route_review {
-                continue;
-            }
-            
-            // Check if this is a human-only task
-            let is_human_only = issue.labels.iter()
-                .any(|label| label.name == "route:human-only");
-            
-            // Accept based on assignment status and human-only filtering
-            let is_acceptable = match &issue.assignee {
-                None => {
-                    // Unassigned tasks: exclude human-only tasks (bots can't take them)
-                    !is_human_only
-                },
-                Some(assignee) => {
-                    // Tasks assigned to current user: allow regardless of human-only status
-                    assignee.login == current_user
-                }
-            };
-            
-            if is_acceptable {
-                // Check if work is completed on this issue (prevents re-assignment of completed work)
-                if has_route_ready || has_route_unblocker {
-                    let agent_labels: Vec<&str> = issue.labels.iter()
-                        .filter(|label| label.name.starts_with("agent"))
-                        .map(|label| label.name.as_str())
-                        .collect();
-                    
-                    // If work is completed, skip this issue (awaiting bundling)
-                    if self.is_agent_branch_completed(issue.number, &agent_labels) {
-                        continue;
-                    }
-                }
-
-                // Check if issue has blocking PR (open PR without route:land)
-                match self.github_client.issue_has_blocking_pr(issue.number).await {
-                    Ok(has_blocking_pr) => {
-                        if !has_blocking_pr {
-                            available_issues.push(issue.clone());
-                        }
-                        // If has_blocking_pr is true, we skip this issue
-                    }
-                    Err(e) => {
-                        // Log the error but don't fail the entire operation
-                        tracing::warn!("Failed to check PR status for issue #{}: {:?}", issue.number, e);
-                        // Include the issue anyway to avoid blocking the entire system
-                        available_issues.push(issue.clone());
-                    }
-                }
-            }
-        }
-            
-        if available_issues.is_empty() {
-            return Ok(None);
-        }
-        
-        // Sort by priority
-        available_issues.sort_by(|a, b| {
-            let a_priority = self.get_issue_priority(a);
-            let b_priority = self.get_issue_priority(b);
-            b_priority.cmp(&a_priority)
-        });
-        
-        // Get the first available agent and the highest priority issue
-        let available_agents = self.coordinator.get_available_agents().await?;
-        
-        let decision_outcome = if let (Some(issue), Some(agent)) = (available_issues.first(), available_agents.first()) {
-            // Check if this is a route:land task - if so, skip assignment but still create branch
-            let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
-            
-            if is_route_land {
-                // For route:land tasks, preserve original assignee and just create branch
-                let _ = self.create_agent_branch(&agent.id, issue.number, &issue.title).await;
-            } else if issue.assignee.is_none() {
-                // For route:ready tasks, assign if unassigned
-                self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
-            } else {
-                // Already assigned to me, just create branch
-                let _ = self.create_agent_branch(&agent.id, issue.number, &issue.title).await;
-            }
-            
-            // Track agent utilization metrics
-            let active_issues = vec![issue.number]; // Current issue
-            let _ = self.metrics_tracker.track_agent_utilization(
-                &agent.id,
-                1, // current capacity (1 issue assigned)
-                agent.capacity,
-                active_issues,
-                &format!("{:?}", agent.state)
-            ).await;
-            
-            let decision = RoutingDecision::TaskAssigned { 
-                issue_number: issue.number, 
-                agent_id: agent.id.clone() 
-            };
-            
-            // Track routing metrics
-            let _ = self.metrics_tracker.track_routing_metrics(
-                correlation_id.clone(),
-                routing_start,
-                all_issues.len() as u64,
-                available_agents.len() as u64,
-                decision.clone(),
-            ).await;
-            
-            // Return the assignment
-            Ok(Some(RoutingAssignment {
-                issue: issue.clone(),
-                assigned_agent: agent.clone(),
-            }))
-        } else if available_agents.is_empty() {
-            let decision = RoutingDecision::NoAgentsAvailable;
-            let _ = self.metrics_tracker.track_routing_metrics(
-                correlation_id.clone(),
-                routing_start,
-                all_issues.len() as u64,
-                0,
-                decision,
-            ).await;
-            Ok(None)
-        } else {
-            let decision = RoutingDecision::NoTasksAvailable;
-            let _ = self.metrics_tracker.track_routing_metrics(
-                correlation_id.clone(),
-                routing_start,
-                all_issues.len() as u64,
-                available_agents.len() as u64,
-                decision,
-            ).await;
-            Ok(None)
-        };
-        
-        decision_outcome
+        self.routing_coordinator.pop_any_available_task(&self.coordinator, &self.github_client, current_user).await
     }
 
     // Legacy method - keeping for backward compatibility
@@ -573,24 +77,7 @@ impl AgentRouter {
     }
 
     pub async fn route_specific_issue(&self, issue_number: u64) -> Result<Option<RoutingAssignment>, GitHubError> {
-        let issue = self.github_client.fetch_issue(issue_number).await?;
-        let available_agents = self.coordinator.get_available_agents().await?;
-        
-        if let Some(agent) = available_agents.first() {
-            // Check if this is a route:land task - if so, skip assignment
-            let is_route_land = issue.labels.iter().any(|label| label.name == "route:land");
-            
-            if !is_route_land {
-                self.coordinator.assign_agent_to_issue(&agent.id, issue.number).await?;
-            }
-            
-            Ok(Some(RoutingAssignment {
-                issue,
-                assigned_agent: agent.clone(),
-            }))
-        } else {
-            Ok(None)
-        }
+        self.routing_coordinator.route_specific_issue(&self.coordinator, &self.github_client, issue_number).await
     }
 
     // Public access to coordinator functionality for status command
@@ -606,6 +93,7 @@ impl AgentRouter {
 #[allow(dead_code)]
 mod tests {
     use super::*;
+    use crate::priority::Priority;
     use octocrab::models::{IssueState, Label};
     use std::sync::{Arc, Mutex};
 
@@ -651,10 +139,21 @@ mod tests {
     impl AgentRouter {
         #[cfg(test)]
         fn new_for_test(github_client: GitHubClient, coordinator: AgentCoordinator) -> Self {
+            let metrics_tracker = MetricsTracker::new();
+            let assignment_ops = AssignmentOperations::new();
+            let issue_filter = IssueFilter::new(assignment_ops);
+            let decisions = RoutingDecisions::new();
+            let routing_coordinator = RoutingCoordinator::new(
+                AssignmentOperations::new(),
+                issue_filter,
+                decisions,
+                metrics_tracker,
+            );
+            
             Self { 
-                github_client, 
+                routing_coordinator,
                 coordinator,
-                metrics_tracker: MetricsTracker::new(),
+                github_client,
             }
         }
     }

@@ -4,6 +4,7 @@
 pub mod coordinator;
 pub mod router;
 pub mod integrator;
+pub mod routing;
 
 pub use coordinator::{AgentCoordinator, Agent, AgentState};
 pub use router::AgentRouter;
