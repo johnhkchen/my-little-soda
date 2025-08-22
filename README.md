@@ -8,6 +8,19 @@
 
 Turn GitHub Issues into a job queue for AI coding agents—coordinate multiple autonomous developers working on your repository simultaneously.
 
+## 🚀 Key Features & Benefits
+
+- **🤖 Multi-Agent AI Coordination** - First GitHub-native orchestration system for autonomous coding agents
+- **🔀 Zero-Conflict Parallel Work** - Automatic branch isolation prevents merge conflicts between concurrent agents
+- **🎯 Smart Issue Routing** - Priority-based task assignment with intelligent agent coordination and capacity management
+- **⚡ 3-Phase Workflow** - Work → Review → Merge cycle ensures code quality while maintaining development velocity
+- **👁️ GitHub-Native Transparency** - All coordination visible through labels and PRs—no hidden state or external databases
+- **🌍 Cross-Platform Ready** - Works seamlessly on Linux, macOS, and Windows with all dependencies
+- **📊 Rate-Limit Aware** - Built-in GitHub API optimization prevents rate limiting during sustained operation
+- **🔍 Automated Code Review Integration** - CodeRabbit feedback automatically converted to actionable follow-up tasks
+
+**Why Choose Clambake?** Scale your development team with AI agents that work like human developers—isolated branches, proper reviews, and coordinated effort without stepping on each other's work.
+
 **Development Status: Early Alpha**  
 This tool is under active development with compilation warnings and incomplete features. Use for experimentation only.
 
