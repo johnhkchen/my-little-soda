@@ -49,8 +49,7 @@ Clambake is under active development and **not recommended for production use**.
 
 ### 🎯 Recommended Use
 - **Experimentation**: Great for understanding AI agent coordination concepts
-- **Development**: Contribute to the codebase and help shape the future
-- **Testing**: Help identify bugs and missing features
+- **Testing**: Help identify bugs and missing features in this early alpha
 - **Feedback**: Share use cases and requirements to guide development
 
 ### 📈 Roadmap
@@ -58,17 +57,11 @@ Clambake is under active development and **not recommended for production use**.
 - **Stable Release**: Production-ready with semantic versioning
 - **Extensions**: Plugin system and advanced coordination features
 
-**Want to Help?** Check the [Contributing](#contributing) section below to get involved!
-
 ## Table of Contents
 
 - [Project Status](#project-status)
 - [What It Currently Does](#what-it-currently-does)
 - [Prerequisites](#prerequisites)
-  - [System Requirements](#system-requirements)
-  - [GitHub Requirements](#github-requirements)
-  - [Authentication Setup](#authentication-setup)
-  - [Repository Configuration](#repository-configuration)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
@@ -81,6 +74,9 @@ Clambake is under active development and **not recommended for production use**.
   - [AI Service Integration](#ai-service-integration)
 - [Advanced Usage](#advanced-usage)
 - [Required GitHub Labels](#required-github-labels)
+- [Build from Source](#build-from-source)
+- [Authentication Setup](#authentication-setup)
+- [Repository Configuration](#repository-configuration)
 - [Troubleshooting](#troubleshooting)
   - [Authentication Issues](#authentication-issues)
   - [Configuration Issues](#configuration-issues)
@@ -102,81 +98,28 @@ Routes GitHub Issues labeled `route:ready` to available agents by:
 
 ## Prerequisites
 
-### System Requirements
-- **Rust 1.75+** - Required for compilation
-- **Git 2.30+** - Required for branch management  
-- **GitHub CLI (gh)** - Required for seamless GitHub integration
+Before installing Clambake, you'll need:
 
-**Platform Support**: Clambake works on Linux, macOS, and Windows. All core dependencies are cross-platform compatible.
-
-### GitHub Requirements
+### Basic Requirements
 - **GitHub repository** with Issues enabled
-- **GitHub personal access token** with the following scopes:
-  - `repo` - Full repository access
-  - `workflow` - GitHub Actions (if using automated agents)
-  - `read:org` - Organization access (if repository is in an organization)
-  - `gist` - For storing agent logs and debugging information
+- **GitHub CLI (gh)** - For seamless GitHub integration
+- **Git** - For branch management
 
-### Authentication Setup
-
-#### Option 1: GitHub CLI (Recommended)
-The GitHub CLI provides the most seamless authentication experience:
+### GitHub Authentication
+You'll need a GitHub personal access token with `repo` access. The easiest way to set this up is:
 
 ```bash
-# Install GitHub CLI (if not already installed)
-# On Ubuntu/Debian: sudo apt install gh
-# On macOS: brew install gh
-# On other systems: see https://cli.github.com/
-
-# Authenticate with GitHub
+# Install and authenticate GitHub CLI
 gh auth login
-
-# Verify authentication
-gh auth status
 ```
 
-#### Option 2: Manual Token Setup
-If you prefer manual token configuration:
-
-1. **Create a GitHub Personal Access Token**:
-   - Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-   - Generate new token with scopes: `repo`, `workflow`, `read:org`, `gist`
-   - Copy the token (starts with `ghp_` or `github_pat_`)
-
-2. **Configure the token** using one of these methods:
-
-   **Method A: Environment Variable**
-   ```bash
-   export CLAMBAKE_GITHUB_TOKEN="ghp_your_personal_access_token_here"
-   ```
-
-   **Method B: Credential File**
-   ```bash
-   mkdir -p .clambake/credentials
-   echo "ghp_your_personal_access_token_here" > .clambake/credentials/github_token
-   ```
-
-   **Method C: Configuration File** (see Configuration section below)
-
-### Repository Configuration
-
-Clambake needs to know which GitHub repository to manage. Configure this in `clambake.toml`:
-
-```toml
-[github]
-owner = "your-username"        # or organization name
-repo = "your-repository-name"
-```
-
-Alternatively, use environment variables:
-```bash
-export GITHUB_OWNER="your-username"
-export GITHUB_REPO="your-repository-name"
-```
+For detailed authentication options and requirements, see the [Authentication Setup](#authentication-setup) section below.
 
 ## Installation
 
-### Build from Source
+### Quick Installation
+
+Currently, Clambake requires building from source. Pre-built binaries will be available in future releases.
 
 ```bash
 git clone https://github.com/johnhkchen/clambake.git
@@ -186,24 +129,17 @@ cargo build --release
 
 The binary will be available at `./target/release/clambake`.
 
-**Platform Requirements:**
-- **Linux**: `build-essential` package
-- **macOS**: Xcode command line tools (`xcode-select --install`)
-- **Windows**: Visual Studio Build Tools
-
-**Optional**: Add to PATH for global access:
-```bash
-# Linux/macOS
-export PATH="$PWD/target/release:$PATH"
-
-# Or copy to system location
-sudo cp target/release/clambake /usr/local/bin/
-```
-
 **Verify installation:**
 ```bash
 ./target/release/clambake --help
 ```
+
+**System Requirements:**
+- **Rust 1.75+** - Required for compilation
+- **Git 2.30+** - Required for branch management  
+- **GitHub CLI (gh)** - Required for seamless GitHub integration
+
+For detailed build instructions and platform-specific requirements, see the [Build from Source](#build-from-source) section below.
 
 ## Quick Start
 
@@ -513,6 +449,95 @@ Starting README with build instructions or internal design notes forces users to
 The labels mentioned in the AI Agent Coordination section are created automatically, but if needed manually:
 - `route:ready` - Issues ready for agent assignment  
 - `agent001`, `agent002`, etc. - Agent assignments
+
+## Build from Source
+
+For developers or users who need to build from source:
+
+```bash
+git clone https://github.com/johnhkchen/clambake.git
+cd clambake
+cargo build --release
+```
+
+**Platform Requirements:**
+- **Linux**: `build-essential` package
+- **macOS**: Xcode command line tools (`xcode-select --install`)
+- **Windows**: Visual Studio Build Tools
+
+**Optional**: Add to PATH for global access:
+```bash
+# Linux/macOS
+export PATH="$PWD/target/release:$PATH"
+
+# Or copy to system location
+sudo cp target/release/clambake /usr/local/bin/
+```
+
+## Authentication Setup
+
+### Option 1: GitHub CLI (Recommended)
+The GitHub CLI provides the most seamless authentication experience:
+
+```bash
+# Install GitHub CLI (if not already installed)
+# On Ubuntu/Debian: sudo apt install gh
+# On macOS: brew install gh
+# On other systems: see https://cli.github.com/
+
+# Authenticate with GitHub
+gh auth login
+
+# Verify authentication
+gh auth status
+```
+
+### Option 2: Manual Token Setup
+If you prefer manual token configuration:
+
+1. **Create a GitHub Personal Access Token**:
+   - Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+   - Generate new token with scopes: `repo`, `workflow`, `read:org`, `gist`
+   - Copy the token (starts with `ghp_` or `github_pat_`)
+
+2. **Configure the token** using one of these methods:
+
+   **Method A: Environment Variable**
+   ```bash
+   export CLAMBAKE_GITHUB_TOKEN="ghp_your_personal_access_token_here"
+   ```
+
+   **Method B: Credential File**
+   ```bash
+   mkdir -p .clambake/credentials
+   echo "ghp_your_personal_access_token_here" > .clambake/credentials/github_token
+   ```
+
+   **Method C: Configuration File** (see Configuration section below)
+
+### GitHub Requirements
+- **GitHub repository** with Issues enabled
+- **GitHub personal access token** with the following scopes:
+  - `repo` - Full repository access
+  - `workflow` - GitHub Actions (if using automated agents)
+  - `read:org` - Organization access (if repository is in an organization)
+  - `gist` - For storing agent logs and debugging information
+
+## Repository Configuration
+
+Clambake needs to know which GitHub repository to manage. Configure this in `clambake.toml`:
+
+```toml
+[github]
+owner = "your-username"        # or organization name
+repo = "your-repository-name"
+```
+
+Alternatively, use environment variables:
+```bash
+export GITHUB_OWNER="your-username"
+export GITHUB_REPO="your-repository-name"
+```
 
 ## Troubleshooting
 
