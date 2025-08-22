@@ -3,6 +3,7 @@
 # Clambake credentials and sensitive configuration
 .clambake/credentials/
 .clambake/cache/
+.clambake/metrics/
 *.token
 *.key
 
