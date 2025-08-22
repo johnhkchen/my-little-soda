@@ -7,7 +7,7 @@ use crate::train_schedule::QueuedBranch;
 use crate::github::{GitHubClient};
 use super::{
     types::{BundleWindow, BundleResult},
-    git_ops::{GitOperations, ConflictStrategy},
+    git_ops::{GitOperations, ConflictStrategy, ConflictCompatibilityReport},
 };
 
 /// Main bundle management system
@@ -75,6 +75,27 @@ impl BundleManager {
         
         println!("🚄 Creating bundle: {}", bundle_branch);
         
+        // Pre-flight conflict analysis
+        let branch_names: Vec<String> = queued_branches.iter()
+            .map(|b| b.branch_name.clone())
+            .collect();
+            
+        println!("🔍 Analyzing bundle compatibility...");
+        match self.git_ops.analyze_bundle_conflicts(&branch_names, base_branch) {
+            Ok(compatibility_report) => {
+                self.print_compatibility_report(&compatibility_report);
+                
+                if !compatibility_report.is_bundle_safe && compatibility_report.compatibility_score < 75.0 {
+                    println!("⚠️  High conflict risk detected (score: {:.1}%), falling back to individual PRs", 
+                        compatibility_report.compatibility_score);
+                    return self.create_individual_prs_with_context(queued_branches, Some(compatibility_report)).await;
+                }
+            }
+            Err(e) => {
+                println!("⚠️  Conflict analysis failed: {}, proceeding with caution", e);
+            }
+        }
+        
         // Create bundle branch
         if let Err(e) = self.git_ops.create_bundle_branch(&bundle_branch, base_branch) {
             return Ok(BundleResult::Failed {
@@ -110,10 +131,10 @@ impl BundleManager {
             }
         }
         
-        // Handle conflicts by falling back to individual PRs
+        // Handle conflicts by falling back to individual PRs  
         if conflicts_detected {
             println!("🔄 Conflicts detected, falling back to individual PRs...");
-            return self.create_individual_prs(queued_branches).await;
+            return self.create_individual_prs_with_context(queued_branches, None).await;
         }
         
         // Push bundle branch
@@ -157,7 +178,7 @@ impl BundleManager {
     }
     
     /// Create individual PRs when bundling fails due to conflicts
-    async fn create_individual_prs(&self, queued_branches: &[QueuedBranch]) -> Result<BundleResult> {
+    async fn create_individual_prs_with_context(&self, queued_branches: &[QueuedBranch], conflict_report: Option<ConflictCompatibilityReport>) -> Result<BundleResult> {
         let mut individual_prs = HashMap::new();
         
         for queued_branch in queued_branches {
@@ -179,15 +200,7 @@ impl BundleManager {
             }
             
             let pr_title = format!("[AUTO] {}", queued_branch.description);
-            let pr_body = format!(
-                "🤖 **Automated PR from bundling fallback**\n\n\
-                This PR was created automatically because bundling conflicts were detected.\n\n\
-                **Issue:** #{}\n\
-                **Branch:** `{}`\n\n\
-                Please review and merge when ready.",
-                queued_branch.issue_number,
-                queued_branch.branch_name
-            );
+            let pr_body = self.generate_enhanced_fallback_pr_body(queued_branch, &conflict_report);
             
             match self.github_client.pulls.create_pull_request(
                 &pr_title,
@@ -286,5 +299,83 @@ impl BundleManager {
         // This would query GitHub for existing PRs with the bundle branch
         // For now, we'll return an error to indicate no existing PR found
         Err(anyhow!("No existing PR found for bundle branch"))
+    }
+    
+    /// Print compatibility report for debugging and transparency
+    fn print_compatibility_report(&self, report: &ConflictCompatibilityReport) {
+        println!("📊 Bundle Compatibility Report:");
+        println!("   • Safety Score: {:.1}%", report.compatibility_score);
+        println!("   • Bundle Safe: {}", if report.is_bundle_safe { "✅" } else { "⚠️" });
+        println!("   • Analyzed Branches: {}", report.analyzed_branches.len());
+        
+        if !report.potential_conflicts.is_empty() {
+            println!("   • Potential Conflicts:");
+            for (file, branches) in &report.potential_conflicts {
+                println!("     - {}: {} ({})", file, branches.len(), branches.join(", "));
+            }
+        }
+        
+        if !report.analysis_errors.is_empty() {
+            println!("   • Analysis Errors:");
+            for error in &report.analysis_errors {
+                println!("     - {}", error);
+            }
+        }
+    }
+    
+    /// Generate enhanced PR body for individual fallback PRs
+    fn generate_enhanced_fallback_pr_body(&self, queued_branch: &QueuedBranch, conflict_report: &Option<ConflictCompatibilityReport>) -> String {
+        let mut body = format!(
+            "🤖 **Automated PR from bundling fallback**\n\n\
+            This PR was created automatically because bundling conflicts were detected.\n\n\
+            **Issue:** #{}\n\
+            **Branch:** `{}`\n\n",
+            queued_branch.issue_number,
+            queued_branch.branch_name
+        );
+        
+        if let Some(report) = conflict_report {
+            body.push_str(&format!(
+                "## Conflict Analysis\n\n\
+                **Bundle Safety Score:** {:.1}%\n\
+                **Analysis Timestamp:** {}\n\n",
+                report.compatibility_score,
+                report.analysis_timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+            ));
+            
+            if !report.potential_conflicts.is_empty() {
+                body.push_str("**Detected File Conflicts:**\n");
+                for (file, branches) in &report.potential_conflicts {
+                    if branches.contains(&queued_branch.branch_name) {
+                        body.push_str(&format!("- `{}` (conflicts with: {})\n", file, 
+                            branches.iter()
+                                .filter(|b| *b != &queued_branch.branch_name)
+                                .cloned()
+                                .collect::<Vec<_>>()
+                                .join(", ")));
+                    }
+                }
+                body.push('\n');
+            }
+            
+            body.push_str("This individual PR ensures clean merging while preserving work integrity.\n\n");
+        }
+        
+        body.push_str(
+            "## Review Notes\n\n\
+            - ✅ Work has been preserved in individual PR for safe merging\n\
+            - 🔍 Please review for code quality and functionality\n\
+            - 🚀 This PR can be merged independently\n\n\
+            Please review and merge when ready.\n\n\
+            ---\n\
+            🤖 Generated by Clambake conflict resolution system"
+        );
+        
+        body
+    }
+    
+    /// Legacy method for backwards compatibility
+    async fn create_individual_prs(&self, queued_branches: &[QueuedBranch]) -> Result<BundleResult> {
+        self.create_individual_prs_with_context(queued_branches, None).await
     }
 }

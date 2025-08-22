@@ -1,5 +1,7 @@
 use anyhow::{Result, anyhow};
-use git2::{Repository, BranchType, Oid};
+use git2::{Repository, BranchType, Oid, DiffOptions, Delta};
+use std::collections::{HashMap, HashSet};
+use chrono::{DateTime, Utc};
 
 /// Strategy for handling merge conflicts during bundling
 #[derive(Debug, Clone)]
@@ -10,6 +12,44 @@ pub enum ConflictStrategy {
     SkipConflicts,
     /// Manual resolution required
     ManualResolve,
+}
+
+/// Report on bundle compatibility and potential conflicts
+#[derive(Debug, Clone)]
+pub struct ConflictCompatibilityReport {
+    pub is_bundle_safe: bool,
+    pub compatibility_score: f64, // 0-100, higher = better
+    pub potential_conflicts: HashMap<String, Vec<String>>, // file -> conflicting branches
+    pub safe_files: Vec<String>,
+    pub analyzed_branches: Vec<String>,
+    pub analysis_errors: Vec<String>,
+    pub analysis_timestamp: DateTime<Utc>,
+}
+
+impl ConflictCompatibilityReport {
+    pub fn new() -> Self {
+        Self {
+            is_bundle_safe: true,
+            compatibility_score: 100.0,
+            potential_conflicts: HashMap::new(),
+            safe_files: Vec::new(),
+            analyzed_branches: Vec::new(),
+            analysis_errors: Vec::new(),
+            analysis_timestamp: Utc::now(),
+        }
+    }
+}
+
+/// Prediction for cherry-pick conflicts
+#[derive(Debug, Clone)]
+pub struct ConflictPrediction {
+    pub source_branch: String,
+    pub target_branch: String,
+    pub commits_analyzed: usize,
+    pub conflict_likelihood: f64, // 0-100, higher = more likely to conflict
+    pub problematic_files: Vec<String>,
+    pub estimated_conflicts: usize,
+    pub analysis_timestamp: DateTime<Utc>,
 }
 
 /// Git operations for bundling using git2
@@ -162,5 +202,152 @@ impl GitOperations {
         revwalk.hide(base_commit.id())?;
         
         Ok(revwalk.count())
+    }
+    
+    /// Pre-flight conflict analysis for multiple branches
+    pub fn analyze_bundle_conflicts(&self, branches: &[String], base_branch: &str) -> Result<ConflictCompatibilityReport> {
+        let mut report = ConflictCompatibilityReport::new();
+        let mut file_changes: HashMap<String, Vec<String>> = HashMap::new();
+        
+        // Analyze file changes for each branch
+        for branch_name in branches {
+            match self.get_changed_files(branch_name, base_branch) {
+                Ok(changed_files) => {
+                    for file in changed_files {
+                        file_changes.entry(file.clone()).or_default().push(branch_name.clone());
+                    }
+                    report.analyzed_branches.push(branch_name.clone());
+                }
+                Err(e) => {
+                    report.analysis_errors.push(format!("Failed to analyze {}: {}", branch_name, e));
+                }
+            }
+        }
+        
+        // Identify potential conflicts (same file modified by multiple branches)
+        for (file, modifying_branches) in file_changes {
+            if modifying_branches.len() > 1 {
+                report.potential_conflicts.insert(file, modifying_branches);
+            } else {
+                report.safe_files.extend(modifying_branches);
+            }
+        }
+        
+        // Calculate compatibility score
+        let total_branches = branches.len();
+        let conflicting_branches: HashSet<_> = report.potential_conflicts.values()
+            .flat_map(|branches| branches.iter())
+            .collect();
+        
+        if total_branches > 0 {
+            report.compatibility_score = ((total_branches - conflicting_branches.len()) as f64 / total_branches as f64) * 100.0;
+        }
+        
+        report.is_bundle_safe = report.potential_conflicts.is_empty();
+        report.analysis_timestamp = Utc::now();
+        
+        Ok(report)
+    }
+    
+    /// Get list of files changed in a branch compared to base
+    pub fn get_changed_files(&self, branch_name: &str, base_branch: &str) -> Result<Vec<String>> {
+        let branch_ref = self.repo.find_branch(branch_name, BranchType::Local)
+            .or_else(|_| self.repo.find_branch(&format!("origin/{}", branch_name), BranchType::Remote))?;
+        let base_ref = self.repo.find_branch(base_branch, BranchType::Local)
+            .or_else(|_| self.repo.find_branch(&format!("origin/{}", base_branch), BranchType::Remote))?;
+        
+        let branch_tree = branch_ref.get().peel_to_tree()?;
+        let base_tree = base_ref.get().peel_to_tree()?;
+        
+        let mut diff_opts = DiffOptions::new();
+        let diff = self.repo.diff_tree_to_tree(Some(&base_tree), Some(&branch_tree), Some(&mut diff_opts))?;
+        
+        let mut changed_files = Vec::new();
+        diff.foreach(
+            &mut |delta: git2::DiffDelta, _progress: f32| -> bool {
+                if let Some(path) = delta.new_file().path() {
+                    if let Some(path_str) = path.to_str() {
+                        changed_files.push(path_str.to_string());
+                    }
+                }
+                true
+            },
+            None,
+            None,
+            None,
+        )?;
+        
+        Ok(changed_files)
+    }
+    
+    /// Simulate cherry-pick to detect conflicts without making changes
+    pub fn simulate_cherry_pick(&self, source_branch: &str, target_branch: &str) -> Result<ConflictPrediction> {
+        let source_ref = self.repo.find_branch(source_branch, BranchType::Local)
+            .or_else(|_| self.repo.find_branch(&format!("origin/{}", source_branch), BranchType::Remote))?;
+        let target_ref = self.repo.find_branch(target_branch, BranchType::Local)
+            .or_else(|_| self.repo.find_branch(&format!("origin/{}", target_branch), BranchType::Remote))?;
+        
+        let source_commit = source_ref.get().peel_to_commit()?;
+        let target_commit = target_ref.get().peel_to_commit()?;
+        
+        // Find commits to cherry-pick
+        let mut revwalk = self.repo.revwalk()?;
+        revwalk.push(source_commit.id())?;
+        revwalk.hide(target_commit.id())?;
+        
+        let commits_to_pick: Vec<Oid> = revwalk.collect::<Result<Vec<_>, _>>()?;
+        
+        let mut prediction = ConflictPrediction {
+            source_branch: source_branch.to_string(),
+            target_branch: target_branch.to_string(),
+            commits_analyzed: commits_to_pick.len(),
+            conflict_likelihood: 0.0,
+            problematic_files: Vec::new(),
+            estimated_conflicts: 0,
+            analysis_timestamp: Utc::now(),
+        };
+        
+        // For each commit, check for potential conflicts by comparing file changes
+        let mut file_conflict_risk: HashMap<String, u32> = HashMap::new();
+        
+        for commit_oid in commits_to_pick {
+            let commit = self.repo.find_commit(commit_oid)?;
+            
+            if let Some(parent) = commit.parent(0).ok() {
+                let commit_tree = commit.tree()?;
+                let parent_tree = parent.tree()?;
+                
+                let mut diff_opts = DiffOptions::new();
+                let diff = self.repo.diff_tree_to_tree(Some(&parent_tree), Some(&commit_tree), Some(&mut diff_opts))?;
+                
+                diff.foreach(
+                    &mut |delta: git2::DiffDelta, _progress: f32| -> bool {
+                        if let Some(path) = delta.new_file().path() {
+                            if let Some(path_str) = path.to_str() {
+                                *file_conflict_risk.entry(path_str.to_string()).or_insert(0) += 1;
+                            }
+                        }
+                        true
+                    },
+                    None,
+                    None,
+                    None,
+                ).ok();
+            }
+        }
+        
+        // Calculate conflict likelihood based on file modification frequency
+        if !file_conflict_risk.is_empty() {
+            let high_risk_files: Vec<_> = file_conflict_risk.iter()
+                .filter(|(_, &count)| count > 1)
+                .map(|(file, count)| format!("{} ({} modifications)", file, count))
+                .collect();
+            
+            prediction.problematic_files = high_risk_files;
+            prediction.estimated_conflicts = file_conflict_risk.values().filter(|&&count| count > 1).count();
+            prediction.conflict_likelihood = (prediction.estimated_conflicts as f64 / file_conflict_risk.len().max(1) as f64) * 100.0;
+        }
+        
+        Ok(prediction)
     }
 }
