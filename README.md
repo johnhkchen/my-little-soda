@@ -39,16 +39,122 @@ cargo build --release
 ./target/release/clambake setup-labels
 ```
 
-### Start Using
+## Usage Examples
+
+### Basic Agent Workflow
+
+Start your development session by claiming work:
+
 ```bash
-# Get next task
+# Get your next assigned task (primary command)
 ./target/release/clambake pop
+```
 
-# Check system status  
-./target/release/clambake status
+This will:
+- Assign you the highest priority issue
+- Create a dedicated branch (e.g., `agent001/42-fix-bug`)
+- Switch you to that branch automatically
 
-# Complete work cycle
+### Working on Your Task
+
+Once you have a task, implement your solution:
+
+```bash
+# Work in your assigned branch
+git add .
+git commit -m "Implement feature X"
+
+# Complete your work and create PR
 ./target/release/clambake land
+```
+
+The `land` command:
+- Creates a pull request from your branch
+- Marks your work ready for review
+- Frees you to work on the next task
+
+### System Monitoring
+
+Check what's happening in your repository:
+
+```bash
+# View agent status and task queue
+./target/release/clambake status
+```
+
+Example output:
+```
+🤖 Agent Status:
+  agent001: Working on issue #42 (branch: agent001/42-fix-bug)
+  
+📋 Task Queue: 3 issues available
+  #45: Add user authentication [priority-high]
+  #48: Update documentation [priority-medium]  
+  #51: Refactor API client [priority-low]
+```
+
+### Preview Next Task
+
+See what work is available without claiming it:
+
+```bash
+# Preview the next task you would get
+./target/release/clambake peek
+```
+
+### Complete Daily Workflow Example
+
+Here's a typical development session:
+
+```bash
+# 1. Start your day - get first task
+./target/release/clambake pop
+# ✅ Assigned issue #42: Fix login bug
+
+# 2. Work on the issue (implement your solution)
+# ... write code, tests, etc ...
+git add .
+git commit -m "Fix login validation bug"
+
+# 3. Submit your work
+./target/release/clambake land
+# ✅ PR created, work submitted for review
+
+# 4. Get next task immediately
+./target/release/clambake pop  
+# ✅ Assigned issue #45: Add user authentication
+
+# 5. Continue the cycle...
+```
+
+### Administrative Commands
+
+**Initialize a new repository:**
+```bash
+# Set up labels and configuration (run once per repo)
+./target/release/clambake init
+```
+
+**Reset all agents (admin only):**
+```bash
+# Clear all agent assignments
+./target/release/clambake reset
+```
+
+**Bundle multiple PRs for review:**
+```bash
+# Combine completed work into single review bundle
+./target/release/clambake bundle
+```
+
+### Getting Help
+
+```bash
+# See all available commands
+./target/release/clambake --help
+
+# Get help for specific command
+./target/release/clambake pop --help
 ```
 
 > 📖 **Need more detail?** See the [complete installation guide](docs/README.md#installation) for platform-specific requirements, authentication setup, and troubleshooting.
