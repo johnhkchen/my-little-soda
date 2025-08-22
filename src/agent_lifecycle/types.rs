@@ -208,12 +208,24 @@ pub struct PRData {
     pub mergeable: Option<bool>,
 }
 
-/// Parse agent branch pattern (agent001/123)
+/// Parse agent branch pattern (agent001/123 or agent001/123-description)
 pub fn parse_agent_branch(branch: &str) -> Option<(String, u64)> {
     let parts: Vec<&str> = branch.split('/').collect();
     if parts.len() == 2 {
-        if let Ok(issue_number) = parts[1].parse::<u64>() {
-            return Some((parts[0].to_string(), issue_number));
+        let agent_id = parts[0];
+        let issue_part = parts[1];
+        
+        // Handle both formats: "123" and "123-description"
+        let issue_number = if let Some(dash_pos) = issue_part.find('-') {
+            // New format: "123-description" -> extract "123"
+            issue_part[..dash_pos].parse::<u64>()
+        } else {
+            // Legacy format: "123" -> parse directly
+            issue_part.parse::<u64>()
+        };
+        
+        if let Ok(issue_num) = issue_number {
+            return Some((agent_id.to_string(), issue_num));
         }
     }
     None

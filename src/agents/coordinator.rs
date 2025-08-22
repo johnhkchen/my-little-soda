@@ -95,6 +95,195 @@ impl AgentCoordinator {
 
     /// Atomic assignment operation with conflict detection and capacity management
     pub async fn assign_agent_to_issue(&self, agent_id: &str, issue_number: u64) -> Result<(), GitHubError> {
+        // Fetch issue to get title for descriptive branch name
+        let issue = match self.github_client.fetch_issue(issue_number).await {
+            Ok(issue) => issue,
+            Err(_) => {
+                // Fallback to simple assignment without descriptive branch if issue fetch fails
+                return self.assign_agent_to_issue_simple(agent_id, issue_number).await;
+            }
+        };
+        
+        self.assign_agent_to_issue_with_title(agent_id, issue_number, &issue.title).await
+    }
+    
+    /// Assignment with descriptive branch name
+    async fn assign_agent_to_issue_with_title(&self, agent_id: &str, issue_number: u64, issue_title: &str) -> Result<(), GitHubError> {
+        let execution_start = Instant::now();
+        let correlation_id = generate_correlation_id();
+        let span = create_coordination_span(
+            "assign_agent_to_issue", 
+            Some(agent_id), 
+            Some(issue_number), 
+            Some(&correlation_id)
+        );
+        
+        async move {
+            tracing::info!(
+                agent_id = %agent_id,
+                issue_number = issue_number,
+                correlation_id = %correlation_id,
+                "Starting atomic agent assignment with descriptive branch"
+            );
+            
+            println!("🤖 Attempting atomic assignment: agent {} -> issue #{}", agent_id, issue_number);
+        
+        // Generate descriptive branch name
+        let branch_name = self.generate_descriptive_branch_name(agent_id, issue_number, issue_title);
+        
+        // ATOMIC OPERATION: All-or-nothing assignment with conflict detection
+        {
+            let mut assignments = self.assignment_lock.lock().await;
+            let mut capacities = self.agent_capacity.lock().await;
+            
+            // CONFLICT DETECTION: Check if issue already assigned
+            if assignments.contains_key(&issue_number) {
+                let existing_agent = assignments.get(&issue_number).unwrap();
+                
+                // Track failed coordination decision
+                let _ = self.metrics_tracker.track_coordination_decision(
+                    correlation_id.clone(),
+                    "assign_agent_to_issue",
+                    Some(agent_id),
+                    Some(issue_number),
+                    &format!("Assignment conflict: Issue #{} already assigned to agent {}", issue_number, existing_agent),
+                    execution_start,
+                    false,
+                    HashMap::new(),
+                ).await;
+                
+                return Err(GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("Issue #{} already assigned to agent {}", issue_number, existing_agent)
+                )));
+            }
+            
+            // CAPACITY MANAGEMENT: Check agent capacity
+            let (current, max) = capacities.get(agent_id)
+                .ok_or_else(|| GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("Unknown agent: {}", agent_id)
+                )))?.clone();
+            
+            if current >= max {
+                // Track failed coordination decision
+                let mut metadata = HashMap::new();
+                metadata.insert("current_capacity".to_string(), current.to_string());
+                metadata.insert("max_capacity".to_string(), max.to_string());
+                
+                let _ = self.metrics_tracker.track_coordination_decision(
+                    correlation_id.clone(),
+                    "assign_agent_to_issue",
+                    Some(agent_id),
+                    Some(issue_number),
+                    &format!("Capacity exceeded: Agent {} at capacity ({}/{})", agent_id, current, max),
+                    execution_start,
+                    false,
+                    metadata,
+                ).await;
+                
+                return Err(GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::ResourceBusy,
+                    format!("Agent {} at capacity ({}/{})", agent_id, current, max)
+                )));
+            }
+            
+            // RESERVATION: Reserve the assignment before GitHub operations
+            assignments.insert(issue_number, agent_id.to_string());
+            capacities.insert(agent_id.to_string(), (current + 1, max));
+            
+            println!("✅ Reserved assignment: agent {} -> issue #{} (capacity: {}/{})", 
+                    agent_id, issue_number, current + 1, max);
+        }
+        
+        // GITHUB OPERATIONS: Perform actual GitHub API calls
+        let github_user = self.github_client.owner();
+        
+        // Step 1: Assign the issue to the real GitHub user (with retry logic)
+        match self.github_client.assign_issue(issue_number, github_user).await {
+            Ok(_) => {
+                println!("✅ Issue #{} assigned to GitHub user: {}", issue_number, github_user);
+            },
+            Err(e) => {
+                // ROLLBACK: Remove reservation on failure
+                self.rollback_assignment(agent_id, issue_number).await;
+                println!("❌ Failed to assign issue #{}: {:?}", issue_number, e);
+                
+                // Track failed coordination decision
+                let mut metadata = HashMap::new();
+                metadata.insert("error_type".to_string(), "github_assignment_failed".to_string());
+                metadata.insert("error_message".to_string(), format!("{:?}", e));
+                
+                let _ = self.metrics_tracker.track_coordination_decision(
+                    correlation_id.clone(),
+                    "assign_agent_to_issue",
+                    Some(agent_id),
+                    Some(issue_number),
+                    &format!("GitHub assignment failed: {:?}", e),
+                    execution_start,
+                    false,
+                    metadata,
+                ).await;
+                
+                return Err(e);
+            }
+        }
+        
+        // Step 2: Add agent label to track which agent is working on this
+        println!("🏷️  Adding agent label: {}", agent_id);
+        match self.github_client.add_label_to_issue(issue_number, agent_id).await {
+            Ok(_) => {
+                println!("✅ Added agent label: {}", agent_id);
+            },
+            Err(e) => {
+                println!("⚠️  Agent labeling failed but assignment succeeded: {:?}", e);
+            }
+        }
+
+        // Step 3: Create agent branch using descriptive naming scheme
+        println!("🌿 Creating agent branch: {}", branch_name);
+        
+        match self.github_client.create_branch(&branch_name, "main").await {
+            Ok(_) => {
+                println!("✅ Branch '{}' created successfully", branch_name);
+            },
+            Err(e) => {
+                println!("⚠️  Branch creation failed: {}", e);
+                println!("   📝 Note: Branch may already exist, or you can create it manually");
+                // Don't rollback - the issue assignment is the important part
+                // Agent can still work without automatic branch creation
+            }
+        }
+        
+        println!("🎯 ATOMIC ASSIGNMENT COMPLETE: agent {} -> issue #{}", agent_id, issue_number);
+        tracing::info!(
+            agent_id = %agent_id,
+            issue_number = issue_number,
+            "Successfully completed atomic agent assignment"
+        );
+        
+        // Track coordination decision
+        let mut metadata = HashMap::new();
+        metadata.insert("branch_name".to_string(), branch_name.clone());
+        metadata.insert("github_user".to_string(), github_user.to_string());
+        
+        let _ = self.metrics_tracker.track_coordination_decision(
+            correlation_id.clone(),
+            "assign_agent_to_issue",
+            Some(agent_id),
+            Some(issue_number),
+            &format!("Successfully assigned agent {} to issue #{}", agent_id, issue_number),
+            execution_start,
+            true,
+            metadata,
+        ).await;
+        
+        Ok(())
+        }.instrument(span).await
+    }
+    
+    /// Simple assignment without descriptive branch name (fallback)
+    async fn assign_agent_to_issue_simple(&self, agent_id: &str, issue_number: u64) -> Result<(), GitHubError> {
         let execution_start = Instant::now();
         let correlation_id = generate_correlation_id();
         let span = create_coordination_span(
@@ -264,6 +453,23 @@ impl AgentCoordinator {
         
         Ok(())
         }.instrument(span).await
+    }
+    
+    /// Generate descriptive branch name from issue title
+    fn generate_descriptive_branch_name(&self, agent_id: &str, issue_number: u64, issue_title: &str) -> String {
+        let slug = issue_title
+            .to_lowercase()
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-')
+            .collect::<String>()
+            .split_whitespace()
+            .collect::<Vec<&str>>()
+            .join("-")
+            .chars()
+            .take(30)
+            .collect::<String>();
+        
+        format!("{}/{}-{}", agent_id, issue_number, slug)
     }
     
     /// Rollback assignment reservation on failure

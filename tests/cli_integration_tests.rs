@@ -226,11 +226,9 @@ mod tests {
         cmd.current_dir(env.repo_path())
             .arg("land")
             .assert()
-            .code(predicate::in_iter(vec![0, 1])) // May succeed or fail gracefully
-            .stdout(predicate::str::contains("No work").or(
-                predicate::str::contains("Nothing to land").or(
-                    predicate::str::contains("Landing")
-                )
+            .failure() // Should fail when not on agent branch
+            .stderr(predicate::str::contains("is not an agent branch").or(
+                predicate::str::contains("Expected format: agent001/123 or agent001/123-description")
             ));
     }
 

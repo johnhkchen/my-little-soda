@@ -111,19 +111,29 @@ impl LandCommand {
         }
     }
     
-    /// Parse agent ID and issue number from branch name (e.g., "agent001/159" -> ("agent001", 159))
+    /// Parse agent ID and issue number from branch name (e.g., "agent001/159" or "agent001/159-description" -> ("agent001", 159))
     fn parse_agent_branch(&self, branch_name: &str) -> Result<(String, u64)> {
         let parts: Vec<&str> = branch_name.split('/').collect();
         if parts.len() != 2 {
-            return Err(anyhow!("Branch '{}' is not an agent branch. Expected format: agent001/123", branch_name));
+            return Err(anyhow!("Branch '{}' is not an agent branch. Expected format: agent001/123 or agent001/123-description", branch_name));
         }
         
         let agent_id = parts[0];
-        let issue_number = parts[1].parse::<u64>()
-            .map_err(|_| anyhow!("Invalid issue number in branch '{}'. Expected format: agent001/123", branch_name))?;
+        let issue_part = parts[1];
+        
+        // Extract issue number - handle both formats: "123" and "123-description"
+        let issue_number = if let Some(dash_pos) = issue_part.find('-') {
+            // New format: "123-description" -> extract "123"
+            issue_part[..dash_pos].parse::<u64>()
+                .map_err(|_| anyhow!("Invalid issue number in branch '{}'. Expected format: agent001/123 or agent001/123-description", branch_name))?
+        } else {
+            // Legacy format: "123" -> parse directly
+            issue_part.parse::<u64>()
+                .map_err(|_| anyhow!("Invalid issue number in branch '{}'. Expected format: agent001/123 or agent001/123-description", branch_name))?
+        };
             
         if !agent_id.starts_with("agent") {
-            return Err(anyhow!("Branch '{}' is not an agent branch. Expected format: agent001/123", branch_name));
+            return Err(anyhow!("Branch '{}' is not an agent branch. Expected format: agent001/123 or agent001/123-description", branch_name));
         }
         
         Ok((agent_id.to_string(), issue_number))
