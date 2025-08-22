@@ -158,7 +158,7 @@ mod tests {
     async fn test_non_retryable_error() {
         let retry_handler = GitHubRetryHandler::default();
 
-        let result = retry_handler.execute_with_retry(|| {
+        let result: Result<(), _> = retry_handler.execute_with_retry(|| {
             Err(GitHubError::TokenNotFound("test".to_string()))
         }).await;
 
