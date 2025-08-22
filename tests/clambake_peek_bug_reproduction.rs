@@ -92,12 +92,12 @@ async fn test_correct_behavior_after_agent_completes_work() {
 
 #[tokio::test] 
 async fn test_route_land_issues_should_not_appear_in_new_work_queue() {
-    // GIVEN: An issue that is merge-ready (route:land) 
+    // GIVEN: An issue that is merge-ready (route:ready_to_merge) 
     let merge_ready_issue = fixtures::create_issue_with_labels(
         95,
         "[UNBLOCKER] Add comprehensive state management regression tests",
         vec![
-            "route:land".to_string(),      // Merge-ready
+            "route:ready_to_merge".to_string(),      // Merge-ready
             "route:priority-high".to_string(),
         ],
         Some("johnhkchen".to_string()), // Still assigned for merge completion
@@ -119,7 +119,7 @@ async fn test_route_land_issues_should_not_appear_in_new_work_queue() {
     assert_eq!(new_work_queue[0].number, 97, "Should be the new work issue");
     
     let has_merge_ready = new_work_queue.iter()
-        .any(|issue| issue.labels.iter().any(|l| l.name == "route:land"));
+        .any(|issue| issue.labels.iter().any(|l| l.name == "route:ready_to_merge"));
     assert!(!has_merge_ready, "Merge-ready work should not appear in new work queue");
 }
 
@@ -131,7 +131,7 @@ fn filter_routable_issues_logic(issues: &[octocrab::models::issues::Issue]) -> V
             let is_open = issue.state == octocrab::models::IssueState::Open;
             
             let has_route_ready = issue.labels.iter().any(|l| l.name == "route:ready");
-            let has_route_land = issue.labels.iter().any(|l| l.name == "route:land");  
+            let has_route_land = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");  
             let has_route_unblocker = issue.labels.iter().any(|l| l.name == "route:unblocker");
             
             let has_agent_label = issue.labels.iter().any(|l| l.name.starts_with("agent"));

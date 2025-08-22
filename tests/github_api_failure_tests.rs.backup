@@ -279,7 +279,7 @@ mod tests {
         let mut failed_calls = 0;
         
         for _ in 0..10 {
-            match client.add_label_to_issue(95, "route:land").await {
+            match client.add_label_to_issue(95, "route:ready_to_merge").await {
                 Ok(()) => successful_calls += 1,
                 Err(_) => failed_calls += 1,
             }

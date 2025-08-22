@@ -180,8 +180,8 @@ mod tests {
         // Test the priority logic by checking labels directly
         // This avoids constructing complex Issue structs
         
-        // Test route:land priority (should be 100)
-        assert_eq!(get_priority_from_labels(&["route:land"]), 100);
+        // Test route:ready_to_merge priority (should be 100)
+        assert_eq!(get_priority_from_labels(&["route:ready_to_merge"]), 100);
         
         // Test route:priority-high (should be 3)
         assert_eq!(get_priority_from_labels(&["route:priority-high"]), 3);
@@ -213,7 +213,7 @@ mod tests {
         // Mirror the logic in fetch_routable_issues's filter (minus PR check)
         let is_open = issue.state == IssueState::Open;
         let has_route_ready = issue.labels.iter().any(|l| l.name == "route:ready");
-        let has_route_land = issue.labels.iter().any(|l| l.name == "route:land");
+        let has_route_land = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");
         let has_agent_label = issue.labels.iter().any(|l| l.name.starts_with("agent"));
         let is_human_only = issue.labels.iter().any(|l| l.name == "route:human-only");
         let is_routable = if has_route_land {
@@ -236,11 +236,11 @@ mod tests {
         // route:ready but already has agent label -> excluded  
         assert!(!is_routable_simple("open", &["route:ready", "agent001"], &[]));
         
-        // route:land always routable if open
-        assert!(is_routable_simple("open", &["route:land"], &[]));
+        // route:ready_to_merge always routable if open
+        assert!(is_routable_simple("open", &["route:ready_to_merge"], &[]));
         
         // Closed issue excluded regardless of labels
-        assert!(!is_routable_simple("closed", &["route:land"], &[]));
+        assert!(!is_routable_simple("closed", &["route:ready_to_merge"], &[]));
         
         // Human-only excluded for route:ready unassigned
         assert!(!is_routable_simple("open", &["route:ready", "route:human-only"], &[]));
@@ -253,7 +253,7 @@ mod tests {
     fn is_routable_simple(state: &str, labels: &[&str], _assignees: &[&str]) -> bool {
         let is_open = state == "open";
         let has_route_ready = labels.iter().any(|&l| l == "route:ready");
-        let has_route_land = labels.iter().any(|&l| l == "route:land");
+        let has_route_land = labels.iter().any(|&l| l == "route:ready_to_merge");
         let has_agent_label = labels.iter().any(|&l| l.starts_with("agent"));
         let is_human_only = labels.iter().any(|&l| l == "route:human-only");
         
@@ -275,7 +275,7 @@ mod tests {
             ("low", get_priority_from_labels(&["route:priority-low", "route:ready"])),
             ("high", get_priority_from_labels(&["route:priority-high", "route:ready"])), 
             ("medium", get_priority_from_labels(&["route:priority-medium", "route:ready"])),
-            ("land", get_priority_from_labels(&["route:land"])),
+            ("land", get_priority_from_labels(&["route:ready_to_merge"])),
         ];
         
         // Sort by priority (high to low)

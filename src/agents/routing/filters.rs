@@ -25,7 +25,7 @@ impl IssueFilter {
             let has_route_ready = issue.labels.iter()
                 .any(|label| label.name == "route:ready");
             let has_route_land = issue.labels.iter()
-                .any(|label| label.name == "route:land");
+                .any(|label| label.name == "route:ready_to_merge");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
             let has_route_review = issue.labels.iter()
@@ -87,7 +87,7 @@ impl IssueFilter {
             let has_route_ready = issue.labels.iter()
                 .any(|label| label.name == "route:ready");
             let has_route_land = issue.labels.iter()
-                .any(|label| label.name == "route:land");
+                .any(|label| label.name == "route:ready_to_merge");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
             let has_route_review = issue.labels.iter()
