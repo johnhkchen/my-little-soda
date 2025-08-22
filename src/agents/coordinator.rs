@@ -66,6 +66,9 @@ impl AgentCoordinator {
             .map(|branch| branch.starts_with("agent001/"))
             .unwrap_or(false);
         
+        // Check bundling status for additional context
+        let bundling_status = self.get_bundling_status().await;
+        
         // For each configured agent, check availability
         for (agent_id, (_current, max_capacity)) in capacities.iter() {
             let agent_state = if is_agent_working && agent_id == "agent001" {
@@ -89,6 +92,14 @@ impl AgentCoordinator {
         let available_count = agents.len();
         let total_agents = capacities.len();
         println!("📊 Available agents: {} of {} total", available_count, total_agents);
+        
+        // Show bundling status in verbose mode for operational visibility
+        if let Some(bundling_info) = bundling_status {
+            if !bundling_info.queued_branches.is_empty() {
+                println!("🚄 Bundling status: {} branches queued for next departure", bundling_info.queued_branches.len());
+            }
+        }
+        
         Ok(agents)
     }
     
@@ -576,4 +587,32 @@ impl AgentCoordinator {
         println!("🔄 Updating agent {} state to {:?}", agent_id, new_state);
         Ok(())
     }
+
+    /// Get current bundling status for operational visibility
+    async fn get_bundling_status(&self) -> Option<BundlingStatus> {
+        use crate::train_schedule::TrainSchedule;
+        
+        // Get queued branches ready for bundling
+        if let Ok(queued_branches) = TrainSchedule::get_queued_branches().await {
+            let schedule = TrainSchedule::calculate_next_schedule();
+            
+            Some(BundlingStatus {
+                queued_branches,
+                next_departure: schedule.next_departure,
+                minutes_until_departure: schedule.minutes_until_departure,
+                status: schedule.status,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+/// Bundling status information for agent coordination
+#[derive(Debug)]
+struct BundlingStatus {
+    queued_branches: Vec<crate::train_schedule::QueuedBranch>,
+    next_departure: chrono::DateTime<chrono::Local>,
+    minutes_until_departure: i64,
+    status: crate::train_schedule::ScheduleStatus,
 }
