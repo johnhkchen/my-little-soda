@@ -11,6 +11,10 @@ mod metrics;
 mod git;
 mod bundling;
 mod cli;
+mod observability;
+mod config;
+mod shutdown;
+mod database;
 
 use cli::{Cli, Commands};
 use cli::commands::{
@@ -26,71 +30,72 @@ use cli::commands::{
     metrics::{MetricsCommand, ExportMetricsCommand},
 };
 use telemetry::init_telemetry;
+use config::init_config;
+use database::init_database;
+use shutdown::ShutdownCoordinator;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize configuration first
+    if let Err(e) = init_config() {
+        eprintln!("Warning: Failed to initialize configuration: {}", e);
+    }
+
     // Initialize OpenTelemetry tracing
     if let Err(e) = init_telemetry() {
         eprintln!("Warning: Failed to initialize telemetry: {}", e);
     }
 
+    // Initialize database (if enabled)
+    if let Err(e) = init_database().await {
+        eprintln!("Warning: Failed to initialize database: {}", e);
+    }
+
+    // Create shutdown coordinator for graceful shutdowns
+    let mut shutdown_coordinator = ShutdownCoordinator::new();
+
     let cli = Cli::parse();
     
-    match cli.command {
+    let result = match cli.command {
         // Default behavior: cargo run (no subcommand) - explain how to get work
         None => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                show_how_to_get_work().await
-            })
+            show_how_to_get_work().await
         },
         Some(Commands::Route { agents }) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                RouteCommand::new(agents).execute().await
-            })
+            RouteCommand::new(agents).execute().await
         },
         Some(Commands::Pop { mine, bundle_branches, yes }) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                PopCommand::new(mine, bundle_branches, yes).execute().await
-            })
+            PopCommand::new(mine, bundle_branches, yes).execute().await
         },
         Some(Commands::Status) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                StatusCommand::new().execute().await
-            })
+            StatusCommand::new().execute().await
         },
         Some(Commands::Init { agents, template, force, dry_run }) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                InitCommand::new(agents, template, force, dry_run).execute().await
-            })
+            InitCommand::new(agents, template, force, dry_run).execute().await
         }
         Some(Commands::Reset) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                ResetCommand::new().execute().await
-            })
+            ResetCommand::new().execute().await
         }
         Some(Commands::Land { open_only, days, dry_run, verbose }) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                LandCommand::new(!open_only, days, dry_run, verbose).execute().await
-            })
+            LandCommand::new(!open_only, days, dry_run, verbose).execute().await
         }
         Some(Commands::Bundle { force, dry_run, verbose }) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                BundleCommand::new(force, dry_run, verbose).execute().await
-            })
+            BundleCommand::new(force, dry_run, verbose).execute().await
         }
         Some(Commands::Peek) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                PeekCommand::new().execute().await
-            })
+            PeekCommand::new().execute().await
         }
         Some(Commands::Metrics { hours, detailed }) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                MetricsCommand::new(hours, detailed).execute().await
-            })
+            MetricsCommand::new(hours, detailed).execute().await
         }
         Some(Commands::ExportMetrics { hours, output }) => {
-            tokio::runtime::Runtime::new()?.block_on(async {
-                ExportMetricsCommand::new(hours, output).execute().await
-            })
+            ExportMetricsCommand::new(hours, output).execute().await
         }
-    }
+    };
+
+    // Shutdown database connections and telemetry
+    database::shutdown_database().await;
+    telemetry::shutdown_telemetry();
+
+    result
 }

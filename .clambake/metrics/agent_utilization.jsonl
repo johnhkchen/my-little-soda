@@ -6,3 +6,5 @@
 {"agent_id":"agent001","timestamp":1755868563,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[164],"state":"Available"}
 {"agent_id":"agent001","timestamp":1755868569,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[164],"state":"Available"}
 {"agent_id":"agent001","timestamp":1755868662,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[128],"state":"Available"}
+{"agent_id":"agent001","timestamp":1755870733,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[129],"state":"Available"}
+{"agent_id":"agent001","timestamp":1755870765,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[129],"state":"Available"}
