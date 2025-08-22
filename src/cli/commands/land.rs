@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 use crate::github::GitHubClient;
+use crate::train_schedule::{TrainSchedule, QueuedBranch};
 use git2::Repository;
 use std::process::Command;
 
@@ -96,6 +97,18 @@ impl LandCommand {
         println!("🎯 Next steps:");
         println!("   → Use 'clambake pop' to get your next task");
         println!("   → Branch will be bundled into PR during next bundle cycle");
+        
+        // Check if we're at departure time and trigger bundling if needed
+        if TrainSchedule::is_departure_time() {
+            println!();
+            println!("🚄 Departure time detected - triggering automatic bundling...");
+            
+            if let Err(e) = self.trigger_bundling().await {
+                eprintln!("⚠️  Automatic bundling failed: {}", e);
+                eprintln!("   Bundling will be retried on next departure window");
+                eprintln!("   Work is still properly landed and ready for bundling");
+            }
+        }
         
         Ok(())
     }
@@ -198,6 +211,74 @@ impl LandCommand {
                 "⚠️  No commits to land. Make sure you've committed your changes.\n\nCommands to fix:\n   git add .\n   git commit -m \"Your commit message\""
             ));
         }
+        
+        Ok(())
+    }
+    
+    /// Trigger bundling of all queued branches
+    async fn trigger_bundling(&self) -> Result<()> {
+        print!("🔍 Scanning for completed agent work... ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        
+        // Get all queued branches ready for bundling
+        let queued_branches = TrainSchedule::get_queued_branches().await
+            .map_err(|e| anyhow!("Failed to get queued branches: {}", e))?;
+        
+        if queued_branches.is_empty() {
+            println!("none found");
+            println!("   💡 No completed work ready for bundling at this time");
+            return Ok(());
+        }
+        
+        println!("found {}", queued_branches.len());
+        println!();
+        println!("🚂 AUTOMATIC TRAIN DEPARTURE - Bundling completed work");
+        println!("🔍 Found {} branches with completed work:", queued_branches.len());
+        for branch in &queued_branches {
+            println!("  • {} - {}", branch.branch_name, branch.description);
+        }
+        
+        // Process bundling using existing logic
+        self.process_bundling_interactively(queued_branches).await
+    }
+    
+    /// Process bundling for queued branches (adapted from pop.rs)
+    async fn process_bundling_interactively(&self, queued_branches: Vec<QueuedBranch>) -> Result<()> {
+        use crate::bundling::BundleManager;
+        
+        println!();
+        println!("🚀 Starting automatic bundling process...");
+        println!("═══════════════════════════════════════");
+        
+        // Initialize bundle manager
+        let bundle_manager = BundleManager::new()
+            .map_err(|e| anyhow!("Failed to initialize bundle manager: {}", e))?;
+        
+        // Create bundle using the existing bundling system
+        println!("🚄 Creating bundle PR...");
+        let result = bundle_manager.create_bundle(&queued_branches).await
+            .map_err(|e| anyhow!("Bundle creation failed: {}", e))?;
+        
+        match result {
+            crate::bundling::BundleResult::Success { pr_number, bundle_branch } => {
+                println!("✅ Bundle PR created successfully!");
+                println!("   📋 PR: #{}", pr_number);
+                println!("   🌿 Branch: {}", bundle_branch);
+                println!("   📦 Bundled {} branches", queued_branches.len());
+            }
+            crate::bundling::BundleResult::ConflictFallback { individual_prs } => {
+                println!("⚠️  Conflicts detected - created individual PRs:");
+                for (branch, pr) in individual_prs {
+                    println!("   • {} → PR #{}", branch, pr);
+                }
+            }
+            crate::bundling::BundleResult::Failed { error } => {
+                return Err(anyhow!("Bundle creation failed: {}", error));
+            }
+        }
+        
+        println!();
+        println!("🎯 Automatic bundling complete - system ready for next cycle");
         
         Ok(())
     }
