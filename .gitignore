@@ -4,6 +4,7 @@
 .clambake/credentials/
 .clambake/cache/
 .clambake/metrics/
+.clambake/*.lock
 *.token
 *.key
 
