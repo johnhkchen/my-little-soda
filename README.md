@@ -137,10 +137,33 @@ export GITHUB_REPO="your-repository-name"
 
 ## Installation
 
+### Build from Source
+
 ```bash
-git clone https://github.com/your-org/clambake
+git clone https://github.com/johnhkchen/clambake.git
 cd clambake
 cargo build --release
+```
+
+The binary will be available at `./target/release/clambake`.
+
+**Platform Requirements:**
+- **Linux**: `build-essential` package
+- **macOS**: Xcode command line tools (`xcode-select --install`)
+- **Windows**: Visual Studio Build Tools
+
+**Optional**: Add to PATH for global access:
+```bash
+# Linux/macOS
+export PATH="$PWD/target/release:$PATH"
+
+# Or copy to system location
+sudo cp target/release/clambake /usr/local/bin/
+```
+
+**Verify installation:**
+```bash
+./target/release/clambake --help
 ```
 
 ## Configuration
