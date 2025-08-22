@@ -102,4 +102,28 @@ pub enum Commands {
         #[arg(long, help = "File path to write JSON metrics (prints to stdout if not specified)")]
         output: Option<String>,
     },
+    /// Manage GitHub Actions integration for automated bundling workflows
+    Actions {
+        /// Trigger the bundling workflow manually
+        #[arg(long, help = "Manually trigger the GitHub Actions bundling workflow")]
+        trigger_bundle: bool,
+        /// Show recent workflow run status
+        #[arg(long, help = "Display status of recent bundling workflow runs")]
+        status: bool,
+        /// Show workflow logs for a specific run
+        #[arg(long, help = "Display logs for a specific workflow run (requires --run-id)")]
+        logs: bool,
+        /// Workflow run ID for log viewing
+        #[arg(long, help = "Workflow run ID to fetch logs for")]
+        run_id: Option<u64>,
+        /// Force bundling outside of scheduled times
+        #[arg(long, help = "Force bundling even when not at departure time (use with --trigger-bundle)")]
+        force: bool,
+        /// Perform dry run without creating PRs
+        #[arg(long, help = "Preview what would be bundled without making changes (use with --trigger-bundle)")]
+        dry_run: bool,
+        /// Enable verbose output
+        #[arg(long, short = 'v', help = "Show detailed workflow information")]
+        verbose: bool,
+    },
 }

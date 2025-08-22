@@ -29,6 +29,7 @@ use cli::commands::{
     init::InitCommand,
     reset::ResetCommand,
     metrics::{MetricsCommand, ExportMetricsCommand},
+    actions::ActionsCommand,
 };
 use telemetry::init_telemetry;
 use config::init_config;
@@ -91,6 +92,9 @@ async fn main() -> Result<()> {
         }
         Some(Commands::ExportMetrics { hours, output }) => {
             ExportMetricsCommand::new(hours, output).execute().await
+        }
+        Some(Commands::Actions { trigger_bundle, status, logs, run_id, force, dry_run, verbose }) => {
+            ActionsCommand::new(trigger_bundle, status, logs, run_id, force, dry_run, verbose).execute().await
         }
     };
 

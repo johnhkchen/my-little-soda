@@ -7,6 +7,7 @@ use super::{
     pulls::{PullRequestHandler, PullRequestStatus}, 
     branches::BranchHandler, 
     comments::CommentHandler,
+    actions::ActionsHandler,
     types::{ConflictAnalysis, ConflictRecoveryData, SafeMergeResult},
     errors::GitHubError
 };
@@ -35,6 +36,7 @@ pub struct GitHubClient {
     pub pulls: PullRequestHandler,
     pub branches: BranchHandler,
     pub comments: CommentHandler,
+    pub actions: ActionsHandler,
     owner: String,
     repo: String,
     retry_handler: GitHubRetryHandler,
@@ -54,6 +56,7 @@ impl GitHubClient {
             pulls: PullRequestHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
             branches: BranchHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
             comments: CommentHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
+            actions: ActionsHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
             owner,
             repo,
             retry_handler: GitHubRetryHandler::default(),

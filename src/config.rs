@@ -56,6 +56,22 @@ pub struct AgentConfig {
     pub coordination_timeout_seconds: u64,
     /// Bundle queue processing settings
     pub bundle_processing: BundleConfig,
+    /// Agent process management settings
+    pub process_management: AgentProcessConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AgentProcessConfig {
+    /// Path to Claude Code binary for real agent processes
+    pub claude_code_path: String,
+    /// Timeout for agent processes in minutes
+    pub timeout_minutes: u32,
+    /// Enable automatic cleanup of failed processes
+    pub cleanup_on_failure: bool,
+    /// Working directory prefix for agent isolation
+    pub work_dir_prefix: String,
+    /// Enable real agent process spawning (vs mocks)
+    pub enable_real_agents: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -100,6 +116,13 @@ impl Default for ClambakeConfig {
                 bundle_processing: BundleConfig {
                     max_queue_size: 50,
                     processing_timeout_seconds: 1800, // 30 minutes
+                },
+                process_management: AgentProcessConfig {
+                    claude_code_path: "claude-code".to_string(),
+                    timeout_minutes: 30,
+                    cleanup_on_failure: true,
+                    work_dir_prefix: ".clambake/agents".to_string(),
+                    enable_real_agents: false, // Start with mocks by default for safety
                 },
             },
             database: Some(DatabaseConfig {

@@ -10,6 +10,7 @@ pub mod status;
 pub mod init;
 pub mod reset;
 pub mod metrics;
+pub mod actions;
 
 pub trait Command {
     async fn execute(&self) -> Result<()>;

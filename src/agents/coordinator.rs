@@ -1,7 +1,7 @@
 // Agent State Management - GitHub-native coordination
 // Following VERBOTEN rules: GitHub is source of truth, no local state files
 
-use crate::github::{GitHubClient, GitHubError};
+use crate::github::{GitHubClient, GitHubError, GitHubActions};
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use crate::metrics::MetricsTracker;
 use crate::agent_lifecycle::{AgentStateMachine, AgentEvent};
@@ -11,7 +11,8 @@ use std::collections::HashMap;
 use std::time::Instant;
 use tokio::sync::Mutex;
 use std::sync::Arc;
-use tracing::Instrument;
+use tracing::{Instrument, info, warn};
+use serde_json::json;
 
 #[derive(Debug, Clone)]
 pub enum AgentState {
@@ -695,6 +696,17 @@ impl AgentCoordinator {
                 "Agent completed work via state machine"
             );
             
+            // Trigger GitHub Actions bundling workflow after work completion
+            if let Err(e) = self.trigger_bundling_workflow_async(agent_id).await {
+                warn!(
+                    agent_id = %agent_id,
+                    error = %e,
+                    "Failed to trigger bundling workflow after work completion"
+                );
+                // Don't fail the work completion if bundling trigger fails
+                // The periodic bundling workflow will catch any missed work
+            }
+            
             Ok(())
         } else {
             Err(GitHubError::IoError(std::io::Error::new(
@@ -750,6 +762,68 @@ impl AgentCoordinator {
                 format!("State machine not found for agent: {}", agent_id)
             )))
         }
+    }
+
+    /// Trigger GitHub Actions bundling workflow asynchronously
+    /// This enables real agents to trigger cloud bundling immediately after completion
+    async fn trigger_bundling_workflow_async(&self, agent_id: &str) -> Result<(), GitHubError> {
+        info!(
+            agent_id = %agent_id,
+            "Triggering GitHub Actions bundling workflow after agent work completion"
+        );
+
+        // Prepare workflow inputs to indicate this was triggered by agent completion
+        let workflow_inputs = json!({
+            "force_bundle": "false",
+            "dry_run": "false",
+            "verbose": "true",
+            "triggered_by": format!("agent_completion:{}", agent_id)
+        });
+
+        // Trigger the bundling workflow
+        self.github_client
+            .actions
+            .trigger_workflow("clambake-bundling.yml", Some(workflow_inputs))
+            .await?;
+
+        info!(
+            agent_id = %agent_id,
+            "Successfully triggered GitHub Actions bundling workflow"
+        );
+
+        Ok(())
+    }
+
+    /// Manually trigger GitHub Actions bundling workflow with options
+    /// This provides direct API access for CLI commands and external triggers
+    pub async fn trigger_bundling_workflow(
+        &self,
+        force: bool,
+        dry_run: bool,
+        verbose: bool,
+    ) -> Result<(), GitHubError> {
+        info!(
+            force = force,
+            dry_run = dry_run,
+            verbose = verbose,
+            "Manually triggering GitHub Actions bundling workflow"
+        );
+
+        let workflow_inputs = json!({
+            "force_bundle": force.to_string(),
+            "dry_run": dry_run.to_string(),
+            "verbose": verbose.to_string(),
+            "triggered_by": "manual_cli"
+        });
+
+        self.github_client
+            .actions
+            .trigger_workflow("clambake-bundling.yml", Some(workflow_inputs))
+            .await?;
+
+        info!("Successfully triggered GitHub Actions bundling workflow manually");
+
+        Ok(())
     }
     
     /// Get current state machine state for debugging and status reporting
