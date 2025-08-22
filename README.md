@@ -33,6 +33,7 @@ This tool is under active development with compilation warnings and incomplete f
   - [Authentication Setup](#authentication-setup)
   - [Repository Configuration](#repository-configuration)
 - [Installation](#installation)
+- [Quick Start](#quick-start)
 - [Configuration](#configuration)
   - [Configuration File Setup](#configuration-file-setup)
   - [Environment Variable Reference](#environment-variable-reference)
@@ -41,7 +42,7 @@ This tool is under active development with compilation warnings and incomplete f
   - [Domain-Specific Setup Requirements](#domain-specific-setup-requirements)
   - [Agent Workflow Understanding](#agent-workflow-understanding)
   - [AI Service Integration](#ai-service-integration)
-- [Basic Usage](#basic-usage)
+- [Advanced Usage](#advanced-usage)
 - [Required GitHub Labels](#required-github-labels)
 - [Troubleshooting](#troubleshooting)
   - [Authentication Issues](#authentication-issues)
@@ -166,6 +167,99 @@ sudo cp target/release/clambake /usr/local/bin/
 ./target/release/clambake --help
 ```
 
+## Quick Start
+
+Once installed and configured, here's how to get started with Clambake:
+
+### 1. Set up your GitHub repository
+First, ensure your repository has the required labels. Use GitHub CLI to create them:
+```bash
+# Create routing labels
+gh label create "route:ready" --description "Issues ready for agent assignment" --color "0e8a16"
+gh label create "route:priority-high" --description "High priority tasks" --color "d93f0b"
+gh label create "route:priority-medium" --description "Medium priority tasks" --color "fbca04"
+gh label create "route:priority-low" --description "Low priority tasks" --color "bfd4f2"
+
+# Create agent labels
+gh label create "agent001" --description "Assigned to agent001" --color "1d76db"
+gh label create "agent002" --description "Assigned to agent002" --color "1d76db"
+```
+
+Expected output:
+```
+✅ label "route:ready" created  
+✅ label "route:priority-high" created
+✅ label "route:priority-medium" created
+✅ label "route:priority-low" created
+✅ label "agent001" created
+✅ label "agent002" created
+```
+
+### 2. Create a GitHub issue and label it
+Create an issue in your repository and add the `route:ready` label to make it available for agent assignment.
+
+### 3. Get your first task
+Simulate an AI agent picking up work:
+```bash
+./target/release/clambake pop
+```
+
+Expected output:
+```
+🎯 Popping next available task...
+✅ Successfully popped task:
+  📋 Issue #42: Fix bug in user authentication
+  👤 Assigned to: agent001
+  🌿 Branch: agent001/42-fix-bug-in-user-authentication
+  🔗 URL: https://github.com/yourusername/yourrepo/issues/42
+
+🚀 Ready to work! Issue assigned and branch created.
+   Next: git checkout agent001/42-fix-bug-in-user-authentication
+```
+
+### 4. Check system status
+See what's happening across all agents:
+```bash
+./target/release/clambake status
+```
+
+Expected output:
+```
+📊 Clambake Status Report
+
+🤖 Agents (1/4 active):
+  • agent001: Working on issue #42 (Fix bug in user authentication)
+
+📋 Issue Queue:
+  • 3 issues ready for assignment (route:ready)
+  • 1 issue in progress (agent001)
+  • 0 issues awaiting merge (route:land)
+
+🌿 Active Branches:
+  • agent001/42-fix-bug-in-user-authentication
+
+⚡ System Health: ✅ All systems operational
+```
+
+### 5. Complete the work cycle
+After implementing your solution, land your work to create a PR:
+```bash
+./target/release/clambake land
+```
+
+This creates a pull request and frees the agent to pick up the next task.
+
+### Real-World Example Workflow
+Here's how Clambake works in practice:
+
+1. **Create issues** with `route:ready` labels
+2. **Agents pick up work** with `clambake pop` 
+3. **Implement solutions** on isolated branches
+4. **Land completed work** with `clambake land` (creates PR)
+5. **System routes next task** automatically
+
+The 3-phase workflow (Work → Review → Merge) ensures code quality while maintaining development velocity.
+
 ## Configuration
 
 Clambake uses a layered configuration system with the following precedence:
@@ -275,19 +369,23 @@ While Clambake manages the coordination, the actual AI agents (like Claude Code)
 
 The coordination system tracks agent state through GitHub labels, not internal databases, making it transparent and debuggable.
 
-## Basic Usage
+## Advanced Usage
+
+### Multi-Agent Coordination
+Run multiple agents simultaneously:
 ```bash
 ./target/release/clambake route --agents 3
 ```
 
-Check current status:
+### Monitoring and Management
+Check detailed system status:
 ```bash
-./target/release/clambake status
+./target/release/clambake status --verbose
 ```
 
-Get next available task:
+View available work without assignment:
 ```bash
-./target/release/clambake pop
+./target/release/clambake peek
 ```
 
 ## Required GitHub Labels
