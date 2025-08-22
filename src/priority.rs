@@ -14,7 +14,7 @@ pub enum Priority {
     High = 3,
     /// route:priority-very-high (4)
     VeryHigh = 4,
-    /// route:land - merge-ready work (100)
+    /// route:ready_to_merge - merge-ready work (100)
     MergeReady = 100,
     /// route:unblocker - critical system issues (200)
     Unblocker = 200,
@@ -28,7 +28,7 @@ impl Priority {
         for label in labels {
             let priority = match label.as_ref() {
                 "route:unblocker" => Priority::Unblocker,
-                "route:land" => Priority::MergeReady,
+                "route:ready_to_merge" => Priority::MergeReady,
                 "route:priority-very-high" => Priority::VeryHigh,
                 "route:priority-high" => Priority::High,
                 "route:priority-medium" => Priority::Medium,
@@ -74,8 +74,8 @@ mod tests {
         // Test unblocker (highest)
         assert_eq!(Priority::from_labels(&["route:unblocker"]), Priority::Unblocker);
         
-        // Test land (second highest)
-        assert_eq!(Priority::from_labels(&["route:land"]), Priority::MergeReady);
+        // Test ready_to_merge (second highest)
+        assert_eq!(Priority::from_labels(&["route:ready_to_merge"]), Priority::MergeReady);
         
         // Test standard priorities
         assert_eq!(Priority::from_labels(&["route:priority-very-high"]), Priority::VeryHigh);

@@ -17,7 +17,7 @@ pub enum WorkflowState {
     Ready,           // issue ready for assignment
     Assigned,        // assigned to agent
     Working,         // agent working
-    Completed,       // work completed (route:land)
+    Completed,       // work completed (route:ready_to_merge)
     ReviewReady,     // ready for CodeRabbit review
     Reviewed,        // CodeRabbit review complete
     MergeReady,      // ready for merge

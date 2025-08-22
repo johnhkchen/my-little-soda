@@ -78,7 +78,7 @@ impl RoutingCoordinator {
                         tracing::info!(
                             issue_number = issue.number,
                             issue_title = %issue.title,
-                            "Skipped assignment for route:land task"
+                            "Skipped assignment for route:ready_to_merge task"
                         );
                     }
                     

@@ -168,7 +168,7 @@ impl StateMachine {
         let previous_state = AgentState::Available;
         let new_state = AgentState::ReadyToLand(issue_url.to_string());
         
-        // Phase 2: Agent picks up route:land task to complete final merge
+        // Phase 2: Agent picks up route:ready_to_merge task to complete final merge
         println!("🔄 Phase 2: Starting landing for agent {} issue {}", agent_id, issue_url);
         
         self.coordinator.update_agent_state(agent_id, new_state.clone()).await?;
@@ -187,7 +187,7 @@ impl StateMachine {
         // In production, this would:
         // 1. Merge PR to main branch
         // 2. Close issue
-        // 3. Remove route:land label
+        // 3. Remove route:ready_to_merge label
         // 4. Clean up branch
         // 5. Free agent
         // All atomically with rollback on failure
@@ -232,13 +232,13 @@ impl StateMachine {
     }
 
     async fn complete_final_integration(&self, issue_number: u64) -> Result<(), GitHubError> {
-        // Complete the final integration by removing route:land label and closing issue
+        // Complete the final integration by removing route:ready_to_merge label and closing issue
         use std::process::Command;
         
         let repo = format!("{}/{}", self.github_client.owner(), self.github_client.repo());
-        // Remove route:land label
+        // Remove route:ready_to_merge label
         let output = Command::new("gh")
-            .args(&["issue", "edit", &issue_number.to_string(), "-R", &repo, "--remove-label", "route:land"])
+            .args(&["issue", "edit", &issue_number.to_string(), "-R", &repo, "--remove-label", "route:ready_to_merge"])
             .output();
         
         match output {
@@ -247,7 +247,7 @@ impl StateMachine {
                     let error_msg = String::from_utf8_lossy(&result.stderr);
                     return Err(GitHubError::IoError(std::io::Error::new(
                         std::io::ErrorKind::Other,
-                        format!("Failed to remove route:land label: {}", error_msg)
+                        format!("Failed to remove route:ready_to_merge label: {}", error_msg)
                     )));
                 }
             }

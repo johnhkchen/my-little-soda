@@ -282,7 +282,7 @@ mod tests {
         let client = MockGitHubClient::new("johnhkchen", "clambake");
         
         // When: We add a label to an issue
-        let result = client.add_label_to_issue(95, "route:land").await;
+        let result = client.add_label_to_issue(95, "route:ready_to_merge").await;
         
         // Then: The operation should succeed
         assert!(result.is_ok(), "Label addition should succeed");
@@ -294,7 +294,7 @@ mod tests {
         match &calls[0] {
             GhCliCall::AddLabel { issue_number, label, repo_targeted, command_args } => {
                 assert_eq!(*issue_number, 95);
-                assert_eq!(label, "route:land");
+                assert_eq!(label, "route:ready_to_merge");
                 assert!(repo_targeted, "gh CLI call must include -R repo targeting");
                 assert!(command_args.contains(&"-R".to_string()));
                 assert!(command_args.contains(&"johnhkchen/clambake".to_string()));
@@ -415,7 +415,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_completed_work_never_reassigned_detection() {
-        // Given: Issues with completed work (route:land label indicates merge-ready)
+        // Given: Issues with completed work (route:ready_to_merge label indicates merge-ready)
         let completed_issue = fixtures::create_completed_issue(93, "Fix state management bug");
         let ready_issue = fixtures::create_ready_issue(95, "Add regression tests");
         
@@ -444,8 +444,8 @@ mod tests {
         // 1. Assign work to agent
         let _ = client.add_label_to_issue(95, "agent001").await;
         
-        // 2. Complete work (add route:land label)
-        let _ = client.add_label_to_issue(95, "route:land").await;
+        // 2. Complete work (add route:ready_to_merge label)
+        let _ = client.add_label_to_issue(95, "route:ready_to_merge").await;
         
         // 3. Free agent (remove agent label)
         let _ = client.remove_label_from_issue(95, "agent001").await;
@@ -456,7 +456,7 @@ mod tests {
         
         // Verify the sequence
         assert!(matches!(&calls[0], GhCliCall::AddLabel { label, .. } if label == "agent001"));
-        assert!(matches!(&calls[1], GhCliCall::AddLabel { label, .. } if label == "route:land"));
+        assert!(matches!(&calls[1], GhCliCall::AddLabel { label, .. } if label == "route:ready_to_merge"));
         assert!(matches!(&calls[2], GhCliCall::RemoveLabel { label, .. } if label == "agent001"));
         
         // Verify all calls used proper repo targeting

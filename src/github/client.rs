@@ -210,7 +210,7 @@ impl GitHubClient {
     }
 
     /// Check if an issue has an open PR that references it
-    /// Returns true if the issue has an open PR WITHOUT route:land label
+    /// Returns true if the issue has an open PR WITHOUT route:ready_to_merge label
     pub async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError> {
         let open_prs = self.fetch_open_pull_requests().await?;
         self.issues.issue_has_blocking_pr(issue_number, &open_prs).await

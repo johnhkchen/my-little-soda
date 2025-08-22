@@ -64,7 +64,7 @@ pub enum IssueStatus {
     Ready,      // route:ready
     Assigned,   // assigned to agent
     InProgress, // agent working
-    Completed,  // route:land (merge-ready)
+    Completed,  // route:ready_to_merge (merge-ready)
     Merged,     // fully complete
 }
 
@@ -86,7 +86,7 @@ impl MockAgentCoordinator {
             number: issue_number,
             labels: match status {
                 IssueStatus::Ready => vec!["route:ready".to_string()],
-                IssueStatus::Completed => vec!["route:ready".to_string(), "route:land".to_string()],
+                IssueStatus::Completed => vec!["route:ready".to_string(), "route:ready_to_merge".to_string()],
                 _ => vec!["route:ready".to_string()],
             },
             assigned_agent: None,
@@ -162,7 +162,7 @@ impl MockAgentCoordinator {
         let mut issues = self.issue_states.lock().unwrap();
         if let Some(issue) = issues.get_mut(&issue_number) {
             issue.status = IssueStatus::Completed;
-            issue.labels.push("route:land".to_string());
+            issue.labels.push("route:ready_to_merge".to_string());
         }
         
         self.record_lifecycle_event(agent_id, issue_number, LifecycleEventType::CompletedWork);
@@ -308,7 +308,7 @@ mod tests {
         let issue_state = coordinator.get_issue_state(95).unwrap();
         assert_eq!(issue_state.status, IssueStatus::Completed);
         assert!(issue_state.assigned_agent.is_none());
-        assert!(issue_state.labels.contains(&"route:land".to_string()));
+        assert!(issue_state.labels.contains(&"route:ready_to_merge".to_string()));
         assert!(!issue_state.labels.iter().any(|l| l.starts_with("agent")));
         
         // And: No reassignment regression should be detected
@@ -426,7 +426,7 @@ mod tests {
         coordinator.complete_work("agent001", 95).unwrap();
         assert_eq!(coordinator.get_agent_state("agent001").unwrap(), AgentState::Completed(95));
         assert_eq!(coordinator.get_issue_state(95).unwrap().status, IssueStatus::Completed);
-        assert!(coordinator.get_issue_state(95).unwrap().labels.contains(&"route:land".to_string()));
+        assert!(coordinator.get_issue_state(95).unwrap().labels.contains(&"route:ready_to_merge".to_string()));
         
         // After freeing agent
         coordinator.free_agent("agent001", 95).unwrap();

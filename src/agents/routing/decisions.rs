@@ -25,7 +25,7 @@ impl RoutingDecisions {
     }
 
     pub fn is_route_land_task(&self, issue: &Issue) -> bool {
-        issue.labels.iter().any(|label| label.name == "route:land")
+        issue.labels.iter().any(|label| label.name == "route:ready_to_merge")
     }
 
     pub fn is_route_ready_task(&self, issue: &Issue) -> bool {

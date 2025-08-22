@@ -97,7 +97,7 @@ impl IssueHandler {
     }
 
     /// Check if an issue has an open PR that references it
-    /// Returns true if the issue has an open PR WITHOUT route:land label
+    /// Returns true if the issue has an open PR WITHOUT route:ready_to_merge label
     pub async fn issue_has_blocking_pr(&self, issue_number: u64, open_prs: &[octocrab::models::pulls::PullRequest]) -> Result<bool, GitHubError> {
         use regex::Regex;
         use std::sync::OnceLock;
@@ -147,12 +147,12 @@ impl IssueHandler {
             // Check if this PR references the issue number using optimized regex patterns
             if let Some(body) = &pr.body {
                 if pr_references_issue(body, issue_number) {
-                    // Check if this PR has route:land label
+                    // Check if this PR has route:ready_to_merge label
                     let has_route_land = pr.labels.as_ref()
-                        .map(|labels| labels.iter().any(|label| label.name == "route:land"))
+                        .map(|labels| labels.iter().any(|label| label.name == "route:ready_to_merge"))
                         .unwrap_or(false);
                     
-                    // If PR references the issue but doesn't have route:land, it's blocking
+                    // If PR references the issue but doesn't have route:ready_to_merge, it's blocking
                     if !has_route_land {
                         return Ok(true);
                     }
