@@ -1,6 +1,5 @@
 use anyhow::{Result, anyhow};
-use git2::{Repository, Branch, BranchType, Oid};
-use std::path::Path;
+use git2::{Repository, BranchType, Oid};
 
 /// Strategy for handling merge conflicts during bundling
 #[derive(Debug, Clone)]
@@ -15,7 +14,7 @@ pub enum ConflictStrategy {
 
 /// Git operations for bundling using git2
 pub struct GitOperations {
-    repo: Repository,
+    pub repo: Repository,
 }
 
 impl GitOperations {

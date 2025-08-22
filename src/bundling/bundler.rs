@@ -2,12 +2,11 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use fd_lock::{RwLock, RwLockWriteGuard};
 use std::fs::File;
-use std::path::Path;
 
 use crate::train_schedule::QueuedBranch;
-use crate::github::{GitHubClient, GitHubOps};
+use crate::github::{GitHubClient};
 use super::{
-    types::{BundleWindow, BundleResult, BundleBranch},
+    types::{BundleWindow, BundleResult},
     git_ops::{GitOperations, ConflictStrategy},
 };
 
@@ -54,6 +53,9 @@ impl BundleManager {
                 error: anyhow!("No branches to bundle"),
             });
         }
+        
+        // Remember the current branch to restore it later
+        let original_branch = self.get_current_branch()?;
         
         let bundle_branch = self.generate_bundle_branch_name(queued_branches);
         let base_branch = "main";
@@ -269,8 +271,18 @@ impl BundleManager {
         body
     }
     
+    /// Get the current branch name
+    fn get_current_branch(&self) -> Result<String> {
+        let head = self.git_ops.repo.head()?;
+        if let Some(branch_name) = head.shorthand() {
+            Ok(branch_name.to_string())
+        } else {
+            Ok("main".to_string()) // fallback
+        }
+    }
+    
     /// Find existing bundle PR for a branch
-    async fn find_existing_bundle_pr(&self, bundle_branch: &str) -> Result<u64> {
+    async fn find_existing_bundle_pr(&self, _bundle_branch: &str) -> Result<u64> {
         // This would query GitHub for existing PRs with the bundle branch
         // For now, we'll return an error to indicate no existing PR found
         Err(anyhow!("No existing PR found for bundle branch"))
