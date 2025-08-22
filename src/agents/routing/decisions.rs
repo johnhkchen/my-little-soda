@@ -24,7 +24,7 @@ impl RoutingDecisions {
         });
     }
 
-    pub fn is_route_land_task(&self, issue: &Issue) -> bool {
+    pub fn is_route_ready_to_merge_task(&self, issue: &Issue) -> bool {
         issue.labels.iter().any(|label| label.name == "route:ready_to_merge")
     }
 
@@ -37,7 +37,7 @@ impl RoutingDecisions {
     }
 
     pub fn should_skip_assignment(&self, issue: &Issue) -> bool {
-        self.is_route_land_task(issue)
+        self.is_route_ready_to_merge_task(issue)
     }
 
     pub fn is_unassigned(&self, issue: &Issue) -> bool {

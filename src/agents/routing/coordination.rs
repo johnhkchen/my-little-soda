@@ -108,7 +108,7 @@ impl RoutingCoordinator {
         let available_agents = coordinator.get_available_agents().await?;
         
         let decision_outcome = if let (Some(issue), Some(agent)) = (sorted_issues.first(), available_agents.first()) {
-            let branch_name = if self.decisions.is_route_land_task(issue) {
+            let branch_name = if self.decisions.is_route_ready_to_merge_task(issue) {
                 self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await
                     .unwrap_or_else(|_| self.assignment_ops.generate_branch_name(&agent.id, issue.number, &issue.title))
             } else if self.decisions.is_unassigned(issue) {

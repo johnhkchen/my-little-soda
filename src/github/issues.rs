@@ -148,12 +148,12 @@ impl IssueHandler {
             if let Some(body) = &pr.body {
                 if pr_references_issue(body, issue_number) {
                     // Check if this PR has route:ready_to_merge label
-                    let has_route_land = pr.labels.as_ref()
+                    let has_route_ready_to_merge = pr.labels.as_ref()
                         .map(|labels| labels.iter().any(|label| label.name == "route:ready_to_merge"))
                         .unwrap_or(false);
                     
                     // If PR references the issue but doesn't have route:ready_to_merge, it's blocking
-                    if !has_route_land {
+                    if !has_route_ready_to_merge {
                         return Ok(true);
                     }
                 }

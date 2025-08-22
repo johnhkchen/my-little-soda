@@ -83,11 +83,11 @@ fn route_ready_with_agent_label_excluded() {
 }
 
 #[test]
-fn route_land_always_routable_if_open() {
+fn route_ready_to_merge_always_routable_if_open() {
     let issue = make_issue(102, IssueState::Open, vec!["route:ready_to_merge"], None);
     let is_open = issue.state == IssueState::Open;
-    let has_route_land = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");
-    let is_routable = if has_route_land { true } else { false };
+    let has_route_ready_to_merge = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");
+    let is_routable = if has_route_ready_to_merge { true } else { false };
     assert!(is_open && is_routable);
 }
 

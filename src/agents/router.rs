@@ -213,10 +213,10 @@ mod tests {
         // Mirror the logic in fetch_routable_issues's filter (minus PR check)
         let is_open = issue.state == IssueState::Open;
         let has_route_ready = issue.labels.iter().any(|l| l.name == "route:ready");
-        let has_route_land = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");
+        let has_route_ready_to_merge = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");
         let has_agent_label = issue.labels.iter().any(|l| l.name.starts_with("agent"));
         let is_human_only = issue.labels.iter().any(|l| l.name == "route:human-only");
-        let is_routable = if has_route_land {
+        let is_routable = if has_route_ready_to_merge {
             true
         } else if has_route_ready {
             !has_agent_label
@@ -253,11 +253,11 @@ mod tests {
     fn is_routable_simple(state: &str, labels: &[&str], _assignees: &[&str]) -> bool {
         let is_open = state == "open";
         let has_route_ready = labels.iter().any(|&l| l == "route:ready");
-        let has_route_land = labels.iter().any(|&l| l == "route:ready_to_merge");
+        let has_route_ready_to_merge = labels.iter().any(|&l| l == "route:ready_to_merge");
         let has_agent_label = labels.iter().any(|&l| l.starts_with("agent"));
         let is_human_only = labels.iter().any(|&l| l == "route:human-only");
         
-        let is_routable = if has_route_land {
+        let is_routable = if has_route_ready_to_merge {
             true
         } else if has_route_ready {
             !has_agent_label

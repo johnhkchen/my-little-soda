@@ -24,7 +24,7 @@ impl IssueFilter {
             
             let has_route_ready = issue.labels.iter()
                 .any(|label| label.name == "route:ready");
-            let has_route_land = issue.labels.iter()
+            let has_route_ready_to_merge = issue.labels.iter()
                 .any(|label| label.name == "route:ready_to_merge");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
@@ -49,7 +49,7 @@ impl IssueFilter {
                 } else {
                     true
                 }
-            } else if has_route_land {
+            } else if has_route_ready_to_merge {
                 true
             } else if has_route_ready {
                 let agent_labels: Vec<&str> = issue.labels.iter()
@@ -86,14 +86,14 @@ impl IssueFilter {
             let is_open = issue.state == octocrab::models::IssueState::Open;
             let has_route_ready = issue.labels.iter()
                 .any(|label| label.name == "route:ready");
-            let has_route_land = issue.labels.iter()
+            let has_route_ready_to_merge = issue.labels.iter()
                 .any(|label| label.name == "route:ready_to_merge");
             let has_route_unblocker = issue.labels.iter()
                 .any(|label| label.name == "route:unblocker");
             let has_route_review = issue.labels.iter()
                 .any(|label| label.name == "route:review");
             
-            if !is_open || (!has_route_ready && !has_route_land && !has_route_unblocker) {
+            if !is_open || (!has_route_ready && !has_route_ready_to_merge && !has_route_unblocker) {
                 continue;
             }
             
