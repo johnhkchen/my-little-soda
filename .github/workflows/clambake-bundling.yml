@@ -1,0 +1,158 @@
+name: Clambake Bundle Management
+
+on:
+  schedule:
+    # Every 10 minutes to match train schedule (matches :00, :10, :20, :30, :40, :50)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      force_bundle:
+        description: 'Force bundling outside schedule'
+        required: false
+        default: 'false'
+        type: boolean
+      dry_run:
+        description: 'Perform dry run without creating PRs'
+        required: false
+        default: 'false'
+        type: boolean
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  bundle-agent-work:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git operations
+          
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          cache: false  # We use Swatinem/rust-cache instead
+          
+      - name: Configure Rust caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Cache key includes workflow file to bust cache on changes
+          key: "clambake-bundling-${{ hashFiles('.github/workflows/clambake-bundling.yml') }}"
+          # Cache specific directories
+          cache-directories: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          # Enable additional cache features
+          cache-all-crates: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          
+      - name: Build Clambake
+        run: |
+          echo "🔨 Building Clambake for bundling operations..."
+          cargo build --release
+          
+      - name: Check bundling eligibility
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Checking for bundling eligibility..."
+          
+          # Set default values for inputs
+          FORCE_BUNDLE="${{ github.event.inputs.force_bundle || 'false' }}"
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          VERBOSE="${{ github.event.inputs.verbose || 'true' }}"
+          
+          # Check if this is a forced run
+          if [[ "$FORCE_BUNDLE" == "true" ]]; then
+            echo "🚀 Force bundling requested via workflow dispatch"
+            echo "should_bundle=true" >> $GITHUB_OUTPUT
+            echo "force_flag=--force" >> $GITHUB_OUTPUT
+          else
+            # Use clambake to check if we should bundle (respects train schedule)
+            echo "⏰ Checking train schedule for bundling eligibility..."
+            if ./target/release/clambake bundle --dry-run 2>&1 | grep -q "Not at departure time yet"; then
+              echo "⏳ Not at departure time yet, skipping bundling"
+              echo "should_bundle=false" >> $GITHUB_OUTPUT
+            else
+              echo "🚄 At departure time, bundling eligible"
+              echo "should_bundle=true" >> $GITHUB_OUTPUT
+            fi
+            echo "force_flag=" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set dry run flag
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "dry_run_flag=--dry-run" >> $GITHUB_OUTPUT
+          else
+            echo "dry_run_flag=" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set verbose flag
+          if [[ "$VERBOSE" == "true" ]]; then
+            echo "verbose_flag=--verbose" >> $GITHUB_OUTPUT
+          else
+            echo "verbose_flag=" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Execute bundling
+        if: steps.check.outputs.should_bundle == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🚄 Executing Clambake bundling workflow..."
+          
+          # Build command with conditional flags
+          BUNDLE_CMD="./target/release/clambake bundle"
+          
+          if [[ -n "${{ steps.check.outputs.force_flag }}" ]]; then
+            BUNDLE_CMD="$BUNDLE_CMD ${{ steps.check.outputs.force_flag }}"
+          fi
+          
+          if [[ -n "${{ steps.check.outputs.dry_run_flag }}" ]]; then
+            BUNDLE_CMD="$BUNDLE_CMD ${{ steps.check.outputs.dry_run_flag }}"
+          fi
+          
+          if [[ -n "${{ steps.check.outputs.verbose_flag }}" ]]; then
+            BUNDLE_CMD="$BUNDLE_CMD ${{ steps.check.outputs.verbose_flag }}"
+          fi
+          
+          echo "🎯 Running: $BUNDLE_CMD"
+          
+          # Execute bundling with proper error handling
+          if $BUNDLE_CMD; then
+            echo "✅ Bundling completed successfully"
+          else
+            echo "❌ Bundling failed with exit code $?"
+            exit 1
+          fi
+          
+      - name: Report bundling status
+        if: always()
+        run: |
+          if [[ "${{ steps.check.outputs.should_bundle }}" != "true" ]]; then
+            echo "⏳ Bundling skipped - not at departure time"
+            echo "💡 Next bundling opportunity will be at the next 10-minute mark"
+          elif [[ "${{ job.status }}" == "success" ]]; then
+            echo "✅ Bundling workflow completed successfully"
+          else
+            echo "❌ Bundling workflow failed"
+            echo "🔍 Check the logs above for error details"
+          fi
+          
+          echo "📊 Workflow Summary:"
+          echo "   • Trigger: ${{ github.event_name }}"
+          echo "   • Should Bundle: ${{ steps.check.outputs.should_bundle }}"
+          echo "   • Force Mode: ${{ github.event.inputs.force_bundle || 'false' }}"
+          echo "   • Dry Run: ${{ github.event.inputs.dry_run || 'false' }}"
+          echo "   • Verbose: ${{ github.event.inputs.verbose || 'true' }}"
