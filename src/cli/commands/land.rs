@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use crate::github::GitHubClient;
 use crate::train_schedule::{TrainSchedule, QueuedBranch};
+use crate::agents::AgentCoordinator;
 use git2::Repository;
 use std::process::Command;
 
@@ -48,9 +49,11 @@ impl LandCommand {
             println!();
         }
         
-        // Initialize GitHub client
+        // Initialize GitHub client and agent coordinator
         let client = GitHubClient::new()
             .map_err(|e| anyhow!("Failed to initialize GitHub client: {}", e))?;
+        let coordinator = AgentCoordinator::new().await
+            .map_err(|e| anyhow!("Failed to initialize agent coordinator: {}", e))?;
         
         println!("🔍 Processing agent work for issue #{}...", issue_number);
         
@@ -77,15 +80,33 @@ impl LandCommand {
             println!("🏷️  [DRY RUN] Would add route:review label to issue #{}", issue_number);
         }
         
-        // Step 3: Remove agent label to free the agent
+        // Step 3: Trigger state machine transition to complete work
+        if !self.dry_run {
+            print!("⚙️  Completing work in state machine... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            
+            coordinator.complete_work(&agent_id).await
+                .map_err(|e| anyhow!("Failed to complete work in state machine: {}", e))?;
+            println!("✅");
+        } else {
+            println!("⚙️  [DRY RUN] Would complete work in state machine for agent {}", agent_id);
+        }
+        
+        // Step 4: Remove agent label to free the agent
         if !self.dry_run {
             print!("🤖 Freeing agent by removing {} label... ", agent_id);
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
             
             self.remove_agent_label(&client, issue_number, &agent_id).await?;
+            
+            // Reset agent to idle state after completing the workflow
+            coordinator.abandon_work(&agent_id).await
+                .map_err(|e| anyhow!("Failed to reset agent to idle state: {}", e))?;
+            
             println!("✅");
         } else {
             println!("🤖 [DRY RUN] Would remove {} label from issue #{}", agent_id, issue_number);
+            println!("🤖 [DRY RUN] Would reset agent {} to idle state", agent_id);
         }
         
         println!();

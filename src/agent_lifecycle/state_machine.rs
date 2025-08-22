@@ -107,6 +107,13 @@ impl AgentStateMachine {
                     tracing::error!("Agent ID validation failed: {}", e);
                     return Handled;
                 }
+                
+                // Apply validation guards
+                if let Err(e) = self.validate_assignment(*issue, branch) {
+                    tracing::error!("Assignment validation failed: {}", e);
+                    return Handled;
+                }
+                
                 self.current_issue = Some(*issue);
                 self.current_branch = Some(branch.clone());
                 self.commits_ahead = 0;
@@ -116,6 +123,7 @@ impl AgentStateMachine {
                     branch = %branch,
                     "Agent assigned to issue"
                 );
+                self.on_enter_assigned();
                 Transition(State::assigned())
             }
             _ => Handled,
@@ -126,6 +134,12 @@ impl AgentStateMachine {
     fn assigned(&mut self, event: &AgentEvent) -> Outcome<State> {
         match event {
             AgentEvent::StartWork { commits_ahead } => {
+                // Apply validation guards
+                if let Err(e) = self.validate_start_work(*commits_ahead) {
+                    tracing::error!("Start work validation failed: {}", e);
+                    return Handled;
+                }
+                
                 self.commits_ahead = *commits_ahead;
                 tracing::info!(
                     agent_id = %self.agent_id,
@@ -133,6 +147,8 @@ impl AgentStateMachine {
                     commits_ahead = %commits_ahead,
                     "Agent started working"
                 );
+                self.on_exit_assigned();
+                self.on_enter_working();
                 Transition(State::working())
             }
             AgentEvent::Abandon | AgentEvent::ForceReset => {
@@ -148,11 +164,19 @@ impl AgentStateMachine {
     fn working(&mut self, event: &AgentEvent) -> Outcome<State> {
         match event {
             AgentEvent::CompleteWork => {
+                // Apply validation guards
+                if let Err(e) = self.validate_complete_work() {
+                    tracing::error!("Complete work validation failed: {}", e);
+                    return Handled;
+                }
+                
                 tracing::info!(
                     agent_id = %self.agent_id,
                     issue = ?self.current_issue,
                     "Agent completed work"
                 );
+                self.on_exit_working();
+                self.on_enter_landed();
                 Transition(State::landed())
             }
             AgentEvent::StartWork { commits_ahead } => {
@@ -244,6 +268,131 @@ impl AgentStateMachine {
         self.bundle_pr = None;
     }
     
+    /// Validation guard for assignment - check if issue is assignable
+    fn validate_assignment(&self, issue: u64, branch: &str) -> Result<(), TransitionError> {
+        // Check if branch name is valid
+        if branch.is_empty() {
+            return Err(TransitionError::ValidationFailed {
+                reason: "Branch name cannot be empty".to_string(),
+            });
+        }
+        
+        // Check if issue number is valid
+        if issue == 0 {
+            return Err(TransitionError::ValidationFailed {
+                reason: "Issue number must be greater than 0".to_string(),
+            });
+        }
+        
+        // Check if agent is already assigned to another issue
+        if self.current_issue.is_some() && self.current_issue != Some(issue) {
+            return Err(TransitionError::ValidationFailed {
+                reason: format!(
+                    "Agent already assigned to issue {}. Cannot assign to issue {}",
+                    self.current_issue.unwrap(),
+                    issue
+                ),
+            });
+        }
+        
+        Ok(())
+    }
+    
+    /// Validation guard for starting work - check if conditions are met
+    fn validate_start_work(&self, _commits_ahead: u32) -> Result<(), TransitionError> {
+        // Must be assigned to an issue first
+        if self.current_issue.is_none() {
+            return Err(TransitionError::ValidationFailed {
+                reason: "Cannot start work without being assigned to an issue".to_string(),
+            });
+        }
+        
+        // Branch must exist
+        if self.current_branch.is_none() {
+            return Err(TransitionError::ValidationFailed {
+                reason: "Cannot start work without a branch".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
+    
+    /// Validation guard for completing work - check if work can be completed
+    fn validate_complete_work(&self) -> Result<(), TransitionError> {
+        // Must be working on an issue
+        if self.current_issue.is_none() {
+            return Err(TransitionError::ValidationFailed {
+                reason: "Cannot complete work without being assigned to an issue".to_string(),
+            });
+        }
+        
+        // Must have started work (commits_ahead > 0)
+        if self.commits_ahead == 0 {
+            return Err(TransitionError::ValidationFailed {
+                reason: "Cannot complete work without having made commits".to_string(),
+            });
+        }
+        
+        Ok(())
+    }
+    
+    /// Entry action for assigned state - called when transitioning to assigned
+    fn on_enter_assigned(&mut self) {
+        tracing::info!(
+            agent_id = %self.agent_id,
+            issue = ?self.current_issue,
+            branch = ?self.current_branch,
+            "Entering assigned state - agent is now assigned to work"
+        );
+    }
+    
+    /// Entry action for working state - called when transitioning to working
+    fn on_enter_working(&mut self) {
+        tracing::info!(
+            agent_id = %self.agent_id,
+            issue = ?self.current_issue,
+            commits_ahead = %self.commits_ahead,
+            "Entering working state - agent has started making commits"
+        );
+    }
+    
+    /// Entry action for landed state - called when transitioning to landed
+    fn on_enter_landed(&mut self) {
+        tracing::info!(
+            agent_id = %self.agent_id,
+            issue = ?self.current_issue,
+            "Entering landed state - work is complete and ready for bundling"
+        );
+    }
+    
+    /// Exit action for assigned state - called when leaving assigned
+    fn on_exit_assigned(&mut self) {
+        tracing::debug!(
+            agent_id = %self.agent_id,
+            issue = ?self.current_issue,
+            "Exiting assigned state"
+        );
+    }
+    
+    /// Exit action for working state - called when leaving working
+    fn on_exit_working(&mut self) {
+        tracing::debug!(
+            agent_id = %self.agent_id,
+            issue = ?self.current_issue,
+            commits_ahead = %self.commits_ahead,
+            "Exiting working state"
+        );
+    }
+    
+    /// Exit action for landed state - called when leaving landed
+    fn on_exit_landed(&mut self) {
+        tracing::debug!(
+            agent_id = %self.agent_id,
+            issue = ?self.current_issue,
+            "Exiting landed state"
+        );
+    }
+    
     pub fn current_issue(&self) -> Option<u64> {
         self.current_issue
     }
@@ -284,7 +433,7 @@ mod tests {
         let mut sm = AgentStateMachine::new("agent001".to_string()).state_machine();
         
         // Start in idle state
-        assert!(sm.context().is_available());
+        assert!(sm.inner().is_available());
         
         // Assign agent to issue
         sm.handle(&AgentEvent::Assign {
@@ -294,15 +443,15 @@ mod tests {
         });
         
         // Should be assigned now
-        assert!(sm.context().is_assigned());
-        assert_eq!(sm.context().current_issue(), Some(123));
+        assert!(sm.inner().is_assigned());
+        assert_eq!(sm.inner().current_issue(), Some(123));
         
         // Start work
         sm.handle(&AgentEvent::StartWork { commits_ahead: 2 });
         
         // Should be working now
-        assert!(sm.context().is_working());
-        assert_eq!(sm.context().commits_ahead(), 2);
+        assert!(sm.inner().is_working());
+        assert_eq!(sm.inner().commits_ahead(), 2);
         
         // Complete work
         sm.handle(&AgentEvent::CompleteWork);
@@ -311,8 +460,8 @@ mod tests {
         sm.handle(&AgentEvent::ForceReset);
         
         // Should be available again
-        assert!(sm.context().is_available());
-        assert_eq!(sm.context().current_issue(), None);
+        assert!(sm.inner().is_available());
+        assert_eq!(sm.inner().current_issue(), None);
     }
     
     #[test]
@@ -327,8 +476,8 @@ mod tests {
         });
         
         // Should still be available (assignment was rejected)
-        assert!(sm.context().is_available());
-        assert_eq!(sm.context().current_issue(), None);
+        assert!(sm.inner().is_available());
+        assert_eq!(sm.inner().current_issue(), None);
     }
     
     #[test]

@@ -2,12 +2,12 @@
 // This exposes the core components for testing and integration
 
 pub mod github;
+pub mod agent_lifecycle;
 pub mod agents;
 pub mod workflows;
 pub mod priority;
 pub mod train_schedule;
 pub mod telemetry;
-pub mod agent_lifecycle;
 pub mod metrics;
 pub mod git;
 pub mod bundling;

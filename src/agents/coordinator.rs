@@ -4,6 +4,9 @@
 use crate::github::{GitHubClient, GitHubError};
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use crate::metrics::MetricsTracker;
+use crate::agent_lifecycle::state_machine::{AgentStateMachine, AgentEvent};
+use statig::prelude::*;
+use statig::blocking::*;
 use std::collections::HashMap;
 use std::time::Instant;
 use tokio::sync::Mutex;
@@ -28,13 +31,14 @@ pub struct Agent {
     pub state: AgentState,
 }
 
-#[derive(Debug)]
 pub struct AgentCoordinator {
     github_client: GitHubClient,
     // Safe coordination state - prevents race conditions
     assignment_lock: Arc<Mutex<HashMap<u64, String>>>, // issue_number -> agent_id
     agent_capacity: Arc<Mutex<HashMap<String, (u32, u32)>>>, // agent_id -> (current, max)
     metrics_tracker: MetricsTracker,
+    // State machine for agent lifecycle management
+    agent_state_machines: Arc<Mutex<HashMap<String, StateMachine<AgentStateMachine>>>>,
 }
 
 impl AgentCoordinator {
@@ -46,11 +50,17 @@ impl AgentCoordinator {
         let mut agent_capacity = HashMap::new();
         agent_capacity.insert("agent001".to_string(), (0, 1)); // 0 current, 1 max per agent
         
+        // Initialize state machines for each agent
+        let mut agent_state_machines = HashMap::new();
+        let agent001_sm = AgentStateMachine::new("agent001".to_string()).state_machine();
+        agent_state_machines.insert("agent001".to_string(), agent001_sm);
+        
         Ok(Self { 
             github_client,
             assignment_lock: Arc::new(Mutex::new(HashMap::new())),
             agent_capacity: Arc::new(Mutex::new(agent_capacity)),
             metrics_tracker,
+            agent_state_machines: Arc::new(Mutex::new(agent_state_machines)),
         })
     }
 
@@ -160,6 +170,71 @@ impl AgentCoordinator {
         
         // Generate descriptive branch name
         let branch_name = self.generate_descriptive_branch_name(agent_id, issue_number, issue_title);
+        
+        // STATE MACHINE TRANSITION: Try to assign agent using state machine
+        {
+            let mut state_machines = self.agent_state_machines.lock().await;
+            if let Some(sm) = state_machines.get_mut(agent_id) {
+                // Check if agent is available before attempting assignment
+                if !sm.inner().is_available() {
+                    // Track failed coordination decision
+                    let _ = self.metrics_tracker.track_coordination_decision(
+                        correlation_id.clone(),
+                        "assign_agent_to_issue",
+                        Some(agent_id),
+                        Some(issue_number),
+                        &format!("Agent {} not available for assignment (current state: available={})", agent_id, sm.inner().is_available()),
+                        execution_start,
+                        false,
+                        HashMap::new(),
+                    ).await;
+                    
+                    return Err(GitHubError::IoError(std::io::Error::new(
+                        std::io::ErrorKind::ResourceBusy,
+                        format!("Agent {} is not available for assignment", agent_id)
+                    )));
+                }
+                
+                // Attempt the state machine transition
+                sm.handle(&AgentEvent::Assign {
+                    agent_id: agent_id.to_string(),
+                    issue: issue_number,
+                    branch: branch_name.clone(),
+                });
+                
+                // Verify the transition succeeded
+                if sm.inner().current_issue() != Some(issue_number) {
+                    // Track failed coordination decision
+                    let _ = self.metrics_tracker.track_coordination_decision(
+                        correlation_id.clone(),
+                        "assign_agent_to_issue",
+                        Some(agent_id),
+                        Some(issue_number),
+                        &format!("State machine transition failed for agent {}", agent_id),
+                        execution_start,
+                        false,
+                        HashMap::new(),
+                    ).await;
+                    
+                    return Err(GitHubError::IoError(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!("Failed to assign agent {} to issue {} - state machine transition failed", agent_id, issue_number)
+                    )));
+                }
+                
+                tracing::info!(
+                    agent_id = %agent_id,
+                    issue = %issue_number,
+                    branch = %branch_name,
+                    "State machine assign event triggered successfully"
+                );
+            } else {
+                return Err(GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("State machine not found for agent: {}", agent_id)
+                )));
+            }
+        }
         
         // ATOMIC OPERATION: All-or-nothing assignment with conflict detection
         {
@@ -587,6 +662,113 @@ impl AgentCoordinator {
         println!("🔄 Updating agent {} state to {:?}", agent_id, new_state);
         Ok(())
     }
+    
+    /// Handle agent starting work - triggers state machine transition to working state
+    pub async fn start_work(&self, agent_id: &str, commits_ahead: u32) -> Result<(), GitHubError> {
+        let mut state_machines = self.agent_state_machines.lock().await;
+        if let Some(sm) = state_machines.get_mut(agent_id) {
+            sm.handle(&AgentEvent::StartWork { commits_ahead });
+            
+            tracing::info!(
+                agent_id = %agent_id,
+                commits_ahead = %commits_ahead,
+                "Agent started work via state machine"
+            );
+            
+            Ok(())
+        } else {
+            Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("State machine not found for agent: {}", agent_id)
+            )))
+        }
+    }
+    
+    /// Handle agent completing work - triggers state machine transition to landed state
+    pub async fn complete_work(&self, agent_id: &str) -> Result<(), GitHubError> {
+        let mut state_machines = self.agent_state_machines.lock().await;
+        if let Some(sm) = state_machines.get_mut(agent_id) {
+            sm.handle(&AgentEvent::CompleteWork);
+            
+            tracing::info!(
+                agent_id = %agent_id,
+                "Agent completed work via state machine"
+            );
+            
+            Ok(())
+        } else {
+            Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("State machine not found for agent: {}", agent_id)
+            )))
+        }
+    }
+    
+    /// Handle agent abandoning work - triggers state machine transition back to idle
+    pub async fn abandon_work(&self, agent_id: &str) -> Result<(), GitHubError> {
+        let mut state_machines = self.agent_state_machines.lock().await;
+        if let Some(sm) = state_machines.get_mut(agent_id) {
+            sm.handle(&AgentEvent::Abandon);
+            
+            // Also clear internal state tracking
+            {
+                let mut assignments = self.assignment_lock.lock().await;
+                let mut capacities = self.agent_capacity.lock().await;
+                
+                // Find and remove the assignment for this agent
+                let issue_to_remove = assignments
+                    .iter()
+                    .find_map(|(issue, assigned_agent)| {
+                        if assigned_agent == agent_id {
+                            Some(*issue)
+                        } else {
+                            None
+                        }
+                    });
+                
+                if let Some(issue_number) = issue_to_remove {
+                    assignments.remove(&issue_number);
+                }
+                
+                // Reduce agent capacity
+                if let Some((current, max)) = capacities.get(agent_id).cloned() {
+                    if current > 0 {
+                        capacities.insert(agent_id.to_string(), (current - 1, max));
+                    }
+                }
+            }
+            
+            tracing::info!(
+                agent_id = %agent_id,
+                "Agent abandoned work via state machine"
+            );
+            
+            Ok(())
+        } else {
+            Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("State machine not found for agent: {}", agent_id)
+            )))
+        }
+    }
+    
+    /// Get current state machine state for debugging
+    pub async fn get_agent_state_machine_info(&self, agent_id: &str) -> Option<String> {
+        let state_machines = self.agent_state_machines.lock().await;
+        if let Some(sm) = state_machines.get(agent_id) {
+            Some(format!(
+                "Agent: {}, Available: {}, Assigned: {}, Working: {}, Current Issue: {:?}, Branch: {:?}",
+                agent_id,
+                sm.inner().is_available(),
+                sm.inner().is_assigned(),
+                sm.inner().is_working(),
+                sm.inner().current_issue(),
+                sm.inner().current_branch()
+            ))
+        } else {
+            None
+        }
+    }
 
     /// Get current bundling status for operational visibility
     async fn get_bundling_status(&self) -> Option<BundlingStatus> {
@@ -605,6 +787,18 @@ impl AgentCoordinator {
         } else {
             None
         }
+    }
+}
+
+impl std::fmt::Debug for AgentCoordinator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentCoordinator")
+            .field("github_client", &"GitHubClient")
+            .field("assignment_lock", &"Arc<Mutex<HashMap<u64, String>>>")
+            .field("agent_capacity", &"Arc<Mutex<HashMap<String, (u32, u32)>>>")
+            .field("metrics_tracker", &"MetricsTracker")
+            .field("agent_state_machines", &"Arc<Mutex<HashMap<String, StateMachine<AgentStateMachine>>>>")
+            .finish()
     }
 }
 
