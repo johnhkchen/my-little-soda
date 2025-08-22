@@ -580,9 +580,30 @@ If you encounter issues not covered here:
 3. Run with verbose output: `cargo run -- <command> --verbose`
 4. Review the `/docs` directory for comprehensive documentation
 
-## Documentation
+## Documentation Quick Links
 
-Comprehensive documentation is available in the `/docs` directory and `spec.md` for architecture details.
+Comprehensive documentation organized for different audiences and use cases:
+
+### 📚 User Documentation
+- **[User Guide](docs/README.md)** - Complete documentation from quickstart to production
+- **[Command Reference](docs/README.md#commands-commandsmd)** - All CLI commands with examples
+- **[Configuration Guide](docs/README.md#configuration-configurationmd)** - Setup and customization options
+- **[Troubleshooting Guide](docs/README.md#troubleshooting-troubleshootingmd)** - Common issues and solutions
+
+### 🏗️ Architecture & Specifications  
+- **[System Specification](spec.md)** - Complete system architecture and design principles
+- **[Domain Specifications](specs/README.md)** - Detailed technical specifications by domain
+- **[API Documentation](https://docs.rs/clambake)** - Auto-generated Rust API docs
+
+### 🤖 Agent Integration
+- **[Agent Lifecycle](docs/agent_lifecycle.md)** - How agents coordinate and work together
+- **[System Analysis](docs/system_analysis_and_opportunities.md)** - Agent coordination patterns
+- **[Infrastructure Guide](INFRASTRUCTURE.md)** - Deployment and operational requirements
+
+### 🛠️ Development Resources
+- **[Testing Strategy](docs/testable_architecture.md)** - Comprehensive testing approach
+- **[Contributing Guidelines](specs/README.md#contributing-to-specs)** - How to contribute to the project
+- **[Scripts Documentation](scripts/README.md)** - Development and maintenance scripts
 
 ## Contributing
 
