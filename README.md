@@ -1,206 +1,339 @@
-# Clambake: GitHub-Native Multi-Agent Orchestration
+# Clambake
 
-> **Stop losing work to agent coordination chaos. Start shipping faster with reliable multi-agent development.**
+A Rust CLI tool for routing GitHub Issues to AI coding agents using labels and branch management.
 
-Transform your development velocity with industrial-strength orchestration for 8-12 concurrent AI agents. Built on battle-tested lessons from coordination disasters, Clambake ensures zero work loss and seamless GitHub integration.
+**Development Status: Early Alpha**  
+This tool is under active development with compilation warnings and incomplete features. Use for experimentation only.
 
-[![CI](https://github.com/your-org/clambake/workflows/ci/badge.svg)](https://github.com/your-org/clambake/actions)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
+## What It Currently Does
 
-## Multi-Agent Development That Actually Works
+Routes GitHub Issues labeled `route:ready` to available agents by:
+- Creating isolated git branches for each assigned issue
+- Adding agent labels (e.g., `agent001`) to track assignments
+- Managing basic agent state through GitHub Issue labels
 
-**The Reality**: Claude Code agents enable 8-12 concurrent developers per project, but coordination complexity grows exponentially. Traditional "just code the happy path" approaches fail catastrophically at scale.
+## Prerequisites
 
-**The Solution**: Clambake provides complete GitHub-native orchestration infrastructure so you can focus on building, not managing coordination chaos.
+### System Requirements
+- **Rust 1.75+** - Required for compilation
+- **Git 2.30+** - Required for branch management  
+- **GitHub CLI (gh)** - Required for seamless GitHub integration
+
+**Platform Support**: Clambake works on Linux, macOS, and Windows. All core dependencies are cross-platform compatible.
+
+### GitHub Requirements
+- **GitHub repository** with Issues enabled
+- **GitHub personal access token** with the following scopes:
+  - `repo` - Full repository access
+  - `workflow` - GitHub Actions (if using automated agents)
+  - `read:org` - Organization access (if repository is in an organization)
+  - `gist` - For storing agent logs and debugging information
+
+### Authentication Setup
+
+#### Option 1: GitHub CLI (Recommended)
+The GitHub CLI provides the most seamless authentication experience:
 
 ```bash
-# Your new multi-agent development workflow
-clambake init --agents 8           # Complete setup in seconds
-clambake route --priority high     # Intelligent ticket routing
-clambake status                    # Real-time progress dashboard
-clambake land                      # Safe work integration
+# Install GitHub CLI (if not already installed)
+# On Ubuntu/Debian: sudo apt install gh
+# On macOS: brew install gh
+# On other systems: see https://cli.github.com/
+
+# Authenticate with GitHub
+gh auth login
+
+# Verify authentication
+gh auth status
 ```
 
-**What You Get**: Professional-grade multi-agent coordination with zero manual synchronization, built-in observability, and enterprise reliability from day one.
+#### Option 2: Manual Token Setup
+If you prefer manual token configuration:
 
-## Get Started in 60 Seconds
+1. **Create a GitHub Personal Access Token**:
+   - Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+   - Generate new token with scopes: `repo`, `workflow`, `read:org`, `gist`
+   - Copy the token (starts with `ghp_` or `github_pat_`)
 
-```bash
-# Install Clambake
-cargo install clambake
+2. **Configure the token** using one of these methods:
 
-# Transform any repository into a multi-agent workspace
-cd your-project
-clambake init --agents 8
+   **Method A: Environment Variable**
+   ```bash
+   export CLAMBAKE_GITHUB_TOKEN="ghp_your_personal_access_token_here"
+   ```
 
-# Start orchestrating immediately
-clambake route                     # Route tickets to agents
-clambake land                      # Integrate completed work
-clambake dashboard                 # Monitor all agent activity
-```
+   **Method B: Credential File**
+   ```bash
+   mkdir -p .clambake/credentials
+   echo "ghp_your_personal_access_token_here" > .clambake/credentials/github_token
+   ```
 
-**That's it.** Clambake handles git worktrees, branch coordination, GitHub integration, and work preservation automatically.
+   **Method C: Configuration File** (see Configuration section below)
 
-## Why Teams Choose Clambake
+### Repository Configuration
 
-### ⚡ **10x Development Velocity**
-Route work to 8-12 concurrent Claude Code agents with intelligent dependency resolution and conflict prevention.
+Clambake needs to know which GitHub repository to manage. Configure this in `clambake.toml`:
 
-### 🛡️ **Zero Work Loss Guarantee** 
-Battle-tested atomic operations and automatic recovery ensure completed agent work never disappears.
-
-### 🎯 **GitHub-Native Integration**
-Uses GitHub Issues, Project boards, and PRs as the single source of truth. No custom state files or dual coordination systems.
-
-### 📊 **Day-One Observability**
-Built-in Arize Phoenix integration provides complete visibility into agent decision-making and performance optimization.
-
-### 🔧 **Enterprise-Grade Reliability**
-Compile-time safety guarantees, comprehensive test coverage, and chaos engineering validation.
-
-## How It Works
-
-### 1. **Intelligent Routing** (`clambake route`)
-```bash
-clambake route --agents 8 --priority high
-```
-- Scans GitHub Issues with routing labels
-- Assigns work based on agent availability and dependencies
-- Creates isolated git worktrees for conflict-free development
-- Updates GitHub Project boards automatically
-
-### 2. **Safe Integration** (`clambake land`)
-```bash
-clambake land --auto-merge --require-ci
-```
-- Validates agent work completeness
-- Creates pull requests with full context
-- Waits for CI validation and code review
-- Merges to main with automated cleanup
-
-### 3. **Real-Time Monitoring** (`clambake status`)
-```bash
-clambake status --health-check
-```
-- Live agent state and progress tracking
-- GitHub integration health monitoring
-- Performance metrics and bottleneck identification
-- Automatic recovery status reporting
-
-### 4. **Automatic Recovery** (`clambake recover`)
-```bash
-clambake recover --scan-all --auto-pr
-```
-- Detects orphaned branches with completed work
-- Creates recovery PRs for human review
-- Prevents work loss during coordination failures
-- Maintains complete audit trail
-
-## Real-World Impact
-
-### Before Clambake
-```
-❌ Manual agent coordination
-❌ Lost work during cleanup
-❌ Conflicting branches
-❌ Hours debugging state mismatches
-❌ No visibility into agent decisions
-```
-
-### After Clambake
-```
-✅ 8-12 agents working concurrently
-✅ Zero work loss with automatic recovery
-✅ Conflict-free git worktree isolation
-✅ 2-second routing, 5-minute integration
-✅ Complete observability and metrics
-```
-
-## Command Reference
-
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `clambake init` | Set up multi-agent environment | `clambake init --agents 8` |
-| `clambake route` | Assign tickets to agents | `clambake route --priority high` |
-| `clambake land` | Integrate completed work | `clambake land --auto-merge` |
-| `clambake status` | View system health | `clambake status --agents-only` |
-| `clambake recover` | Rescue orphaned work | `clambake recover --scan-all` |
-| `clambake dashboard` | Launch monitoring UI | `clambake dashboard` |
-
-## System Requirements
-
-- **Rust 1.75+** - For CLI installation
-- **Git 2.30+** - For worktree and branch management  
-- **GitHub repository** - With Issues and Projects V2 enabled
-- **Docker** (optional) - For Phoenix observability dashboard
-
-## Advanced Configuration
-
-### Multi-Agent Label System
-```yaml
-# Add these labels to your GitHub repository
-- name: "route:ready"     # Ready for agent assignment
-- name: "route:review"    # Agent work complete, ready for bundling
-- name: "agent001"        # Assigned to specific agent
-- name: "human-only"      # Requires human intervention
-```
-
-### Project Configuration (`clambake.toml`)
 ```toml
 [github]
-owner = "your-org"
-repo = "your-repo" 
-project_id = 123
-
-[routing]
-max_agents = 8
-priority_labels = ["high", "medium", "low"]
-auto_merge = true
-
-[integration]
-require_reviews = true
-merge_strategy = "squash"
-ci_timeout = "30m"
+owner = "your-username"        # or organization name
+repo = "your-repository-name"
 ```
 
-## Enterprise Features
+Alternatively, use environment variables:
+```bash
+export GITHUB_OWNER="your-username"
+export GITHUB_REPO="your-repository-name"
+```
 
-### **Claude Code Integration**
-- Seamless sub-agent spawning with specialized system prompts
-- Automatic git worktree isolation for conflict-free development  
-- Intelligent context window management and /clear coordination
-- "think harder" mode for complex coordination decisions
+## Installation
 
-### **Arize Phoenix Observability** 
-- OpenTelemetry-based tracing for complete decision visibility
-- Real-time agent performance analytics and bottleneck identification
-- Integration success metrics and productivity optimization
-- Development-to-production observability continuity
+```bash
+git clone https://github.com/your-org/clambake
+cd clambake
+cargo build --release
+```
 
-### **Battle-Tested Reliability**
-- Property-based testing with chaos engineering validation
-- Atomic state transitions with automatic rollback capabilities
-- Comprehensive recovery mechanisms for all failure scenarios
-- 95%+ integration success rate with enterprise-grade SLAs
+## Configuration
 
-## Documentation & Support
+Clambake uses a layered configuration system with the following precedence:
+1. Environment variables (highest priority)
+2. Configuration file (`clambake.toml`)
+3. Default values (lowest priority)
 
-- **[Getting Started Guide](docs/user-guide/)** - Step-by-step setup and workflows
-- **[Architecture Overview](docs/architecture/)** - System design and technical decisions  
-- **[API Documentation](https://docs.rs/clambake)** - Complete CLI and library reference
-- **[GitHub Discussions](../../discussions)** - Community support and feature requests
+### Configuration File Setup
+Copy the example configuration and customize it:
+
+```bash
+cp clambake.example.toml clambake.toml
+```
+
+Key configuration sections:
+
+```toml
+[github]
+owner = "your-username"
+repo = "your-repo"
+
+[github.rate_limit]
+requests_per_hour = 5000
+burst_capacity = 100
+
+[agents]
+max_agents = 4
+coordination_timeout_seconds = 300
+
+[observability]
+tracing_enabled = true
+log_level = "info"
+```
+
+### Environment Variable Reference
+
+All configuration options can be overridden with environment variables using the `CLAMBAKE_` prefix:
+
+```bash
+# GitHub settings
+export CLAMBAKE_GITHUB_TOKEN="ghp_your_token"
+export CLAMBAKE_GITHUB_OWNER="your-username"
+export CLAMBAKE_GITHUB_REPO="your-repo"
+
+# Agent settings
+export CLAMBAKE_AGENTS_MAX_AGENTS=8
+export CLAMBAKE_AGENTS_COORDINATION_TIMEOUT_SECONDS=600
+
+# Observability
+export CLAMBAKE_OBSERVABILITY_LOG_LEVEL="debug"
+export CLAMBAKE_OBSERVABILITY_TRACING_ENABLED=true
+```
+
+## AI Agent Coordination Domain
+
+### What Clambake Does
+Clambake orchestrates AI coding agents (like Claude Code) to work on GitHub Issues collaboratively. It implements a sophisticated multi-agent coordination system where:
+
+- **Agents** are AI assistants that autonomously complete coding tasks
+- **Issues** are routed to available agents based on labels and priorities  
+- **Branches** are created automatically for each agent's work to prevent conflicts
+- **Coordination** happens through GitHub's native features (labels, PRs, reviews)
+
+### Domain-Specific Setup Requirements
+
+#### GitHub Issue Labels
+Your repository must have these labels for the routing system:
+
+**Priority Labels:**
+- `route:priority-very-high` - Critical tasks (Priority 4)
+- `route:priority-high` - Important tasks (Priority 3) 
+- `route:priority-medium` - Standard tasks (Priority 2)
+- `route:priority-low` - Nice-to-have tasks (Priority 1)
+
+**Routing Labels:**
+- `route:ready` - Issues ready for agent assignment
+- `route:land` - Merge-ready work needing final review
+- `route:unblocker` - Critical system issues blocking other work
+
+**Agent Assignment Labels:**
+- `agent001`, `agent002`, `agent003`, etc. - Track which agent is working on which issue
+
+**Feedback Labels:**
+- `coderabbit-feedback` - Issues created from AI code review feedback
+- `supertask-decomposition` - Sub-tasks broken down from larger work
+
+Create these labels automatically:
+```bash
+# After authentication, run:
+./target/release/clambake setup-labels
+```
+
+#### Agent Workflow Understanding
+Agents operate in a **3-phase workflow**:
+
+1. **Phase 1: Work → PR** - Agent implements solution and creates pull request
+2. **Phase 2: Review** - CodeRabbit AI reviews the pull request  
+3. **Phase 3: Merge** - Agent decomposes feedback into follow-up issues and merges
+
+This prevents work-in-progress from blocking the system while ensuring code quality through automated review cycles.
+
+#### AI Service Integration
+While Clambake manages the coordination, the actual AI agents (like Claude Code) need:
+- Access to the repository for reading/writing code
+- Ability to create commits and branches
+- Understanding of the issue requirements and acceptance criteria
+
+The coordination system tracks agent state through GitHub labels, not internal databases, making it transparent and debuggable.
+
+## Basic Usage
+```bash
+./target/release/clambake route --agents 3
+```
+
+Check current status:
+```bash
+./target/release/clambake status
+```
+
+Get next available task:
+```bash
+./target/release/clambake pop
+```
+
+## Required GitHub Labels
+
+The labels mentioned in the AI Agent Coordination section are created automatically, but if needed manually:
+- `route:ready` - Issues ready for agent assignment  
+- `agent001`, `agent002`, etc. - Agent assignments
+
+## Troubleshooting
+
+### Authentication Issues
+
+**Problem**: `GitHub token not found` error
+```bash
+# Solution: Verify token configuration
+gh auth status
+
+# If not authenticated:
+gh auth login
+
+# Or set environment variable:
+export CLAMBAKE_GITHUB_TOKEN="your_token_here"
+
+# Or check credential file:
+cat .clambake/credentials/github_token
+```
+
+**Problem**: `Permission denied` errors
+- Ensure your token has `repo`, `workflow`, `read:org`, and `gist` scopes
+- For organization repos, you may need additional org-level permissions
+
+### Configuration Issues
+
+**Problem**: `Configuration file not found`
+```bash
+# Copy and customize the example:
+cp clambake.example.toml clambake.toml
+
+# Edit with your repository details:
+[github]
+owner = "your-username"
+repo = "your-repo"
+```
+
+**Problem**: Environment variables not taking effect
+- Environment variables must use the `CLAMBAKE_` prefix
+- Restart your shell after setting variables
+- Check precedence: env vars > config file > defaults
+
+### GitHub API Issues
+
+**Problem**: Rate limit exceeded
+- Default limit is 5,000 requests/hour for authenticated users
+- Configure rate limiting in `clambake.toml`:
+```toml
+[github.rate_limit]
+requests_per_hour = 5000
+burst_capacity = 100
+```
+
+**Problem**: `Repository not found` errors
+- Verify repository name and owner in config
+- Ensure your token has access to the repository
+- For private repos, token needs appropriate permissions
+
+### Build Issues
+
+**Problem**: Compilation errors
+```bash
+# Ensure you have the correct Rust version:
+rustc --version  # Should be 1.75+
+
+# Clean and rebuild:
+cargo clean
+cargo build --release
+```
+
+**Problem**: Missing system dependencies
+```bash
+# Ubuntu/Debian:
+sudo apt update && sudo apt install build-essential git
+
+# macOS:
+xcode-select --install
+
+# Windows: Install Visual Studio Build Tools
+```
+
+### Runtime Issues
+
+**Problem**: No issues found to route
+- Check that issues have the `route:ready` label
+- Verify repository configuration is correct
+- Ensure you have read access to the repository's issues
+
+**Problem**: Branch creation failures
+- Verify Git is configured with user name and email:
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+```
+
+### Getting Help
+
+If you encounter issues not covered here:
+1. Check the [spec.md](spec.md) for architectural details
+2. Enable debug logging: `export CLAMBAKE_OBSERVABILITY_LOG_LEVEL=debug`
+3. Run with verbose output: `cargo run -- <command> --verbose`
+4. Review the `/docs` directory for comprehensive documentation
+
+## Documentation
+
+Comprehensive documentation is available in the `/docs` directory and `spec.md` for architecture details.
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and contribution guidelines.
+See build warnings when running `cargo check`. Many features are stubbed out and need implementation.
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for full details.
-
----
-
-**"Built on the lessons from coordination disasters. Engineered to never repeat those mistakes."**
-
-*Clambake transforms multi-agent development from chaotic coordination into reliable, observable, enterprise-ready workflows.*
+MIT License - See [LICENSE](LICENSE) for details.
