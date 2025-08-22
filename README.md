@@ -105,10 +105,55 @@ CLAMBAKE_GITHUB_REPO=your-repo
 ```
 
 ### Setup Your Repository
-After installation and configuration, set up the required GitHub labels:
+
+#### Option 1: Automated Setup (Coming Soon)
+The `clambake init` command will automate repository setup in a future release:
 
 ```bash
-./target/release/clambake setup-labels
+# Future: One-command setup (WIP)
+./target/release/clambake init --agents 3
+```
+
+**What this will do:**
+- ✅ Validate GitHub authentication and permissions
+- 🏷️  Create required routing labels (`route:ready`, `route:priority-high`, etc.)
+- ⚙️  Generate `clambake.toml` configuration 
+- 🤖 Initialize agent capacity and tracking
+- 📁 Create `.clambake/` directory structure
+- ✅ Verify setup and test connectivity
+
+#### Option 2: Manual Setup (Current Required Process)
+Until `clambake init` is implemented, set up your repository manually:
+
+**1. Create Required GitHub Labels:**
+```bash
+# Core routing labels
+gh label create "route:ready" --color "0052cc" --description "Available for agent assignment"
+gh label create "route:ready_to_merge" --color "5319e7" --description "Completed work ready for merge"
+gh label create "route:unblocker" --color "d73a4a" --description "Critical system issues"
+gh label create "route:review" --color "fbca04" --description "Under review"
+gh label create "route:human-only" --color "7057ff" --description "Requires human attention"
+
+# Priority labels  
+gh label create "route:priority-low" --color "c2e0c6" --description "Priority: 1"
+gh label create "route:priority-medium" --color "f9d71c" --description "Priority: 2"
+gh label create "route:priority-high" --color "ff6b6b" --description "Priority: 3"  
+gh label create "route:priority-very-high" --color "d73a4a" --description "Priority: 4"
+```
+
+**2. Verify Configuration:**
+```bash
+# Test that clambake can connect to your repository
+./target/release/clambake status
+```
+
+**3. Start Using Clambake:**
+```bash
+# Label some issues as ready for agents
+gh issue edit <issue-number> --add-label "route:ready"
+
+# Begin agent workflow
+./target/release/clambake pop
 ```
 
 > 📖 **Need help?** See the [complete installation guide](docs/README.md#installation) for troubleshooting and advanced configuration.
@@ -251,7 +296,7 @@ Comprehensive documentation is organized for different audiences and use cases:
 ### 🏗️ Architecture & Specifications  
 - **[System Specification](spec.md)** - Complete system architecture and design principles
 - **[Domain Specifications](specs/README.md)** - Detailed technical specifications by domain
-- **[API Documentation](https://docs.rs/clambake)** - Auto-generated Rust API docs
+- **API Documentation** - Auto-generated Rust API docs (available after crate publication)
 
 ### 🤖 Agent Integration
 - **[Agent Lifecycle](docs/agent_lifecycle.md)** - How agents coordinate and work together
