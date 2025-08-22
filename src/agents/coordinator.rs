@@ -752,22 +752,57 @@ impl AgentCoordinator {
         }
     }
     
-    /// Get current state machine state for debugging
+    /// Get current state machine state for debugging and status reporting
     pub async fn get_agent_state_machine_info(&self, agent_id: &str) -> Option<String> {
         let state_machines = self.agent_state_machines.lock().await;
         if let Some(sm) = state_machines.get(agent_id) {
+            let inner = sm.inner();
+            let status = if inner.is_available() {
+                "AVAILABLE"
+            } else if inner.is_assigned() {
+                "ASSIGNED"
+            } else if inner.is_working() {
+                "WORKING"
+            } else {
+                "OTHER"
+            };
+            
             Some(format!(
-                "Agent: {}, Available: {}, Assigned: {}, Working: {}, Current Issue: {:?}, Branch: {:?}",
+                "Agent: {} | Status: {} | Issue: {:?} | Branch: {:?} | Commits: {}",
                 agent_id,
-                sm.inner().is_available(),
-                sm.inner().is_assigned(),
-                sm.inner().is_working(),
-                sm.inner().current_issue(),
-                sm.inner().current_branch()
+                status,
+                inner.current_issue(),
+                inner.current_branch(),
+                inner.commits_ahead()
             ))
         } else {
             None
         }
+    }
+
+    /// Get detailed state machine status for all agents
+    pub async fn get_all_agent_states(&self) -> Vec<(String, String)> {
+        let state_machines = self.agent_state_machines.lock().await;
+        let mut states = Vec::new();
+        
+        for (agent_id, sm) in state_machines.iter() {
+            let inner = sm.inner();
+            let status = if inner.is_available() {
+                "AVAILABLE".to_string()
+            } else if inner.is_assigned() {
+                format!("ASSIGNED(issue: {})", inner.current_issue().unwrap_or(0))
+            } else if inner.is_working() {
+                format!("WORKING(issue: {}, commits: {})", 
+                       inner.current_issue().unwrap_or(0), 
+                       inner.commits_ahead())
+            } else {
+                "OTHER".to_string()
+            };
+            
+            states.push((agent_id.clone(), status));
+        }
+        
+        states
     }
 
     /// Get current bundling status for operational visibility

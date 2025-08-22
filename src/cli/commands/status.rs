@@ -66,6 +66,27 @@ impl StatusCommand {
                     }
                 }
                 
+                // Display state machine information
+                println!("🔧 STATE MACHINE STATUS:");
+                println!("───────────────────────");
+                
+                match router.get_agent_state_machine_status().await {
+                    Ok(states) => {
+                        if states.is_empty() {
+                            println!("⚠️  No state machines initialized");
+                        } else {
+                            for (agent_id, status) in states {
+                                println!("🤖 {}", status);
+                            }
+                        }
+                        println!();
+                    }
+                    Err(e) => {
+                        println!("❌ Failed to get state machine status: {}", e);
+                        println!();
+                    }
+                }
+                
                 // Display task queue
                 println!("📋 TASK QUEUE:");
                 println!("──────────────");

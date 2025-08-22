@@ -85,6 +85,11 @@ impl AgentRouter {
         Ok(self.coordinator.get_agent_utilization().await)
     }
 
+    // Get state machine status for all agents
+    pub async fn get_agent_state_machine_status(&self) -> Result<Vec<(String, String)>, GitHubError> {
+        Ok(self.coordinator.get_all_agent_states().await)
+    }
+
     pub fn get_github_client(&self) -> &GitHubClient {
         &self.github_client
     }

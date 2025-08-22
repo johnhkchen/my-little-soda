@@ -2,6 +2,7 @@ use clap::Parser;
 use anyhow::Result;
 
 mod github;
+mod agent_lifecycle;
 mod agents;
 mod workflows;
 mod priority;
