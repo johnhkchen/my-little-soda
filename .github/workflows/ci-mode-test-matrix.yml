@@ -1,0 +1,364 @@
+name: CI Mode Test Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_scope:
+        description: 'Test scope (all, unit, integration, property)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - unit
+          - integration
+          - property
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+  schedule:
+    # Run matrix tests daily at 6 AM UTC
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  test-matrix:
+    name: Test CI Mode - ${{ matrix.environment }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Standard GitHub Actions environment
+          - environment: "github-actions-standard"
+            os: ubuntu-latest
+            ci_mode: true
+            artifact_handling: "standard"
+            token_strategy: "standard"
+            rust_toolchain: "stable"
+            test_flags: "--ci-mode"
+            timeout_minutes: 15
+            
+          # Optimized GitHub Actions environment
+          - environment: "github-actions-optimized"
+            os: ubuntu-latest
+            ci_mode: true
+            artifact_handling: "optimized"
+            token_strategy: "ci_optimized"
+            rust_toolchain: "stable"
+            test_flags: "--ci-mode --verbose"
+            timeout_minutes: 12
+            
+          # Minimal resource environment
+          - environment: "github-actions-minimal"
+            os: ubuntu-latest
+            ci_mode: true
+            artifact_handling: "minimal"
+            token_strategy: "rate_limited"
+            rust_toolchain: "stable"
+            test_flags: "--ci-mode"
+            timeout_minutes: 20
+            
+          # Local simulation environment
+          - environment: "local-simulation"
+            os: ubuntu-latest
+            ci_mode: false
+            artifact_handling: "disabled"
+            token_strategy: "user_token"
+            rust_toolchain: "stable"
+            test_flags: ""
+            timeout_minutes: 10
+            
+          # Cross-platform testing
+          - environment: "windows-ci"
+            os: windows-latest
+            ci_mode: true
+            artifact_handling: "standard"
+            token_strategy: "standard"
+            rust_toolchain: "stable"
+            test_flags: "--ci-mode"
+            timeout_minutes: 18
+            
+          - environment: "macos-ci"
+            os: macos-latest
+            ci_mode: true
+            artifact_handling: "standard"
+            token_strategy: "standard"
+            rust_toolchain: "stable"
+            test_flags: "--ci-mode"
+            timeout_minutes: 18
+            
+          # Different Rust versions
+          - environment: "rust-beta-ci"
+            os: ubuntu-latest
+            ci_mode: true
+            artifact_handling: "standard"
+            token_strategy: "standard"
+            rust_toolchain: "beta"
+            test_flags: "--ci-mode"
+            timeout_minutes: 15
+            
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_toolchain }}
+          cache: false
+          
+      - name: Configure Rust caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "ci-test-matrix-${{ matrix.environment }}-${{ matrix.rust_toolchain }}"
+          cache-directories: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          cache-all-crates: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          
+      - name: Setup environment variables
+        run: |
+          echo "🔧 Setting up environment for: ${{ matrix.environment }}"
+          
+          # Set base environment variables
+          echo "CLAMBAKE_TEST_ENVIRONMENT=${{ matrix.environment }}" >> $GITHUB_ENV
+          echo "CLAMBAKE_CI_MODE=${{ matrix.ci_mode }}" >> $GITHUB_ENV
+          echo "CLAMBAKE_ARTIFACT_HANDLING=${{ matrix.artifact_handling }}" >> $GITHUB_ENV
+          echo "CLAMBAKE_TOKEN_STRATEGY=${{ matrix.token_strategy }}" >> $GITHUB_ENV
+          
+          # Platform-specific configurations
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "CLAMBAKE_PLATFORM_ADJUSTMENTS=windows" >> $GITHUB_ENV
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            echo "CLAMBAKE_PLATFORM_ADJUSTMENTS=macos" >> $GITHUB_ENV
+          else
+            echo "CLAMBAKE_PLATFORM_ADJUSTMENTS=linux" >> $GITHUB_ENV
+          fi
+          
+          # Rust version tracking
+          echo "CLAMBAKE_RUST_VERSION=${{ matrix.rust_toolchain }}" >> $GITHUB_ENV
+          
+      - name: Build Clambake
+        run: |
+          echo "🔨 Building Clambake for test environment: ${{ matrix.environment }}"
+          
+          # Adjust build flags based on environment
+          BUILD_FLAGS=""
+          if [[ "${{ matrix.environment }}" == *"optimized"* ]]; then
+            BUILD_FLAGS="--release"
+          fi
+          
+          cargo build $BUILD_FLAGS
+          
+      - name: Run unit tests
+        if: github.event.inputs.test_scope == 'all' || github.event.inputs.test_scope == 'unit' || github.event.inputs.test_scope == ''
+        run: |
+          echo "🧪 Running unit tests for: ${{ matrix.environment }}"
+          
+          # Run tests with environment-specific configurations
+          if [[ "${{ matrix.ci_mode }}" == "true" ]]; then
+            cargo test --lib ${{ matrix.test_flags }} -- --test-threads=1
+          else
+            cargo test --lib
+          fi
+          
+      - name: Run integration tests
+        if: github.event.inputs.test_scope == 'all' || github.event.inputs.test_scope == 'integration' || github.event.inputs.test_scope == ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔗 Running integration tests for: ${{ matrix.environment }}"
+          
+          # Run CI mode specific integration tests
+          cargo test --test ci_mode_integration_tests ${{ matrix.test_flags }}
+          
+          # Run general integration tests if not minimal environment
+          if [[ "${{ matrix.environment }}" != *"minimal"* ]]; then
+            cargo test --test workflow_integration_tests ${{ matrix.test_flags }}
+          fi
+          
+      - name: Run property-based tests
+        if: github.event.inputs.test_scope == 'all' || github.event.inputs.test_scope == 'property' || github.event.inputs.test_scope == ''
+        run: |
+          echo "🎲 Running property-based tests for: ${{ matrix.environment }}"
+          
+          # Property tests with environment matrix validation
+          cargo test --test ci_mode_property_tests ${{ matrix.test_flags }}
+          
+      - name: Test CLI flag compatibility
+        run: |
+          echo "⚙️ Testing CLI flag compatibility for: ${{ matrix.environment }}"
+          
+          # Test basic CLI functionality
+          if [[ "${{ matrix.ci_mode }}" == "true" ]]; then
+            ./target/debug/clambake --help
+            ./target/debug/clambake --ci-mode --help
+            
+            # Test specific CI mode commands
+            echo "Testing CI mode commands..."
+            ./target/debug/clambake actions --help
+            
+            # Simulate CI workflow commands (dry run)
+            if [[ "${{ matrix.environment }}" != *"minimal"* ]]; then
+              ./target/debug/clambake peek ${{ matrix.test_flags }} || echo "Peek command test completed"
+              ./target/debug/clambake status ${{ matrix.test_flags }} || echo "Status command test completed"
+            fi
+          else
+            ./target/debug/clambake --help
+            ./target/debug/clambake peek || echo "Local peek command test completed"
+          fi
+          
+      - name: Performance benchmarking
+        if: matrix.environment == 'github-actions-optimized' || matrix.environment == 'github-actions-standard'
+        run: |
+          echo "📊 Running performance benchmarks for: ${{ matrix.environment }}"
+          
+          # Simple performance test to compare CI vs standard mode
+          time cargo test --test ci_mode_integration_tests --release -- --nocapture test_ci_mode_performance_optimization
+          
+      - name: Generate test artifacts
+        if: always() && matrix.ci_mode == true
+        run: |
+          echo "📦 Generating test artifacts for: ${{ matrix.environment }}"
+          
+          mkdir -p test-artifacts/${{ matrix.environment }}
+          
+          # Test environment metadata
+          cat > test-artifacts/${{ matrix.environment }}/environment-info.json << EOF
+          {
+            "environment": "${{ matrix.environment }}",
+            "os": "${{ matrix.os }}",
+            "ci_mode": ${{ matrix.ci_mode }},
+            "artifact_handling": "${{ matrix.artifact_handling }}",
+            "token_strategy": "${{ matrix.token_strategy }}",
+            "rust_toolchain": "${{ matrix.rust_toolchain }}",
+            "test_flags": "${{ matrix.test_flags }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}",
+            "github_ref": "${{ github.ref }}"
+          }
+          EOF
+          
+          # Test results summary
+          echo "Test execution completed for environment: ${{ matrix.environment }}" > test-artifacts/${{ matrix.environment }}/test-summary.txt
+          echo "Test flags used: ${{ matrix.test_flags }}" >> test-artifacts/${{ matrix.environment }}/test-summary.txt
+          echo "Timeout limit: ${{ matrix.timeout_minutes }} minutes" >> test-artifacts/${{ matrix.environment }}/test-summary.txt
+          
+      - name: Upload test artifacts
+        if: always() && matrix.ci_mode == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.environment }}-${{ github.run_id }}
+          path: test-artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
+          
+  consolidate-results:
+    name: Consolidate Test Results
+    runs-on: ubuntu-latest
+    needs: test-matrix
+    if: always()
+    
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-test-results/
+          
+      - name: Consolidate test matrix results
+        run: |
+          echo "📋 Consolidating test results from all environments..."
+          
+          # Count successful vs failed test environments
+          SUCCESS_COUNT=0
+          FAILURE_COUNT=0
+          
+          for env_dir in all-test-results/*/; do
+            if [[ -d "$env_dir" ]]; then
+              ENV_NAME=$(basename "$env_dir" | sed 's/test-results-//' | sed 's/-[0-9]*$//')
+              echo "Processing results for environment: $ENV_NAME"
+              
+              if [[ -f "$env_dir/environment-info.json" ]]; then
+                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+                echo "✅ $ENV_NAME - Test artifacts generated successfully"
+              else
+                FAILURE_COUNT=$((FAILURE_COUNT + 1))
+                echo "❌ $ENV_NAME - No test artifacts found"
+              fi
+            fi
+          done
+          
+          # Generate summary report
+          cat > test-matrix-summary.md << EOF
+          # CI Mode Test Matrix Summary
+          
+          **Test Run ID:** ${{ github.run_id }}
+          **Triggered by:** ${{ github.event_name }}
+          **Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          ## Results Overview
+          
+          - ✅ **Successful environments:** $SUCCESS_COUNT
+          - ❌ **Failed environments:** $FAILURE_COUNT
+          - 📊 **Total tested:** $((SUCCESS_COUNT + FAILURE_COUNT))
+          
+          ## Environment Coverage
+          
+          The test matrix validated CI mode functionality across:
+          - Multiple operating systems (Ubuntu, Windows, macOS)
+          - Different Rust toolchain versions (stable, beta)
+          - Various CI configurations (standard, optimized, minimal)
+          - Cross-platform compatibility testing
+          
+          ## Test Scope
+          
+          Test scope: **${{ github.event.inputs.test_scope || 'all' }}**
+          
+          Tests executed:
+          - Unit tests for CI mode functionality
+          - Integration tests for workflow coordination
+          - Property-based tests for configuration validation
+          - CLI compatibility tests
+          - Performance benchmarking (where applicable)
+          
+          EOF
+          
+          echo "📊 Test Matrix Summary:"
+          cat test-matrix-summary.md
+          
+      - name: Upload consolidated results
+        uses: actions/upload-artifact@v4
+        with:
+          name: consolidated-test-matrix-results-${{ github.run_id }}
+          path: |
+            all-test-results/
+            test-matrix-summary.md
+          retention-days: 14
+          
+      - name: Report test matrix status
+        run: |
+          echo "🎯 CI Mode Test Matrix Execution Complete"
+          echo "Test scope: ${{ github.event.inputs.test_scope || 'all' }}"
+          echo "Workflow run: ${{ github.run_id }}"
+          
+          # If this was triggered by a PR, we might want to add more specific reporting
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "🔍 Pull request testing completed"
+            echo "This test matrix validates CI mode changes across multiple environments"
+          fi

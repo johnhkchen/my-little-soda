@@ -5,6 +5,7 @@ pub struct InitCommand {
     pub template: Option<String>,
     pub force: bool,
     pub dry_run: bool,
+    pub ci_mode: bool,
 }
 
 impl InitCommand {
@@ -14,7 +15,13 @@ impl InitCommand {
             template,
             force,
             dry_run,
+            ci_mode: false,
         }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

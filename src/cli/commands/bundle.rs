@@ -7,6 +7,7 @@ pub struct BundleCommand {
     pub dry_run: bool,
     pub verbose: bool,
     pub diagnose: bool,
+    pub ci_mode: bool,
 }
 
 impl BundleCommand {
@@ -16,7 +17,13 @@ impl BundleCommand {
             dry_run,
             verbose,
             diagnose,
+            ci_mode: false,
         }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

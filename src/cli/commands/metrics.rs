@@ -3,16 +3,23 @@ use anyhow::Result;
 pub struct MetricsCommand {
     pub hours: u64,
     pub detailed: bool,
+    pub ci_mode: bool,
 }
 
 pub struct ExportMetricsCommand {
     pub hours: u64,
     pub output: Option<String>,
+    pub ci_mode: bool,
 }
 
 impl MetricsCommand {
     pub fn new(hours: u64, detailed: bool) -> Self {
-        Self { hours, detailed }
+        Self { hours, detailed, ci_mode: false }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {
@@ -33,7 +40,12 @@ impl MetricsCommand {
 
 impl ExportMetricsCommand {
     pub fn new(hours: u64, output: Option<String>) -> Self {
-        Self { hours, output }
+        Self { hours, output, ci_mode: false }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

@@ -7,6 +7,7 @@ pub struct PopCommand {
     pub mine_only: bool,
     pub bundle_branches: bool,
     pub auto_approve: bool,
+    pub ci_mode: bool,
 }
 
 impl PopCommand {
@@ -15,7 +16,13 @@ impl PopCommand {
             mine_only,
             bundle_branches,
             auto_approve,
+            ci_mode: false,
         }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

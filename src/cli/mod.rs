@@ -11,6 +11,10 @@ pub mod commands;
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
+    
+    /// Enable CI-optimized mode for GitHub Actions environments
+    #[arg(long, global = true, help = "Optimize operations for CI/CD environments with enhanced artifact handling")]
+    pub ci_mode: bool,
 }
 
 #[derive(Subcommand)]

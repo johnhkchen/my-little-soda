@@ -21,6 +21,21 @@ on:
         required: false
         default: 'true'
         type: boolean
+      ci_mode:
+        description: 'Enable CI-optimized mode for enhanced performance and artifact handling'
+        required: false
+        default: 'false'
+        type: boolean
+      artifact_handling:
+        description: 'Artifact handling strategy (standard or optimized)'
+        required: false
+        default: 'standard'
+        type: string
+      github_token_strategy:
+        description: 'GitHub token optimization strategy'
+        required: false
+        default: 'standard'
+        type: string
 
 permissions:
   contents: read
@@ -72,6 +87,20 @@ jobs:
           FORCE_BUNDLE="${{ github.event.inputs.force_bundle || 'false' }}"
           DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
           VERBOSE="${{ github.event.inputs.verbose || 'true' }}"
+          CI_MODE="${{ github.event.inputs.ci_mode || 'false' }}"
+          ARTIFACT_HANDLING="${{ github.event.inputs.artifact_handling || 'standard' }}"
+          
+          # CI mode optimizations
+          if [[ "$CI_MODE" == "true" ]]; then
+            echo "🤖 CI mode enabled - applying optimizations"
+            echo "   📦 Artifact handling: $ARTIFACT_HANDLING"
+            echo "   🚀 GitHub token strategy: ${{ github.event.inputs.github_token_strategy || 'standard' }}"
+            
+            # Enable GitHub Actions optimizations
+            export CLAMBAKE_CI_MODE=true
+            export CLAMBAKE_ARTIFACT_HANDLING="$ARTIFACT_HANDLING"
+            export GITHUB_ACTIONS_OPTIMIZED=true
+          fi
           
           # Check if this is a forced run
           if [[ "$FORCE_BUNDLE" == "true" ]]; then
@@ -105,10 +134,20 @@ jobs:
             echo "verbose_flag=" >> $GITHUB_OUTPUT
           fi
           
+          # Set CI mode flag
+          if [[ "$CI_MODE" == "true" ]]; then
+            echo "ci_mode_flag=--ci-mode" >> $GITHUB_OUTPUT
+          else
+            echo "ci_mode_flag=" >> $GITHUB_OUTPUT
+          fi
+          
       - name: Execute bundling
         if: steps.check.outputs.should_bundle == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLAMBAKE_CI_MODE: ${{ github.event.inputs.ci_mode == 'true' }}
+          CLAMBAKE_ARTIFACT_HANDLING: ${{ github.event.inputs.artifact_handling || 'standard' }}
+          GITHUB_ACTIONS_OPTIMIZED: ${{ github.event.inputs.ci_mode == 'true' }}
         run: |
           echo "🚄 Executing Clambake bundling workflow..."
           
@@ -127,15 +166,61 @@ jobs:
             BUNDLE_CMD="$BUNDLE_CMD ${{ steps.check.outputs.verbose_flag }}"
           fi
           
+          if [[ -n "${{ steps.check.outputs.ci_mode_flag }}" ]]; then
+            BUNDLE_CMD="$BUNDLE_CMD ${{ steps.check.outputs.ci_mode_flag }}"
+          fi
+          
           echo "🎯 Running: $BUNDLE_CMD"
           
           # Execute bundling with proper error handling
           if $BUNDLE_CMD; then
             echo "✅ Bundling completed successfully"
+            
+            # Store bundle metadata for artifact handling
+            if [[ "${{ github.event.inputs.ci_mode }}" == "true" ]]; then
+              echo "📦 Generating CI artifacts..."
+              mkdir -p .clambake/artifacts
+              
+              # Generate bundle summary
+              echo "{
+                \"workflow_run_id\": \"${{ github.run_id }}\",
+                \"bundle_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                \"ci_mode\": true,
+                \"artifact_handling\": \"${{ github.event.inputs.artifact_handling }}\",
+                \"bundle_status\": \"completed\",
+                \"triggered_by\": \"${{ github.event.inputs.triggered_by || 'github_actions' }}\"
+              }" > .clambake/artifacts/bundle-metadata.json
+              
+              # Export bundle state for downstream jobs
+              echo "bundle_status=completed" >> $GITHUB_OUTPUT
+              echo "bundle_artifacts_path=.clambake/artifacts/" >> $GITHUB_OUTPUT
+            fi
           else
             echo "❌ Bundling failed with exit code $?"
+            
+            # Store failure metadata for CI mode
+            if [[ "${{ github.event.inputs.ci_mode }}" == "true" ]]; then
+              mkdir -p .clambake/artifacts
+              echo "{
+                \"workflow_run_id\": \"${{ github.run_id }}\",
+                \"bundle_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                \"ci_mode\": true,
+                \"bundle_status\": \"failed\",
+                \"error_code\": \"$?\"
+              }" > .clambake/artifacts/bundle-metadata.json
+            fi
+            
             exit 1
           fi
+          
+      - name: Upload bundle artifacts
+        if: always() && github.event.inputs.ci_mode == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: clambake-bundle-artifacts-${{ github.run_id }}
+          path: .clambake/artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
           
       - name: Report bundling status
         if: always()
@@ -156,3 +241,12 @@ jobs:
           echo "   • Force Mode: ${{ github.event.inputs.force_bundle || 'false' }}"
           echo "   • Dry Run: ${{ github.event.inputs.dry_run || 'false' }}"
           echo "   • Verbose: ${{ github.event.inputs.verbose || 'true' }}"
+          echo "   • CI Mode: ${{ github.event.inputs.ci_mode || 'false' }}"
+          
+          # CI mode specific reporting
+          if [[ "${{ github.event.inputs.ci_mode }}" == "true" ]]; then
+            echo "   🤖 CI Optimizations:"
+            echo "     • Artifact Handling: ${{ github.event.inputs.artifact_handling || 'standard' }}"
+            echo "     • GitHub Token Strategy: ${{ github.event.inputs.github_token_strategy || 'standard' }}"
+            echo "     • Bundle Artifacts: ${{ steps.execute.outputs.bundle_artifacts_path || 'none' }}"
+          fi

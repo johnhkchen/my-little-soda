@@ -1,11 +1,18 @@
 use anyhow::Result;
 use crate::github::GitHubClient;
 
-pub struct ResetCommand;
+pub struct ResetCommand {
+    pub ci_mode: bool,
+}
 
 impl ResetCommand {
     pub fn new() -> Self {
-        Self
+        Self { ci_mode: false }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

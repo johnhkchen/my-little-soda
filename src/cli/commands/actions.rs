@@ -11,6 +11,7 @@ pub struct ActionsCommand {
     pub force: bool,
     pub dry_run: bool,
     pub verbose: bool,
+    pub ci_mode: bool,
 }
 
 impl ActionsCommand {
@@ -31,7 +32,13 @@ impl ActionsCommand {
             force,
             dry_run,
             verbose,
+            ci_mode: false,
         }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {
@@ -60,6 +67,7 @@ impl ActionsCommand {
             println!("   🚀 Force bundle: {}", self.force);
             println!("   🔍 Dry run: {}", self.dry_run);
             println!("   📢 Verbose: {}", self.verbose);
+            println!("   🤖 CI mode: {}", self.ci_mode);
             println!();
         }
 
@@ -68,7 +76,7 @@ impl ActionsCommand {
         print!("🎯 Triggering GitHub Actions bundling workflow... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        match coordinator.trigger_bundling_workflow(self.force, self.dry_run, self.verbose).await {
+        match coordinator.trigger_bundling_workflow_with_ci_mode(self.force, self.dry_run, self.verbose, self.ci_mode).await {
             Ok(_) => {
                 println!("✅");
                 println!();

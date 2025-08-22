@@ -10,6 +10,7 @@ pub struct LandCommand {
     pub days: u32,
     pub dry_run: bool,
     pub verbose: bool,
+    pub ci_mode: bool,
 }
 
 impl LandCommand {
@@ -19,7 +20,13 @@ impl LandCommand {
             days,
             dry_run,
             verbose,
+            ci_mode: false,
         }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

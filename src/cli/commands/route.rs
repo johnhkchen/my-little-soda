@@ -3,11 +3,20 @@ use crate::cli::commands::with_agent_router;
 
 pub struct RouteCommand {
     pub agents: u32,
+    pub ci_mode: bool,
 }
 
 impl RouteCommand {
     pub fn new(agents: u32) -> Self {
-        Self { agents }
+        Self { 
+            agents,
+            ci_mode: false,
+        }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

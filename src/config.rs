@@ -58,6 +58,24 @@ pub struct AgentConfig {
     pub bundle_processing: BundleConfig,
     /// Agent process management settings
     pub process_management: AgentProcessConfig,
+    /// CI/CD mode optimizations
+    pub ci_mode: CIModeConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CIModeConfig {
+    /// Enable CI-optimized mode by default
+    pub enabled: bool,
+    /// Artifact handling strategy (standard, optimized, enhanced)
+    pub artifact_handling: String,
+    /// GitHub token optimization strategy
+    pub github_token_strategy: String,
+    /// Enable workflow state persistence
+    pub workflow_state_persistence: bool,
+    /// CI-specific timeout adjustments in seconds
+    pub ci_timeout_adjustment: u64,
+    /// Enable enhanced error reporting for CI environments
+    pub enhanced_error_reporting: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -123,6 +141,14 @@ impl Default for ClambakeConfig {
                     cleanup_on_failure: true,
                     work_dir_prefix: ".clambake/agents".to_string(),
                     enable_real_agents: false, // Start with mocks by default for safety
+                },
+                ci_mode: CIModeConfig {
+                    enabled: false, // Disabled by default, enabled via --ci-mode flag
+                    artifact_handling: "standard".to_string(),
+                    github_token_strategy: "standard".to_string(),
+                    workflow_state_persistence: true,
+                    ci_timeout_adjustment: 300, // Additional 5 minutes for CI environments
+                    enhanced_error_reporting: true,
                 },
             },
             database: Some(DatabaseConfig {

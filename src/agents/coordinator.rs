@@ -802,26 +802,49 @@ impl AgentCoordinator {
         dry_run: bool,
         verbose: bool,
     ) -> Result<(), GitHubError> {
+        self.trigger_bundling_workflow_with_ci_mode(force, dry_run, verbose, false).await
+    }
+
+    pub async fn trigger_bundling_workflow_with_ci_mode(
+        &self,
+        force: bool,
+        dry_run: bool,
+        verbose: bool,
+        ci_mode: bool,
+    ) -> Result<(), GitHubError> {
         info!(
             force = force,
             dry_run = dry_run,
             verbose = verbose,
+            ci_mode = ci_mode,
             "Manually triggering GitHub Actions bundling workflow"
         );
 
-        let workflow_inputs = json!({
+        let mut workflow_inputs = json!({
             "force_bundle": force.to_string(),
             "dry_run": dry_run.to_string(),
             "verbose": verbose.to_string(),
             "triggered_by": "manual_cli"
         });
 
+        // Add CI mode optimization inputs
+        if ci_mode {
+            workflow_inputs["ci_mode"] = json!("true");
+            workflow_inputs["artifact_handling"] = json!("optimized");
+            workflow_inputs["github_token_strategy"] = json!("ci_optimized");
+            
+            info!("CI mode enabled - optimizing for GitHub Actions environment");
+        }
+
         self.github_client
             .actions
             .trigger_workflow("clambake-bundling.yml", Some(workflow_inputs))
             .await?;
 
-        info!("Successfully triggered GitHub Actions bundling workflow manually");
+        info!(
+            ci_mode = ci_mode,
+            "Successfully triggered GitHub Actions bundling workflow"
+        );
 
         Ok(())
     }

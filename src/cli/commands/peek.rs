@@ -3,11 +3,18 @@ use crate::cli::commands::with_agent_router;
 use crate::priority::Priority;
 use octocrab::models::issues::Issue;
 
-pub struct PeekCommand;
+pub struct PeekCommand {
+    pub ci_mode: bool,
+}
 
 impl PeekCommand {
     pub fn new() -> Self {
-        Self
+        Self { ci_mode: false }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {

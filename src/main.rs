@@ -64,37 +64,37 @@ async fn main() -> Result<()> {
             show_how_to_get_work().await
         },
         Some(Commands::Route { agents }) => {
-            RouteCommand::new(agents).execute().await
+            RouteCommand::new(agents).with_ci_mode(cli.ci_mode).execute().await
         },
         Some(Commands::Pop { mine, bundle_branches, yes }) => {
-            PopCommand::new(mine, bundle_branches, yes).execute().await
+            PopCommand::new(mine, bundle_branches, yes).with_ci_mode(cli.ci_mode).execute().await
         },
         Some(Commands::Status) => {
-            StatusCommand::new().execute().await
+            StatusCommand::new().with_ci_mode(cli.ci_mode).execute().await
         },
         Some(Commands::Init { agents, template, force, dry_run }) => {
-            InitCommand::new(agents, template, force, dry_run).execute().await
+            InitCommand::new(agents, template, force, dry_run).with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::Reset) => {
-            ResetCommand::new().execute().await
+            ResetCommand::new().with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::Land { open_only, days, dry_run, verbose }) => {
-            LandCommand::new(!open_only, days, dry_run, verbose).execute().await
+            LandCommand::new(!open_only, days, dry_run, verbose).with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::Bundle { force, dry_run, verbose, diagnose }) => {
-            BundleCommand::new(force, dry_run, verbose, diagnose).execute().await
+            BundleCommand::new(force, dry_run, verbose, diagnose).with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::Peek) => {
-            PeekCommand::new().execute().await
+            PeekCommand::new().with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::Metrics { hours, detailed }) => {
-            MetricsCommand::new(hours, detailed).execute().await
+            MetricsCommand::new(hours, detailed).with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::ExportMetrics { hours, output }) => {
-            ExportMetricsCommand::new(hours, output).execute().await
+            ExportMetricsCommand::new(hours, output).with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::Actions { trigger_bundle, status, logs, run_id, force, dry_run, verbose }) => {
-            ActionsCommand::new(trigger_bundle, status, logs, run_id, force, dry_run, verbose).execute().await
+            ActionsCommand::new(trigger_bundle, status, logs, run_id, force, dry_run, verbose).with_ci_mode(cli.ci_mode).execute().await
         }
     };
 

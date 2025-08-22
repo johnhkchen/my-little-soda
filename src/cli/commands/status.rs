@@ -2,11 +2,18 @@ use anyhow::Result;
 use crate::agents::AgentRouter;
 use octocrab::models::issues::Issue;
 
-pub struct StatusCommand;
+pub struct StatusCommand {
+    pub ci_mode: bool,
+}
 
 impl StatusCommand {
     pub fn new() -> Self {
-        Self
+        Self { ci_mode: false }
+    }
+
+    pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
+        self.ci_mode = ci_mode;
+        self
     }
 
     pub async fn execute(&self) -> Result<()> {
