@@ -16,28 +16,47 @@
 
 **In simple terms:** Scale your development team with AI assistants that work together like human developers.
 
-## Project Status
+## Table of Contents
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage Examples](#usage-examples)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
 
-**Early Alpha** - Not recommended for production use. See [detailed status information](docs/README.md#project-status) for current capabilities and limitations.
+## Installation
 
-## Quick Start
+### Requirements
+- **GitHub CLI**: `gh auth login` (for GitHub API access)
+- **Git**: Standard git installation
+- **Rust**: 1.75+ (for building from source)
 
-### Prerequisites
-- GitHub repository with Issues enabled
-- GitHub CLI (gh) authenticated: `gh auth login`
-- Rust 1.75+ for building from source
-
-### Install
+### Option 1: Build from Source
 ```bash
 git clone https://github.com/johnhkchen/clambake.git
 cd clambake
 cargo build --release
 ```
 
-### Setup Repository Labels
+The executable will be at `./target/release/clambake`.
+
+### Option 2: Pre-built Binaries
+Pre-built binaries are planned for future releases.
+
+### Setup Your Repository
+After installation, set up the required GitHub labels:
 ```bash
 ./target/release/clambake setup-labels
 ```
+
+> 📖 **Need help?** See the [complete installation guide](docs/README.md#installation) for troubleshooting and advanced configuration.
+
+## Project Status
+
+**Early Alpha** - Not recommended for production use. See [detailed status information](docs/README.md#project-status) for current capabilities and limitations.
+
+## Quick Start
+
+**Already installed?** Jump straight to using Clambake with your GitHub repository.
 
 ## Usage Examples
 
@@ -156,8 +175,6 @@ git commit -m "Fix login validation bug"
 # Get help for specific command
 ./target/release/clambake pop --help
 ```
-
-> 📖 **Need more detail?** See the [complete installation guide](docs/README.md#installation) for platform-specific requirements, authentication setup, and troubleshooting.
 
 ## Documentation
 
