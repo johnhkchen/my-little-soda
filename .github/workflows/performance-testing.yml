@@ -1,0 +1,326 @@
+name: Clambake Performance Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of performance test to run'
+        required: true
+        default: 'concurrent_agents'
+        type: choice
+        options:
+          - concurrent_agents
+          - bundling_performance
+          - stability_test
+          - benchmark_comparison
+          - full_suite
+      agent_count:
+        description: 'Number of concurrent agents to test'
+        required: false
+        default: '5'
+        type: string
+      test_duration:
+        description: 'Test duration in minutes'
+        required: false
+        default: '10'
+        type: string
+      benchmark_mode:
+        description: 'Enable detailed benchmarking'
+        required: false
+        default: 'true'
+        type: boolean
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  performance-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        
+      - name: Configure Rust caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "performance-test-${{ hashFiles('Cargo.lock') }}"
+          
+      - name: Build Clambake
+        run: |
+          echo "🔨 Building Clambake for performance testing..."
+          cargo build --release
+          
+      - name: Setup performance test environment
+        run: |
+          echo "🧪 Setting up performance test environment"
+          echo "Test Type: ${{ github.event.inputs.test_type }}"
+          echo "Agent Count: ${{ github.event.inputs.agent_count }}"
+          echo "Test Duration: ${{ github.event.inputs.test_duration }} minutes"
+          echo "Benchmark Mode: ${{ github.event.inputs.benchmark_mode }}"
+          
+          # Create performance test artifacts directory
+          mkdir -p .clambake/performance-results
+          
+          # Set environment variables for test configuration
+          echo "PERFORMANCE_TEST_TYPE=${{ github.event.inputs.test_type }}" >> $GITHUB_ENV
+          echo "AGENT_COUNT=${{ github.event.inputs.agent_count }}" >> $GITHUB_ENV
+          echo "TEST_DURATION_MINUTES=${{ github.event.inputs.test_duration }}" >> $GITHUB_ENV
+          echo "BENCHMARK_MODE=${{ github.event.inputs.benchmark_mode }}" >> $GITHUB_ENV
+          
+      - name: Run concurrent agents performance test
+        if: github.event.inputs.test_type == 'concurrent_agents' || github.event.inputs.test_type == 'full_suite'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🤖 Running concurrent agents performance test"
+          echo "Testing $AGENT_COUNT concurrent agents..."
+          
+          START_TIME=$(date -u +%s)
+          
+          # Run the end-to-end concurrent agents test
+          if cargo test test_five_concurrent_real_agents_without_resource_issues --release -- --nocapture; then
+            echo "✅ Concurrent agents test passed"
+            TEST_STATUS="passed"
+          else
+            echo "❌ Concurrent agents test failed"
+            TEST_STATUS="failed"
+          fi
+          
+          END_TIME=$(date -u +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
+          # Generate performance report
+          cat > .clambake/performance-results/concurrent-agents-report.json << EOF
+          {
+            "test_type": "concurrent_agents",
+            "agent_count": $AGENT_COUNT,
+            "duration_seconds": $DURATION,
+            "status": "$TEST_STATUS",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          
+      - name: Run bundling performance test
+        if: github.event.inputs.test_type == 'bundling_performance' || github.event.inputs.test_type == 'full_suite'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📦 Running bundling performance test"
+          
+          START_TIME=$(date -u +%s)
+          
+          # Run the GitHub Actions bundling performance test
+          if cargo test test_github_actions_bundling_performance --release -- --nocapture; then
+            echo "✅ Bundling performance test passed"
+            TEST_STATUS="passed"
+          else
+            echo "❌ Bundling performance test failed"
+            TEST_STATUS="failed"
+          fi
+          
+          END_TIME=$(date -u +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
+          # Generate performance report
+          cat > .clambake/performance-results/bundling-performance-report.json << EOF
+          {
+            "test_type": "bundling_performance",
+            "duration_seconds": $DURATION,
+            "status": "$TEST_STATUS",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          
+      - name: Run stability test
+        if: github.event.inputs.test_type == 'stability_test' || github.event.inputs.test_type == 'full_suite'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🛡️ Running system stability test"
+          echo "Duration: $TEST_DURATION_MINUTES minutes"
+          
+          START_TIME=$(date -u +%s)
+          
+          # Run the extended stability test
+          if cargo test test_system_stability_extended_operation --release -- --nocapture; then
+            echo "✅ Stability test passed"
+            TEST_STATUS="passed"
+          else
+            echo "❌ Stability test failed"
+            TEST_STATUS="failed"
+          fi
+          
+          END_TIME=$(date -u +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
+          # Generate performance report
+          cat > .clambake/performance-results/stability-test-report.json << EOF
+          {
+            "test_type": "stability_test",
+            "planned_duration_minutes": $TEST_DURATION_MINUTES,
+            "actual_duration_seconds": $DURATION,
+            "status": "$TEST_STATUS",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          
+      - name: Run benchmark comparison
+        if: github.event.inputs.test_type == 'benchmark_comparison' || github.event.inputs.test_type == 'full_suite'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📊 Running performance vs mock baseline benchmark"
+          
+          START_TIME=$(date -u +%s)
+          
+          # Run the performance comparison test
+          if cargo test test_performance_vs_mock_baseline --release -- --nocapture; then
+            echo "✅ Benchmark comparison test passed"
+            TEST_STATUS="passed"
+          else
+            echo "❌ Benchmark comparison test failed"
+            TEST_STATUS="failed"
+          fi
+          
+          END_TIME=$(date -u +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
+          # Generate performance report
+          cat > .clambake/performance-results/benchmark-comparison-report.json << EOF
+          {
+            "test_type": "benchmark_comparison",
+            "duration_seconds": $DURATION,
+            "status": "$TEST_STATUS",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          
+      - name: Run end-to-end integration test
+        if: github.event.inputs.test_type == 'full_suite'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 Running end-to-end workflow integration test"
+          
+          START_TIME=$(date -u +%s)
+          
+          # Run the complete end-to-end test
+          if cargo test test_end_to_end_workflow_integration --release -- --nocapture; then
+            echo "✅ End-to-end integration test passed"
+            TEST_STATUS="passed"
+          else
+            echo "❌ End-to-end integration test failed"
+            TEST_STATUS="failed"
+          fi
+          
+          END_TIME=$(date -u +%s)
+          DURATION=$((END_TIME - START_TIME))
+          
+          # Generate performance report
+          cat > .clambake/performance-results/end-to-end-report.json << EOF
+          {
+            "test_type": "end_to_end_integration",
+            "duration_seconds": $DURATION,
+            "status": "$TEST_STATUS",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          
+      - name: Generate comprehensive performance report
+        if: always()
+        run: |
+          echo "📋 Generating comprehensive performance report"
+          
+          # Combine all test results
+          cat > .clambake/performance-results/summary.json << EOF
+          {
+            "workflow_run_id": "${{ github.run_id }}",
+            "test_configuration": {
+              "test_type": "${{ github.event.inputs.test_type }}",
+              "agent_count": ${{ github.event.inputs.agent_count }},
+              "test_duration_minutes": ${{ github.event.inputs.test_duration }},
+              "benchmark_mode": ${{ github.event.inputs.benchmark_mode }}
+            },
+            "execution_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "test_results": [
+          EOF
+          
+          # Add individual test results if they exist
+          for report in .clambake/performance-results/*-report.json; do
+            if [[ -f "$report" ]]; then
+              cat "$report" >> .clambake/performance-results/summary.json
+              echo "," >> .clambake/performance-results/summary.json
+            fi
+          done
+          
+          # Remove trailing comma and close JSON
+          sed -i '$ s/,$//' .clambake/performance-results/summary.json
+          echo "    ]" >> .clambake/performance-results/summary.json
+          echo "}" >> .clambake/performance-results/summary.json
+          
+          echo "📊 Performance Test Summary:"
+          echo "=========================="
+          cat .clambake/performance-results/summary.json | jq .
+          
+      - name: Validate performance criteria
+        if: always()
+        run: |
+          echo "✅ Validating performance against acceptance criteria"
+          
+          VALIDATION_PASSED=true
+          
+          # Check each test result for acceptance criteria
+          for report in .clambake/performance-results/*-report.json; do
+            if [[ -f "$report" ]]; then
+              TEST_TYPE=$(cat "$report" | jq -r '.test_type')
+              STATUS=$(cat "$report" | jq -r '.status')
+              
+              echo "Checking $TEST_TYPE: $STATUS"
+              
+              if [[ "$STATUS" != "passed" ]]; then
+                echo "❌ $TEST_TYPE failed to meet acceptance criteria"
+                VALIDATION_PASSED=false
+              else
+                echo "✅ $TEST_TYPE met acceptance criteria"
+              fi
+            fi
+          done
+          
+          if [[ "$VALIDATION_PASSED" == "true" ]]; then
+            echo "🎉 All performance tests passed acceptance criteria"
+          else
+            echo "❌ Some performance tests failed to meet acceptance criteria"
+            exit 1
+          fi
+          
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clambake-performance-results-${{ github.run_id }}
+          path: .clambake/performance-results/
+          retention-days: 30
+          
+      - name: Performance test summary
+        if: always()
+        run: |
+          echo "📊 Performance Testing Complete"
+          echo "=============================="
+          echo "Test Type: ${{ github.event.inputs.test_type }}"
+          echo "Status: ${{ job.status }}"
+          echo "Artifacts: clambake-performance-results-${{ github.run_id }}"
+          echo ""
+          echo "💡 Review the uploaded artifacts for detailed performance metrics"
+          echo "🔗 Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
