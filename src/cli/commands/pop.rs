@@ -77,11 +77,11 @@ impl PopCommand {
                     println!("✅ Successfully popped task:");
                     println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
                     println!("  👤 Assigned to: {}", task.assigned_agent.id);
-                    println!("  🌿 Branch: {}/{}", task.assigned_agent.id, task.issue.number);
+                    println!("  🌿 Branch: {}", task.branch_name);
                     println!("  🔗 URL: {}", task.issue.html_url);
                     println!();
                     println!("🚀 Ready to work! Issue assigned and branch created/targeted.");
-                    println!("   Next: git checkout {}/{}", task.assigned_agent.id, task.issue.number);
+                    println!("   Next: git checkout {}", task.branch_name);
                     Ok(())
                 }
                 Ok(None) => {

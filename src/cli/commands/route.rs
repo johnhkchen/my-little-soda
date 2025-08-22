@@ -35,7 +35,7 @@ impl RouteCommand {
                             println!("Routed issue #{}:", i + 1);
                             println!("  🎯 Issue #{}: {}", assignment.issue.number, assignment.issue.title);
                             println!("  👤 Assigned to: {}", assignment.assigned_agent.id);
-                            println!("  🌿 Branch: {}/{}", assignment.assigned_agent.id, assignment.issue.number);
+                            println!("  🌿 Branch: {}", assignment.branch_name);
                             println!("  🔗 URL: {}", assignment.issue.html_url);
                             println!("  ✅ GitHub assignment and branch creation complete");
                             println!();

@@ -11,6 +11,7 @@ use tracing::Instrument;
 pub struct RoutingAssignment {
     pub issue: Issue,
     pub assigned_agent: Agent,
+    pub branch_name: String,
 }
 
 #[derive(Debug)]
@@ -58,9 +59,11 @@ impl RoutingCoordinator {
             
             if let Some(agent) = available_agents.first() {
                 if let Some(issue) = issues.first() {
+                    let branch_name = self.assignment_ops.generate_branch_name(&agent.id, issue.number, &issue.title);
                     let assignment = RoutingAssignment {
                         issue: issue.clone(),
                         assigned_agent: agent.clone(),
+                        branch_name,
                     };
                     
                     if !self.decisions.should_skip_assignment(issue) {
@@ -105,13 +108,16 @@ impl RoutingCoordinator {
         let available_agents = coordinator.get_available_agents().await?;
         
         let decision_outcome = if let (Some(issue), Some(agent)) = (sorted_issues.first(), available_agents.first()) {
-            if self.decisions.is_route_land_task(issue) {
-                let _ = self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await;
+            let branch_name = if self.decisions.is_route_land_task(issue) {
+                self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await
+                    .unwrap_or_else(|_| self.assignment_ops.generate_branch_name(&agent.id, issue.number, &issue.title))
             } else if self.decisions.is_unassigned(issue) {
                 self.assignment_ops.assign_agent_to_issue(coordinator, &agent.id, issue.number).await?;
+                self.assignment_ops.generate_branch_name(&agent.id, issue.number, &issue.title)
             } else {
-                let _ = self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await;
-            }
+                self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await
+                    .unwrap_or_else(|_| self.assignment_ops.generate_branch_name(&agent.id, issue.number, &issue.title))
+            };
             
             let active_issues = vec![issue.number];
             let _ = self.metrics_tracker.track_agent_utilization(
@@ -138,6 +144,7 @@ impl RoutingCoordinator {
             Ok(Some(RoutingAssignment {
                 issue: issue.clone(),
                 assigned_agent: agent.clone(),
+                branch_name,
             }))
         } else if available_agents.is_empty() {
             let decision = RoutingDecision::NoAgentsAvailable;
@@ -189,11 +196,12 @@ impl RoutingCoordinator {
             
             let available_agents = coordinator.get_available_agents().await?;
             if let (Some(issue), Some(agent)) = (my_issues.first(), available_agents.first()) {
-                let _branch_name = self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await?;
+                let branch_name = self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await?;
                 
                 Ok(Some(RoutingAssignment {
                     issue: issue.clone(),
                     assigned_agent: agent.clone(),
+                    branch_name,
                 }))
             } else {
                 tracing::info!("No assigned tasks available for current user");
@@ -207,13 +215,18 @@ impl RoutingCoordinator {
         let available_agents = coordinator.get_available_agents().await?;
         
         if let Some(agent) = available_agents.first() {
-            if !self.decisions.should_skip_assignment(&issue) {
+            let branch_name = if !self.decisions.should_skip_assignment(&issue) {
                 self.assignment_ops.assign_agent_to_issue(coordinator, &agent.id, issue.number).await?;
-            }
+                self.assignment_ops.generate_branch_name(&agent.id, issue.number, &issue.title)
+            } else {
+                self.assignment_ops.create_agent_branch(github_client, &agent.id, issue.number, &issue.title).await
+                    .unwrap_or_else(|_| self.assignment_ops.generate_branch_name(&agent.id, issue.number, &issue.title))
+            };
             
             Ok(Some(RoutingAssignment {
                 issue,
                 assigned_agent: agent.clone(),
+                branch_name,
             }))
         } else {
             Ok(None)
