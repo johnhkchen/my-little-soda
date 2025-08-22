@@ -11,6 +11,7 @@ pub mod agent_lifecycle;
 pub mod metrics;
 pub mod git;
 pub mod bundling;
+pub mod http;
 
 // Re-export key types for easy access
 pub use github::{GitHubClient, GitHubError};
@@ -23,3 +24,4 @@ pub use agent_lifecycle::{AgentState, PreFlightIssue, Command, GitCommand, GitHu
 pub use metrics::{MetricsTracker, IntegrationAttempt, IntegrationPhase, IntegrationOutcome};
 pub use git::{GitOperations, Git2Operations, CommitInfo};
 pub use bundling::{BundleManager, BundleResult, BundleWindow};
+pub use http::{RateLimitedHttpClient};
