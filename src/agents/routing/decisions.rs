@@ -20,7 +20,15 @@ impl RoutingDecisions {
         issues.sort_by(|a, b| {
             let a_priority = self.get_issue_priority(a);
             let b_priority = self.get_issue_priority(b);
-            b_priority.cmp(&a_priority) // Reverse order: high priority first
+            
+            // Primary sort: Priority (high to low)
+            match b_priority.cmp(&a_priority) {
+                std::cmp::Ordering::Equal => {
+                    // Secondary sort: Title lexicographically (for consistent ordering within priority)
+                    a.title.cmp(&b.title)
+                }
+                other => other
+            }
         });
     }
 
