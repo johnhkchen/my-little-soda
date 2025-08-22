@@ -1,1 +1,3 @@
 {"agent_id":"agent001","timestamp":1755865652,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[127],"state":"Available"}
+{"agent_id":"agent001","timestamp":1755866645,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[159],"state":"Available"}
+{"agent_id":"agent001","timestamp":1755867540,"current_capacity":1,"max_capacity":1,"utilization_percentage":100.0,"active_issues":[161],"state":"Available"}
