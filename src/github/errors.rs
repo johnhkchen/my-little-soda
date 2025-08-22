@@ -7,6 +7,9 @@ pub enum GitHubError {
     ApiError(OctocrabError),
     IoError(std::io::Error),
     NotImplemented(String),
+    RateLimit { reset_time: chrono::DateTime<chrono::Utc>, remaining: u32 },
+    Timeout { operation: String, duration_ms: u64 },
+    NetworkError(String),
 }
 
 impl From<OctocrabError> for GitHubError {
@@ -69,6 +72,34 @@ impl std::fmt::Display for GitHubError {
                 write!(f, "🔧 ALTERNATIVES:\n")?;
                 write!(f, "   → Manual workaround may be available\n")?;
                 write!(f, "   → Feature coming in future release")
+            },
+            GitHubError::RateLimit { reset_time, remaining } => {
+                write!(f, "GitHub Rate Limit Exceeded\n")?;
+                write!(f, "──────────────────────────\n")?;
+                write!(f, "⏱️  Rate limit exceeded. {} requests remaining\n", remaining)?;
+                write!(f, "⏳ Rate limit resets at: {}\n\n", reset_time.format("%Y-%m-%d %H:%M:%S UTC"))?;
+                write!(f, "🔧 RECOMMENDED ACTIONS:\n")?;
+                write!(f, "   → Wait for rate limit reset\n")?;
+                write!(f, "   → Use authentication to increase limits\n")?;
+                write!(f, "   → Check rate limit status: gh api rate_limit")
+            },
+            GitHubError::Timeout { operation, duration_ms } => {
+                write!(f, "GitHub Operation Timeout\n")?;
+                write!(f, "─────────────────────────\n")?;
+                write!(f, "⏰ Operation '{}' timed out after {}ms\n\n", operation, duration_ms)?;
+                write!(f, "🔧 RECOMMENDED ACTIONS:\n")?;
+                write!(f, "   → Check network connectivity\n")?;
+                write!(f, "   → Retry the operation\n")?;
+                write!(f, "   → Check GitHub status: https://status.github.com")
+            },
+            GitHubError::NetworkError(msg) => {
+                write!(f, "GitHub Network Error\n")?;
+                write!(f, "───────────────────\n")?;
+                write!(f, "🌐 {}\n\n", msg)?;
+                write!(f, "🔧 RECOMMENDED ACTIONS:\n")?;
+                write!(f, "   → Check internet connectivity\n")?;
+                write!(f, "   → Verify DNS resolution\n")?;
+                write!(f, "   → Check firewall/proxy settings")
             }
         }
     }

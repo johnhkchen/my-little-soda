@@ -41,45 +41,43 @@ impl GitHubRetryHandler {
     }
 
     /// Execute a GitHub API operation with exponential backoff retry
+    /// Note: Simplified version - full retry implementation would require more complex closure handling
     pub async fn execute_with_retry<F, R, E>(&self, operation: F) -> Result<R, GitHubError>
     where
-        F: FnMut() -> Result<R, E> + Copy,
+        F: Fn() -> Result<R, E>,
         E: Into<GitHubError> + std::fmt::Debug,
     {
-        let strategy = if self.config.jitter {
-            ExponentialBackoff::from_millis(self.config.base_delay.as_millis() as u64)
-                .max_delay(self.config.max_delay)
-                .take(self.config.max_attempts as usize)
-                .map(jitter)
-        } else {
-            ExponentialBackoff::from_millis(self.config.base_delay.as_millis() as u64)
-                .max_delay(self.config.max_delay)
-                .take(self.config.max_attempts as usize)
-                .map(|d| d) // identity map to match types
-        };
-
-        let operation_id = uuid::Uuid::new_v4();
-        debug!("Starting retry operation {} with max {} attempts", operation_id, self.config.max_attempts);
-
-        Retry::spawn(strategy, || async {
+        let mut last_error = None;
+        
+        for attempt in 0..self.config.max_attempts {
             match operation() {
                 Ok(result) => {
-                    debug!("Operation {} succeeded", operation_id);
-                    Ok(result)
+                    debug!("Operation succeeded on attempt {}", attempt + 1);
+                    return Ok(result);
                 }
                 Err(error) => {
                     let github_error: GitHubError = error.into();
                     
-                    if self.should_retry(&github_error) {
-                        warn!("Operation {} failed (retryable): {:?}", operation_id, github_error);
-                        Err(github_error)
-                    } else {
-                        error!("Operation {} failed (non-retryable): {:?}", operation_id, github_error);
-                        Err(github_error)
+                    if !self.should_retry(&github_error) {
+                        error!("Operation failed (non-retryable): {:?}", github_error);
+                        return Err(github_error);
+                    }
+                    
+                    warn!("Operation failed (attempt {}/{}): {:?}", attempt + 1, self.config.max_attempts, github_error);
+                    last_error = Some(github_error);
+                    
+                    if attempt < self.config.max_attempts - 1 {
+                        let delay = std::cmp::min(
+                            self.config.base_delay * (2_u32.pow(attempt)),
+                            self.config.max_delay
+                        );
+                        tokio::time::sleep(delay).await;
                     }
                 }
             }
-        }).await
+        }
+        
+        Err(last_error.unwrap_or_else(|| GitHubError::NetworkError("Retry exhausted".to_string())))
     }
 
     /// Determine if an error is retryable based on GitHub API patterns
@@ -111,6 +109,10 @@ impl GitHubRetryHandler {
             GitHubError::IoError(_) => true, // Network issues are retryable
             GitHubError::TokenNotFound(_) => false, // Auth issues are not retryable
             GitHubError::ConfigNotFound(_) => false, // Config issues are not retryable
+            GitHubError::NotImplemented(_) => false, // Feature missing, not retryable
+            GitHubError::RateLimit { .. } => true, // Rate limits are definitely retryable
+            GitHubError::Timeout { .. } => true, // Timeouts are retryable
+            GitHubError::NetworkError(_) => true, // Network errors are retryable
         }
     }
 }

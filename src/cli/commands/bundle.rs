@@ -58,7 +58,7 @@ impl BundleCommand {
         }
 
         // Initialize bundle manager
-        let bundle_manager = BundleManager::new()?;
+        let mut bundle_manager = BundleManager::new()?;
 
         // Perform bundling
         if self.dry_run {

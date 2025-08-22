@@ -1,7 +1,10 @@
 use anyhow::{Result, anyhow};
-use git2::{Repository, BranchType, Oid, DiffOptions, Delta};
+use git2::{Repository, BranchType, Oid, DiffOptions, Delta, ErrorCode};
 use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
+use super::types::{BundleErrorType, RecoveryStrategy, BundleAuditEntry, BundleOperationStatus, BundleState, RecoveryData};
+use uuid::Uuid;
 
 /// Strategy for handling merge conflicts during bundling
 #[derive(Debug, Clone)]
@@ -55,39 +58,208 @@ pub struct ConflictPrediction {
 /// Git operations for bundling using git2
 pub struct GitOperations {
     pub repo: Repository,
+    audit_trail: Vec<BundleAuditEntry>,
+    correlation_id: String,
 }
 
 impl GitOperations {
     /// Initialize Git operations for the current repository
     pub fn new() -> Result<Self> {
         let repo = Repository::open_from_env()?;
-        Ok(Self { repo })
+        Ok(Self { 
+            repo,
+            audit_trail: Vec::new(),
+            correlation_id: Uuid::new_v4().to_string(),
+        })
+    }
+
+    /// Log operation to audit trail
+    fn log_operation(&mut self, operation: &str, branch_name: Option<String>, affected_issues: Vec<u64>, status: BundleOperationStatus, error: Option<BundleErrorType>, execution_time_ms: u64) {
+        let entry = BundleAuditEntry {
+            timestamp: Utc::now(),
+            operation: operation.to_string(),
+            branch_name,
+            affected_issues,
+            status,
+            error,
+            recovery_action: None,
+            execution_time_ms,
+            correlation_id: self.correlation_id.clone(),
+        };
+        self.audit_trail.push(entry);
+    }
+
+    /// Get audit trail
+    pub fn get_audit_trail(&self) -> &[BundleAuditEntry] {
+        &self.audit_trail
+    }
+
+    /// Create recovery data for current state
+    fn create_recovery_data(&self, last_commit: Option<String>) -> RecoveryData {
+        RecoveryData {
+            last_successful_commit: last_commit,
+            cleanup_commands: vec![
+                "git reset --hard HEAD".to_string(),
+                "git clean -fd".to_string(),
+            ],
+            rollback_branch: Some("main".to_string()),
+            temp_files: vec![".git/CHERRY_PICK_HEAD".to_string()],
+        }
+    }
+
+    /// Handle git2 errors with enhanced context
+    fn handle_git_error(&self, operation: &str, error: git2::Error) -> BundleErrorType {
+        match error.code() {
+            ErrorCode::NotFound => BundleErrorType::GitOperation {
+                operation: operation.to_string(),
+                details: format!("Git object not found: {}", error.message()),
+            },
+            ErrorCode::Exists => BundleErrorType::GitOperation {
+                operation: operation.to_string(),
+                details: format!("Git object already exists: {}", error.message()),
+            },
+            ErrorCode::Conflict => BundleErrorType::ConflictResolution {
+                conflicted_files: vec!["Unknown".to_string()],
+                branches: vec!["Unknown".to_string()],
+            },
+            ErrorCode::Locked => BundleErrorType::PermissionDenied {
+                resource: "Git repository".to_string(),
+                required_permission: "Write access".to_string(),
+            },
+            _ => BundleErrorType::GitOperation {
+                operation: operation.to_string(),
+                details: format!("Git error: {}", error.message()),
+            },
+        }
+    }
+
+    /// Execute git operation with retry logic
+    async fn execute_with_retry<T, F>(&self, operation: &str, max_retries: u32, mut operation_fn: F) -> Result<(T, Vec<BundleAuditEntry>)>
+    where
+        F: FnMut() -> Result<T, git2::Error>,
+    {
+        let start_time = Instant::now();
+        let mut last_error = None;
+        let mut audit_entries = Vec::new();
+
+        for attempt in 0..=max_retries {
+            match operation_fn() {
+                Ok(result) => {
+                    let execution_time = start_time.elapsed().as_millis() as u64;
+                    let entry = BundleAuditEntry {
+                        timestamp: chrono::Utc::now(),
+                        operation: operation.to_string(),
+                        branch_name: None,
+                        affected_issues: vec![],
+                        status: BundleOperationStatus::Completed,
+                        error: None,
+                        recovery_action: None,
+                        execution_time_ms: execution_time,
+                        correlation_id: self.correlation_id.clone(),
+                    };
+                    audit_entries.push(entry);
+                    return Ok((result, audit_entries));
+                }
+                Err(error) => {
+                    last_error = Some(error);
+                    
+                    if attempt < max_retries {
+                        let backoff_ms = (1 << attempt) * 100; // Exponential backoff
+                        println!("⚠️  Git operation '{}' failed (attempt {}/{}), retrying in {}ms: {}", 
+                            operation, attempt + 1, max_retries + 1, backoff_ms, last_error.as_ref().unwrap().message());
+                        tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+                    }
+                }
+            }
+        }
+
+        let execution_time = start_time.elapsed().as_millis() as u64;
+        let bundle_error = self.handle_git_error(operation, last_error.unwrap());
+        let entry = BundleAuditEntry {
+            timestamp: chrono::Utc::now(),
+            operation: operation.to_string(),
+            branch_name: None,
+            affected_issues: vec![],
+            status: BundleOperationStatus::Failed,
+            error: Some(bundle_error.clone()),
+            recovery_action: None,
+            execution_time_ms: execution_time,
+            correlation_id: self.correlation_id.clone(),
+        };
+        audit_entries.push(entry);
+        
+        Err(anyhow!("Git operation '{}' failed after {} attempts", operation, max_retries + 1))
     }
     
-    /// Create a new bundle branch from the base branch
-    pub fn create_bundle_branch(&self, branch_name: &str, base_branch: &str) -> Result<()> {
-        // Find the base branch reference
-        let base_ref = self.repo.find_branch(base_branch, BranchType::Local)
-            .or_else(|_| self.repo.find_branch(&format!("origin/{}", base_branch), BranchType::Remote))?;
+    /// Create a new bundle branch from the base branch with error handling
+    pub fn create_bundle_branch(&mut self, branch_name: &str, base_branch: &str) -> Result<()> {
+        let operation = "create_bundle_branch";
+        let start_time = Instant::now();
         
-        let base_commit = base_ref.get().peel_to_commit()?;
+        self.log_operation(operation, Some(branch_name.to_string()), vec![], BundleOperationStatus::Started, None, 0);
         
-        // Create new branch
-        let _bundle_branch = self.repo.branch(branch_name, &base_commit, false)?;
+        let result: Result<(), BundleErrorType> = (|| {
+            // Find the base branch reference
+            let base_ref = self.repo.find_branch(base_branch, BranchType::Local)
+                .or_else(|_| self.repo.find_branch(&format!("origin/{}", base_branch), BranchType::Remote))
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            
+            let base_commit = base_ref.get().peel_to_commit()
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            
+            // Create new branch
+            let _bundle_branch = self.repo.branch(branch_name, &base_commit, false)
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            
+            Ok(())
+        })();
         
-        println!("✅ Created bundle branch: {}", branch_name);
-        Ok(())
+        let execution_time = start_time.elapsed().as_millis() as u64;
+        
+        match &result {
+            Ok(_) => {
+                println!("✅ Created bundle branch: {}", branch_name);
+                self.log_operation(operation, Some(branch_name.to_string()), vec![], BundleOperationStatus::Completed, None, execution_time);
+            }
+            Err(error) => {
+                println!("❌ Failed to create bundle branch: {}", branch_name);
+                self.log_operation(operation, Some(branch_name.to_string()), vec![], BundleOperationStatus::Failed, Some(error.clone()), execution_time);
+            }
+        }
+        
+        result.map_err(|_| anyhow!("Failed to create bundle branch"))
     }
     
-    /// Checkout the specified branch
-    pub fn checkout_branch(&self, branch_name: &str) -> Result<()> {
-        let branch_ref = format!("refs/heads/{}", branch_name);
-        let obj = self.repo.revparse_single(&branch_ref)?;
+    /// Checkout the specified branch with error handling
+    pub fn checkout_branch(&mut self, branch_name: &str) -> Result<()> {
+        let operation = "checkout_branch";
+        let start_time = Instant::now();
         
-        self.repo.checkout_tree(&obj, None)?;
-        self.repo.set_head(&branch_ref)?;
+        let result: Result<(), BundleErrorType> = (|| {
+            let branch_ref = format!("refs/heads/{}", branch_name);
+            let obj = self.repo.revparse_single(&branch_ref)
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            
+            self.repo.checkout_tree(&obj, None)
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            self.repo.set_head(&branch_ref)
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            
+            Ok(())
+        })();
         
-        Ok(())
+        let execution_time = start_time.elapsed().as_millis() as u64;
+        
+        match &result {
+            Ok(_) => {
+                self.log_operation(operation, Some(branch_name.to_string()), vec![], BundleOperationStatus::Completed, None, execution_time);
+            }
+            Err(error) => {
+                self.log_operation(operation, Some(branch_name.to_string()), vec![], BundleOperationStatus::Failed, Some(error.clone()), execution_time);
+            }
+        }
+        
+        result.map_err(|_| anyhow!("Failed to checkout branch"))
     }
     
     /// Cherry-pick commits from source branch onto current branch
@@ -170,15 +342,35 @@ impl GitOperations {
         Ok(new_commit_oid)
     }
     
-    /// Push branch to remote
-    pub fn push_branch(&self, branch_name: &str, remote_name: &str) -> Result<()> {
-        let mut remote = self.repo.find_remote(remote_name)?;
-        let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+    /// Push branch to remote with error handling
+    pub fn push_branch(&mut self, branch_name: &str, remote_name: &str) -> Result<()> {
+        let operation = "push_branch";
+        let start_time = Instant::now();
         
-        remote.push(&[&refspec], None)?;
+        let result: Result<(), BundleErrorType> = (|| {
+            let mut remote = self.repo.find_remote(remote_name)
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            let refspec = format!("refs/heads/{}:refs/heads/{}", branch_name, branch_name);
+            
+            remote.push(&[&refspec], None)
+                .map_err(|e| self.handle_git_error(operation, e))?;
+            
+            Ok(())
+        })();
         
-        println!("✅ Pushed branch {} to {}", branch_name, remote_name);
-        Ok(())
+        let execution_time = start_time.elapsed().as_millis() as u64;
+        
+        match &result {
+            Ok(_) => {
+                println!("✅ Pushed branch {} to {}", branch_name, remote_name);
+                self.log_operation(operation, Some(branch_name.to_string()), vec![], BundleOperationStatus::Completed, None, execution_time);
+            }
+            Err(error) => {
+                self.log_operation(operation, Some(branch_name.to_string()), vec![], BundleOperationStatus::Failed, Some(error.clone()), execution_time);
+            }
+        }
+        
+        result.map_err(|_| anyhow!("Failed to push branch"))
     }
     
     /// Check if a branch exists
