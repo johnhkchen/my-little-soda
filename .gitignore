@@ -5,6 +5,9 @@
 .my-little-soda/cache/
 .my-little-soda/metrics/
 .my-little-soda/*.lock
+
+# Legacy clambake directory (should not be committed)
+.clambake/
 *.token
 *.key
 
