@@ -8,7 +8,7 @@ use tokio;
 
 /// Helper to check if we're in a test environment with real GitHub credentials
 fn has_test_credentials() -> bool {
-    env::var("CLAMBAKE_GITHUB_TOKEN").is_ok() && 
+    env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() && 
     env::var("GITHUB_OWNER").is_ok() &&
     env::var("GITHUB_REPO").is_ok()
 }
@@ -31,7 +31,7 @@ mod real_api_integration_tests {
     async fn test_github_client_real_api_connection() {
         if !has_test_credentials() {
             println!("⏭️  Skipping real API test - no test credentials configured");
-            println!("   Set CLAMBAKE_GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO for real API testing");
+            println!("   Set MY_LITTLE_SODA_GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO for real API testing");
             return;
         }
 

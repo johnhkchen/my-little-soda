@@ -17,7 +17,7 @@ impl PerformanceReporter {
     pub async fn format_performance_report(&self, lookback_hours: Option<u64>) -> Result<String, GitHubError> {
         let mut report = String::new();
         
-        report.push_str("⚡ CLAMBAKE PERFORMANCE METRICS REPORT\n");
+        report.push_str("⚡ MY LITTLE SODA PERFORMANCE METRICS REPORT\n");
         report.push_str("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
 
         // Routing Performance

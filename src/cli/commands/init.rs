@@ -39,9 +39,9 @@ impl InitCommand {
 
     pub async fn execute(&self) -> Result<()> {
         if self.dry_run {
-            println!("🚀 CLAMBAKE INIT - Development Environment Setup (DRY RUN)");
+            println!("🚀 MY LITTLE SODA INIT - Development Environment Setup (DRY RUN)");
         } else {
-            println!("🚀 CLAMBAKE INIT - Development Environment Setup");
+            println!("🚀 MY LITTLE SODA INIT - Development Environment Setup");
         }
         println!("====================================================");
         println!();

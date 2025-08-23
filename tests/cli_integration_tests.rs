@@ -141,8 +141,8 @@ impl CliTestEnvironment {
     pub fn mock_environment_vars() -> Vec<(&'static str, &'static str)> {
         vec![
             ("GITHUB_TOKEN", "mock-token"),
-            ("CLAMBAKE_MOCK_MODE", "true"), // Signal to clambake to use mocks
-            ("CLAMBAKE_TEST_MODE", "true"),
+            ("MY_LITTLE_SODA_MOCK_MODE", "true"), // Signal to my-little-soda to use mocks
+            ("MY_LITTLE_SODA_TEST_MODE", "true"),
         ]
     }
 }

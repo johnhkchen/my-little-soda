@@ -49,7 +49,7 @@ impl ActionsCommand {
         } else if self.logs {
             self.show_workflow_logs().await
         } else {
-            println!("🔧 CLAMBAKE ACTIONS - GitHub Actions Integration");
+            println!("🔧 MY LITTLE SODA ACTIONS - GitHub Actions Integration");
             println!("===============================================");
             println!();
             self.show_actions_help();
@@ -58,7 +58,7 @@ impl ActionsCommand {
     }
 
     async fn trigger_bundling_workflow(&self) -> Result<()> {
-        println!("🚀 CLAMBAKE ACTIONS - Trigger Bundling Workflow");
+        println!("🚀 MY LITTLE SODA ACTIONS - Trigger Bundling Workflow");
         println!("===============================================");
         println!();
 
@@ -98,7 +98,7 @@ impl ActionsCommand {
     }
 
     async fn show_workflow_status(&self) -> Result<()> {
-        println!("📊 CLAMBAKE ACTIONS - Workflow Status");
+        println!("📊 MY LITTLE SODA ACTIONS - Workflow Status");
         println!("====================================");
         println!();
 
@@ -173,7 +173,7 @@ impl ActionsCommand {
             anyhow::anyhow!("Run ID is required for viewing logs. Use --run-id <ID>")
         })?;
 
-        println!("📜 CLAMBAKE ACTIONS - Workflow Logs");
+        println!("📜 MY LITTLE SODA ACTIONS - Workflow Logs");
         println!("==================================");
         println!();
 

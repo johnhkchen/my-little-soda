@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /*
 // This is the aspirational version using our white magic DSL
 scenario! {
-    name: "Clambake routes first ticket and generates second",
+    name: "My Little Soda routes first ticket and generates second",
     given: {
         github_repo: test_repo!(
             issues: [
@@ -24,10 +24,10 @@ scenario! {
         agents: agent_pool!(
             mock_agent!(id: "agent-001", status: Available),
         ),
-        clambake_system: initialized!(),
+        my_little_soda_system: initialized!(),
     },
     when: {
-        action: clambake_route!(args: ["--agents", "1"]),
+        action: my_little_soda_route!(args: ["--agents", "1"]),
     },
     then: {
         coordination_result: {
@@ -75,11 +75,11 @@ fn test_magic_coordination_workflow() {
 // Now let's write a simple integration test that actually fails and can guide TDD
 
 #[test]
-fn test_clambake_cli_basic_routing() {
+fn test_my_little_soda_cli_basic_routing() {
     // This is a real test that should fail right now
     // It represents the first step toward our magical coordination system
     
-    let mut cmd = assert_cmd::Command::cargo_bin("clambake").unwrap();
+    let mut cmd = assert_cmd::Command::cargo_bin("my-little-soda").unwrap();
     
     let output = cmd
         .arg("route")

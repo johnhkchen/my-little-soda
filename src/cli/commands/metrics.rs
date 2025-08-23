@@ -23,7 +23,7 @@ impl MetricsCommand {
     }
 
     pub async fn execute(&self) -> Result<()> {
-        println!("📊 CLAMBAKE METRICS - Integration Performance Analytics");
+        println!("📊 MY LITTLE SODA METRICS - Integration Performance Analytics");
         println!("======================================================");
         println!();
         
@@ -49,7 +49,7 @@ impl ExportMetricsCommand {
     }
 
     pub async fn execute(&self) -> Result<()> {
-        println!("📊 CLAMBAKE EXPORT METRICS - JSON Format");
+        println!("📊 MY LITTLE SODA EXPORT METRICS - JSON Format");
         println!("=========================================");
         println!();
         

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
   <rect width="800" height="500" fill="#1e1e1e"/>
-  <text x="20" y="40" fill="#00ff00" font-family="monospace" font-size="14">$ ./target/release/clambake status</text>
-  <text x="20" y="80" fill="#ffffff" font-family="monospace" font-size="14" font-weight="bold">🤖 CLAMBAKE SYSTEM STATUS</text>
+  <text x="20" y="40" fill="#00ff00" font-family="monospace" font-size="14">$ ./target/release/my-little-soda status</text>
+  <text x="20" y="80" fill="#ffffff" font-family="monospace" font-size="14" font-weight="bold">🤖 MY LITTLE SODA SYSTEM STATUS</text>
   <text x="20" y="100" fill="#ffffff" font-family="monospace" font-size="14">==========================</text>
   <text x="20" y="140" fill="#00aaff" font-family="monospace" font-size="12">🔄 Gathering system information... ✅</text>
   <text x="20" y="180" fill="#ffffff" font-family="monospace" font-size="12" font-weight="bold">📊 AGENT UTILIZATION:</text>

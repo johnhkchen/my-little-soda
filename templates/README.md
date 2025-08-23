@@ -1,4 +1,4 @@
-# Clambake Project Templates
+# My Little Soda Project Templates
 
 > **Start right. Scale right. No coordination disasters.**
 
@@ -9,7 +9,7 @@ Each template provides a complete multi-agent development setup with GitHub inte
 ## Template Structure
 
 Every template includes:
-- `.clambake/` - Pre-configured for multi-agent coordination
+- `.my-little-soda/` - Pre-configured for multi-agent coordination
 - `.github/` - GitHub Actions and issue templates
 - `docker-compose.phoenix.yml` - Phoenix observability stack
 - `README.md` - Project-specific documentation
@@ -19,7 +19,7 @@ Every template includes:
 
 ### Web Application (`webapp/`)
 ```bash
-clambake init --template webapp --agents 8
+my-little-soda init --template webapp --agents 8
 ```
 - Next.js/React frontend setup
 - Node.js backend configuration
@@ -29,7 +29,7 @@ clambake init --template webapp --agents 8
 
 ### API Service (`api/`)
 ```bash
-clambake init --template api --agents 6
+my-little-soda init --template api --agents 6
 ```
 - REST/GraphQL API structure
 - Database migration coordination
@@ -39,7 +39,7 @@ clambake init --template api --agents 6
 
 ### CLI Tool (`cli/`)
 ```bash
-clambake init --template cli --agents 4
+my-little-soda init --template cli --agents 4
 ```
 - Rust/Go CLI structure
 - Command organization
@@ -49,7 +49,7 @@ clambake init --template cli --agents 4
 
 ### Microservices (`microservices/`)
 ```bash
-clambake init --template microservices --agents 12
+my-little-soda init --template microservices --agents 12
 ```
 - Service isolation patterns
 - Inter-service coordination
@@ -59,7 +59,7 @@ clambake init --template microservices --agents 12
 
 ### Library (`library/`)
 ```bash
-clambake init --template library --agents 3
+my-little-soda init --template library --agents 3
 ```
 - Package structure
 - Documentation generation
@@ -69,7 +69,7 @@ clambake init --template library --agents 3
 
 ## Template Configuration
 
-### Default Settings (`.clambake/config.toml`)
+### Default Settings (`.my-little-soda/config.toml`)
 ```toml
 [github]
 # Templates never hardcode values
@@ -105,7 +105,7 @@ jobs:
       - name: Report to Phoenix
         run: |
           # Automatic observability
-          clambake report-metrics
+          my-little-soda report-metrics
 ```
 
 ### Phoenix Stack (`docker-compose.phoenix.yml`)
@@ -130,7 +130,7 @@ services:
 ### Quick Start
 ```bash
 # Create new project from template
-clambake init --template webapp --name my-app --agents 8
+my-little-soda init --template webapp --name my-app --agents 8
 
 # Navigate to project
 cd my-app
@@ -143,10 +143,10 @@ gh issue create --title "Setup authentication" --label "route:ready"
 gh issue create --title "Add user dashboard" --label "route:ready"
 
 # Route to agents
-clambake route
+my-little-soda route
 
 # Monitor progress
-clambake dashboard
+my-little-soda dashboard
 ```
 
 ### Customizing Templates
@@ -175,7 +175,7 @@ clambake dashboard
 ### Structure
 ```
 my-template/
-├── .clambake/
+├── .my-little-soda/
 │   ├── config.toml.template
 │   └── agents/
 │       └── default.toml
@@ -192,10 +192,10 @@ my-template/
 ### Validation
 ```bash
 # Validate template follows rules
-clambake validate-template ./my-template
+my-little-soda validate-template ./my-template
 
 # Test template initialization
-clambake init --template ./my-template --dry-run
+my-little-soda init --template ./my-template --dry-run
 ```
 
 ## Template Principles

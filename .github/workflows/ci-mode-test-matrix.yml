@@ -137,26 +137,26 @@ jobs:
           echo "🔧 Setting up environment for: ${{ matrix.environment }}"
           
           # Set base environment variables
-          echo "CLAMBAKE_TEST_ENVIRONMENT=${{ matrix.environment }}" >> $GITHUB_ENV
-          echo "CLAMBAKE_CI_MODE=${{ matrix.ci_mode }}" >> $GITHUB_ENV
-          echo "CLAMBAKE_ARTIFACT_HANDLING=${{ matrix.artifact_handling }}" >> $GITHUB_ENV
-          echo "CLAMBAKE_TOKEN_STRATEGY=${{ matrix.token_strategy }}" >> $GITHUB_ENV
+          echo "MY_LITTLE_SODA_TEST_ENVIRONMENT=${{ matrix.environment }}" >> $GITHUB_ENV
+          echo "MY_LITTLE_SODA_CI_MODE=${{ matrix.ci_mode }}" >> $GITHUB_ENV
+          echo "MY_LITTLE_SODA_ARTIFACT_HANDLING=${{ matrix.artifact_handling }}" >> $GITHUB_ENV
+          echo "MY_LITTLE_SODA_TOKEN_STRATEGY=${{ matrix.token_strategy }}" >> $GITHUB_ENV
           
           # Platform-specific configurations
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "CLAMBAKE_PLATFORM_ADJUSTMENTS=windows" >> $GITHUB_ENV
+            echo "MY_LITTLE_SODA_PLATFORM_ADJUSTMENTS=windows" >> $GITHUB_ENV
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            echo "CLAMBAKE_PLATFORM_ADJUSTMENTS=macos" >> $GITHUB_ENV
+            echo "MY_LITTLE_SODA_PLATFORM_ADJUSTMENTS=macos" >> $GITHUB_ENV
           else
-            echo "CLAMBAKE_PLATFORM_ADJUSTMENTS=linux" >> $GITHUB_ENV
+            echo "MY_LITTLE_SODA_PLATFORM_ADJUSTMENTS=linux" >> $GITHUB_ENV
           fi
           
           # Rust version tracking
-          echo "CLAMBAKE_RUST_VERSION=${{ matrix.rust_toolchain }}" >> $GITHUB_ENV
+          echo "MY_LITTLE_SODA_RUST_VERSION=${{ matrix.rust_toolchain }}" >> $GITHUB_ENV
           
-      - name: Build Clambake
+      - name: Build My Little Soda
         run: |
-          echo "🔨 Building Clambake for test environment: ${{ matrix.environment }}"
+          echo "🔨 Building My Little Soda for test environment: ${{ matrix.environment }}"
           
           # Adjust build flags based on environment
           BUILD_FLAGS=""
@@ -207,21 +207,21 @@ jobs:
           
           # Test basic CLI functionality
           if [[ "${{ matrix.ci_mode }}" == "true" ]]; then
-            ./target/debug/clambake --help
-            ./target/debug/clambake --ci-mode --help
+            ./target/debug/my-little-soda --help
+            ./target/debug/my-little-soda --ci-mode --help
             
             # Test specific CI mode commands
             echo "Testing CI mode commands..."
-            ./target/debug/clambake actions --help
+            ./target/debug/my-little-soda actions --help
             
             # Simulate CI workflow commands (dry run)
             if [[ "${{ matrix.environment }}" != *"minimal"* ]]; then
-              ./target/debug/clambake peek ${{ matrix.test_flags }} || echo "Peek command test completed"
-              ./target/debug/clambake status ${{ matrix.test_flags }} || echo "Status command test completed"
+              ./target/debug/my-little-soda peek ${{ matrix.test_flags }} || echo "Peek command test completed"
+              ./target/debug/my-little-soda status ${{ matrix.test_flags }} || echo "Status command test completed"
             fi
           else
-            ./target/debug/clambake --help
-            ./target/debug/clambake peek || echo "Local peek command test completed"
+            ./target/debug/my-little-soda --help
+            ./target/debug/my-little-soda peek || echo "Local peek command test completed"
           fi
           
       - name: Performance benchmarking

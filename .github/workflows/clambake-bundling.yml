@@ -1,4 +1,4 @@
-name: Clambake Bundle Management
+name: My Little Soda Bundle Management
 
 on:
   schedule:
@@ -61,7 +61,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           # Cache key includes workflow file to bust cache on changes
-          key: "clambake-bundling-${{ hashFiles('.github/workflows/clambake-bundling.yml') }}"
+          key: "my-little-soda-bundling-${{ hashFiles('.github/workflows/clambake-bundling.yml') }}"
           # Cache specific directories
           cache-directories: |
             ~/.cargo/registry
@@ -71,9 +71,9 @@ jobs:
           cache-all-crates: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
           
-      - name: Build Clambake
+      - name: Build My Little Soda
         run: |
-          echo "🔨 Building Clambake for bundling operations..."
+          echo "🔨 Building My Little Soda for bundling operations..."
           cargo build --release
           
       - name: Check bundling eligibility
@@ -97,8 +97,8 @@ jobs:
             echo "   🚀 GitHub token strategy: ${{ github.event.inputs.github_token_strategy || 'standard' }}"
             
             # Enable GitHub Actions optimizations
-            export CLAMBAKE_CI_MODE=true
-            export CLAMBAKE_ARTIFACT_HANDLING="$ARTIFACT_HANDLING"
+            export MY_LITTLE_SODA_CI_MODE=true
+            export MY_LITTLE_SODA_ARTIFACT_HANDLING="$ARTIFACT_HANDLING"
             export GITHUB_ACTIONS_OPTIMIZED=true
           fi
           
@@ -108,9 +108,9 @@ jobs:
             echo "should_bundle=true" >> $GITHUB_OUTPUT
             echo "force_flag=--force" >> $GITHUB_OUTPUT
           else
-            # Use clambake to check if we should bundle (respects train schedule)
+            # Use my-little-soda to check if we should bundle (respects train schedule)
             echo "⏰ Checking train schedule for bundling eligibility..."
-            if ./target/release/clambake bundle --dry-run 2>&1 | grep -q "Not at departure time yet"; then
+            if ./target/release/my-little-soda bundle --dry-run 2>&1 | grep -q "Not at departure time yet"; then
               echo "⏳ Not at departure time yet, skipping bundling"
               echo "should_bundle=false" >> $GITHUB_OUTPUT
             else
@@ -145,14 +145,14 @@ jobs:
         if: steps.check.outputs.should_bundle == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CLAMBAKE_CI_MODE: ${{ github.event.inputs.ci_mode == 'true' }}
-          CLAMBAKE_ARTIFACT_HANDLING: ${{ github.event.inputs.artifact_handling || 'standard' }}
+          MY_LITTLE_SODA_CI_MODE: ${{ github.event.inputs.ci_mode == 'true' }}
+          MY_LITTLE_SODA_ARTIFACT_HANDLING: ${{ github.event.inputs.artifact_handling || 'standard' }}
           GITHUB_ACTIONS_OPTIMIZED: ${{ github.event.inputs.ci_mode == 'true' }}
         run: |
-          echo "🚄 Executing Clambake bundling workflow..."
+          echo "🚄 Executing My Little Soda bundling workflow..."
           
           # Build command with conditional flags
-          BUNDLE_CMD="./target/release/clambake bundle"
+          BUNDLE_CMD="./target/release/my-little-soda bundle"
           
           if [[ -n "${{ steps.check.outputs.force_flag }}" ]]; then
             BUNDLE_CMD="$BUNDLE_CMD ${{ steps.check.outputs.force_flag }}"
@@ -179,7 +179,7 @@ jobs:
             # Store bundle metadata for artifact handling
             if [[ "${{ github.event.inputs.ci_mode }}" == "true" ]]; then
               echo "📦 Generating CI artifacts..."
-              mkdir -p .clambake/artifacts
+              mkdir -p .my-little-soda/artifacts
               
               # Generate bundle summary
               echo "{
@@ -189,25 +189,25 @@ jobs:
                 \"artifact_handling\": \"${{ github.event.inputs.artifact_handling }}\",
                 \"bundle_status\": \"completed\",
                 \"triggered_by\": \"${{ github.event.inputs.triggered_by || 'github_actions' }}\"
-              }" > .clambake/artifacts/bundle-metadata.json
+              }" > .my-little-soda/artifacts/bundle-metadata.json
               
               # Export bundle state for downstream jobs
               echo "bundle_status=completed" >> $GITHUB_OUTPUT
-              echo "bundle_artifacts_path=.clambake/artifacts/" >> $GITHUB_OUTPUT
+              echo "bundle_artifacts_path=.my-little-soda/artifacts/" >> $GITHUB_OUTPUT
             fi
           else
             echo "❌ Bundling failed with exit code $?"
             
             # Store failure metadata for CI mode
             if [[ "${{ github.event.inputs.ci_mode }}" == "true" ]]; then
-              mkdir -p .clambake/artifacts
+              mkdir -p .my-little-soda/artifacts
               echo "{
                 \"workflow_run_id\": \"${{ github.run_id }}\",
                 \"bundle_timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
                 \"ci_mode\": true,
                 \"bundle_status\": \"failed\",
                 \"error_code\": \"$?\"
-              }" > .clambake/artifacts/bundle-metadata.json
+              }" > .my-little-soda/artifacts/bundle-metadata.json
             fi
             
             exit 1
@@ -217,8 +217,8 @@ jobs:
         if: always() && github.event.inputs.ci_mode == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: clambake-bundle-artifacts-${{ github.run_id }}
-          path: .clambake/artifacts/
+          name: my-little-soda-bundle-artifacts-${{ github.run_id }}
+          path: .my-little-soda/artifacts/
           retention-days: 7
           if-no-files-found: ignore
           
