@@ -1,6 +1,6 @@
 # Domain Specifications
 
-> **Isolated requirements. Focused scope. Agent-optimized.**
+> **Isolated requirements. Focused scope. Autonomous-agent-optimized.**
 
 ## Domain Structure
 
@@ -10,7 +10,7 @@ Each domain contains exactly three files:
 - `invariants.md` - Rules that cannot be violated
 
 This structure ensures:
-1. **No information overload** - Agents only load relevant domains
+1. **No information overload** - Agent only loads relevant domains
 2. **Clear boundaries** - No cross-domain pollution
 3. **Consistent format** - Same structure everywhere
 4. **DRY principle** - Each requirement stated once
@@ -23,14 +23,14 @@ This structure ensures:
 **Agent Context**: Loaded for issue routing, PR creation, project board updates
 
 ### Agent Coordination (`agent-coordination/`)
-**Purpose**: Manage multi-agent lifecycle and assignments
-**Key Invariant**: No race conditions or duplicate assignments
-**Agent Context**: Loaded for routing decisions, conflict detection, capacity management
+**Purpose**: Manage single autonomous agent lifecycle and operations
+**Key Invariant**: Reliable autonomous operation without downtime
+**Agent Context**: Loaded for routing decisions, state management, capacity monitoring
 
 ### Work Integration (`work-integration/`)
 **Purpose**: Safely land completed work to main branch
 **Key Invariant**: Work is never lost, even during failures
-**Agent Context**: Loaded for PR creation, merge coordination, conflict resolution
+**Agent Context**: Loaded for PR creation, sequential merge operations, autonomous conflict resolution
 
 ### Observability (`observability/`)
 **Purpose**: Phoenix integration and tracing

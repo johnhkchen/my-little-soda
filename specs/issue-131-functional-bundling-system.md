@@ -13,13 +13,13 @@
 ### Context  
 - System currently processes individual PRs which creates GitHub API bottlenecks and review fatigue
 - 10-minute release cadence is a core architectural requirement for agent throughput
-- Agent capacity management depends on reliable bundling to free agents after landing work
-- This blocks Architecture v2 progress as bundling is foundation for multi-agent coordination
+- Agent lifecycle depends on reliable bundling to enable continuous operation after landing work
+- This blocks autonomous operation as bundling is foundation for unattended agent operation
 
 ### Strategic Value
 A functional bundling system directly enables:
 - **5x throughput increase**: From individual PRs to bundled releases every 10 minutes
-- **Agent efficiency**: Prevents agents from getting stuck waiting for manual PR creation
+- **Autonomous efficiency**: Prevents agent from getting stuck waiting for manual PR creation
 - **Review efficiency**: Consolidates related changes into coherent review units
 - **API rate limit management**: Reduces GitHub API calls by 80% through bundling
 
@@ -35,9 +35,9 @@ A fully automated bundling system that:
 ### Success Metrics
 - **Bundling Success Rate**: >90% of eligible work successfully bundled (not falling back to individual PRs)
 - **Throughput Increase**: 5x increase in issues processed per hour
-- **Agent Utilization**: <5% of time agents spend waiting for bundle creation
+- **Agent Availability**: <5% of time agent spends waiting for bundle creation
 - **Review Efficiency**: Average PR size increases from 1 issue to 3-5 issues
-- **System Reliability**: Zero instances of agents getting permanently stuck due to bundling failures
+- **System Reliability**: Zero instances of agent getting stuck due to bundling failures
 
 ### Non-Goals
 - Advanced merge conflict resolution (AI-powered conflict resolution, complex rebasing strategies)
@@ -185,7 +185,7 @@ Leverages existing GitHub state management patterns:
 - **Objective**: Validate complete bundling workflow works reliably
 - **Acceptance**: Multi-agent scenario successfully bundles work
 - **Files**: Integration tests, test scenarios
-- **Test**: Full workflow validation with multiple agents
+- **Test**: Full workflow validation with autonomous agent operation
 
 ## Rollback Strategy
 
@@ -197,7 +197,7 @@ sed -i 's/bundling.enabled = true/bundling.enabled = false/' clambake.toml
 
 ### Full Rollback (< 30 minutes)  
 - Revert to individual PR creation for all `route:review` work
-- Maintain agent lifecycle integrity (agents still freed after landing)
+- Maintain agent lifecycle integrity (agent continues processing next issue after landing)
 - Manual cleanup of any partial bundle branches
 
 ### Recovery Strategy
@@ -216,7 +216,7 @@ sed -i 's/bundling.enabled = true/bundling.enabled = false/' clambake.toml
 
 ### Quality Requirements  
 - [ ] Property tests validate bundling invariants
-- [ ] Integration tests cover multi-agent bundling scenarios
+- [ ] Integration tests cover single-agent bundling scenarios
 - [ ] Chaos tests demonstrate failure recovery
 - [ ] Performance tests show API rate limit improvements
 - [ ] Manual testing confirms 10-minute release cadence
@@ -254,4 +254,4 @@ sed -i 's/bundling.enabled = true/bundling.enabled = false/' clambake.toml
 - Target API usage: <15 calls per bundled workflow (70% reduction)
 - Target agent stuck time: <2% (automated bundling)
 
-This specification transforms the existing bundling prototype into a production-ready system that achieves the 10-minute release cadence essential for Clambake's multi-agent orchestration value proposition.
+This specification transforms the existing bundling prototype into a production-ready system that achieves the 10-minute release cadence essential for My Little Soda's autonomous operation value proposition.

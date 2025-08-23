@@ -1,8 +1,8 @@
 # My Little Soda
 
-**Multi-agent AI orchestration for GitHub repositories.** 
+**Autonomous AI agent orchestration for GitHub repositories.** 
 
-My Little Soda coordinates multiple AI coding assistants working on your GitHub Issues simultaneously. It prevents conflicts and manages their progress through proper development workflows.
+My Little Soda enables a single autonomous AI coding assistant to work on your GitHub Issues continuously while you focus elsewhere. It provides unattended operation and multiplicative productivity through the one-agent-per-repo architecture.
 
 [![Property-Based Tests](https://github.com/johnhkchen/my-little-soda/actions/workflows/property-tests.yml/badge.svg)](https://github.com/johnhkchen/my-little-soda/actions/workflows/property-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -11,12 +11,12 @@ My Little Soda coordinates multiple AI coding assistants working on your GitHub 
 
 ## What My Little Soda Does
 
-- **🤖 Coordinates AI agents** working on different GitHub Issues simultaneously
-- **🔀 Prevents conflicts** with automatic branch isolation for each agent
-- **⚡ Manages workflow** through a 3-phase cycle: Work → Review → Merge
-- **👁️ Uses GitHub natively** - all coordination visible through labels and PRs
+- **🤖 Autonomous operation** - Single AI agent works continuously on GitHub Issues while you focus elsewhere
+- **🔄 Multiplicative productivity** - 8 hours human work + 3 autonomous repos = 32 repo-hours of progress
+- **⚡ Seamless workflow** through a 3-phase cycle: Work → Review → Merge
+- **👁️ GitHub native** - All coordination visible through labels and PRs
 
-**In simple terms:** Scale your development team with AI assistants that work together like human developers.
+**In simple terms:** Scale your productivity with an autonomous AI assistant that works unattended on your repository.
 
 ## Table of Contents
 - [Installation](#installation)
@@ -56,7 +56,7 @@ Before installing My Little Soda, ensure you have the following:
   - Defaults to stdout export if not configured
   - Set via `CLAMBAKE_OBSERVABILITY_OTLP_ENDPOINT`
 
-> **Note**: Clambake is a coordination tool for GitHub repositories. It does not require API keys for AI services (OpenAI, Anthropic, etc.) as it manages workflows for external AI agents that handle their own authentication.
+> **Note**: My Little Soda is a coordination tool for GitHub repositories. It does not require API keys for AI services (OpenAI, Anthropic, etc.) as it manages workflows for an external autonomous AI agent that handles its own authentication.
 
 ### Platform Support
 - **Linux** (x86_64, aarch64)
@@ -111,14 +111,14 @@ The `my-little-soda init` command will automate repository setup in a future rel
 
 ```bash
 # Future: One-command setup (WIP)
-./target/release/my-little-soda init --agents 3
+./target/release/my-little-soda init
 ```
 
 **What this will do:**
 - ✅ Validate GitHub authentication and permissions
 - 🏷️  Create required routing labels (`route:ready`, `route:priority-high`, etc.)
 - ⚙️  Generate `my-little-soda.toml` configuration 
-- 🤖 Initialize agent capacity and tracking
+- 🤖 Initialize autonomous agent configuration
 - 📁 Create `.my-little-soda/` directory structure
 - ✅ Verify setup and test connectivity
 
@@ -149,7 +149,7 @@ gh label create "route:priority-very-high" --color "d73a4a" --description "Prior
 
 **3. Start Using My Little Soda:**
 ```bash
-# Label some issues as ready for agents
+# Label some issues as ready for the agent
 gh issue edit <issue-number> --add-label "route:ready"
 
 # Begin agent workflow
@@ -220,6 +220,7 @@ Example output:
 ```
 🤖 Agent Status:
   agent001: Working on issue #42 (branch: agent001/42-fix-bug)
+  Uptime: 4h 23m | Issues processed: 7 | Average time: 22m
   
 📋 Task Queue: 3 issues available
   #45: Add user authentication [priority-high]
@@ -267,7 +268,7 @@ git commit -m "Fix login validation bug"
 # Initialize a new repository (run once per repo)
 ./target/release/my-little-soda init
 
-# Reset all agents (admin only)
+# Reset agent state (admin only)
 ./target/release/my-little-soda reset
 
 # Bundle multiple PRs for review
@@ -299,8 +300,8 @@ Comprehensive documentation is organized for different audiences and use cases:
 - **API Documentation** - Auto-generated Rust API docs (available after crate publication)
 
 ### 🤖 Agent Integration
-- **[Agent Lifecycle](docs/agent_lifecycle.md)** - How agents coordinate and work together
-- **[System Analysis](docs/system_analysis_and_opportunities.md)** - Agent coordination patterns
+- **[Agent Lifecycle](docs/agent_lifecycle.md)** - How autonomous agent operates and processes issues
+- **[System Analysis](docs/system_analysis_and_opportunities.md)** - Autonomous agent operation patterns
 
 ## Support & Community
 
