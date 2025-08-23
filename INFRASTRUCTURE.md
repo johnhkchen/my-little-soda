@@ -26,13 +26,13 @@ async fn process_issue() {
 Layered configuration system with precedence:
 1. Default values (in code)
 2. Configuration files (clambake.toml, .clambakerc)
-3. Environment variables (CLAMBAKE_* prefix)
+3. Environment variables (MY_LITTLE_SODA_* prefix)
 
 ```bash
 # Environment override examples
-export CLAMBAKE_GITHUB_TOKEN="ghp_your_token"
-export CLAMBAKE_AGENTS_MAX_AGENTS=8
-export CLAMBAKE_OBSERVABILITY_LOG_LEVEL=debug
+export MY_LITTLE_SODA_GITHUB_TOKEN="ghp_your_token"
+export MY_LITTLE_SODA_AGENTS_MAX_AGENTS=8
+export MY_LITTLE_SODA_OBSERVABILITY_LOG_LEVEL=debug
 ```
 
 Configuration file example:

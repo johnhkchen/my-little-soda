@@ -32,9 +32,9 @@ impl BundleCommand {
         }
         
         if self.dry_run {
-            println!("🚄 CLAMBAKE BUNDLE - Create PR from queued branches (DRY RUN)");
+            println!("🚄 MY LITTLE SODA BUNDLE - Create PR from queued branches (DRY RUN)");
         } else {
-            println!("🚄 CLAMBAKE BUNDLE - Create PR from queued branches");
+            println!("🚄 MY LITTLE SODA BUNDLE - Create PR from queued branches");
         }
         println!("==========================================");
         println!();
@@ -110,7 +110,7 @@ impl BundleCommand {
     }
 
     async fn execute_diagnostics(&self) -> Result<()> {
-        println!("🔍 CLAMBAKE BUNDLE DIAGNOSTICS");
+        println!("🔍 MY LITTLE SODA BUNDLE DIAGNOSTICS");
         println!("=====================================");
         println!();
 

@@ -31,9 +31,9 @@ impl LandCommand {
 
     pub async fn execute(&self) -> Result<()> {
         if self.dry_run {
-            println!("🚀 CLAMBAKE LAND - Mark Work Ready for Review (DRY RUN)");
+            println!("🚀 MY LITTLE SODA LAND - Mark Work Ready for Review (DRY RUN)");
         } else {
-            println!("🚀 CLAMBAKE LAND - Mark Work Ready for Review");
+            println!("🚀 MY LITTLE SODA LAND - Mark Work Ready for Review");
         }
         println!("==========================================");
         println!();

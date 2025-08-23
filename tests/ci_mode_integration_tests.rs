@@ -28,8 +28,8 @@ impl MockCIEnvironment {
         let mut env_vars = HashMap::new();
         env_vars.insert("GITHUB_ACTIONS".to_string(), "true".to_string());
         env_vars.insert("GITHUB_RUN_ID".to_string(), "12345".to_string());
-        env_vars.insert("CLAMBAKE_CI_MODE".to_string(), "true".to_string());
-        env_vars.insert("CLAMBAKE_ARTIFACT_HANDLING".to_string(), "optimized".to_string());
+        env_vars.insert("MY_LITTLE_SODA_CI_MODE".to_string(), "true".to_string());
+        env_vars.insert("MY_LITTLE_SODA_ARTIFACT_HANDLING".to_string(), "optimized".to_string());
         
         Self {
             github_actions: true,
@@ -56,7 +56,7 @@ impl MockCIEnvironment {
     
     pub fn get_artifact_handling_strategy(&self) -> String {
         self.environment_variables
-            .get("CLAMBAKE_ARTIFACT_HANDLING")
+            .get("MY_LITTLE_SODA_ARTIFACT_HANDLING")
             .cloned()
             .unwrap_or_else(|| "standard".to_string())
     }
@@ -409,7 +409,7 @@ mod tests {
         assert_eq!(timeout_adjustment, Duration::from_secs(300), "Timeout adjustment should be 5 minutes");
         
         // And: Environment variables should be properly set
-        assert_eq!(ci_env.environment_variables.get("CLAMBAKE_CI_MODE").unwrap(), "true");
+        assert_eq!(ci_env.environment_variables.get("MY_LITTLE_SODA_CI_MODE").unwrap(), "true");
         assert_eq!(ci_env.environment_variables.get("GITHUB_ACTIONS").unwrap(), "true");
     }
     

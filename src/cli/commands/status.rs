@@ -21,7 +21,7 @@ impl StatusCommand {
         let repo_name = self.get_repo_name().unwrap_or_else(|| "unknown".to_string());
         let current_branch = self.get_current_branch().unwrap_or_else(|| "unknown".to_string());
         
-        println!("🤖 CLAMBAKE STATUS - Repository: {}", repo_name);
+        println!("🤖 MY LITTLE SODA STATUS - Repository: {}", repo_name);
         println!("==========================================");
         println!();
         

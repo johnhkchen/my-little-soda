@@ -1,4 +1,4 @@
-# Clambake Documentation
+# My Little Soda Documentation
 
 > **From quickstart to production. For humans and agents.**
 
@@ -11,10 +11,10 @@ Our documentation follows a progressive disclosure pattern - start simple, dive 
 ### Quickstart (`quickstart.md`)
 ```bash
 # 5 minutes to multi-agent development
-cargo install clambake
-clambake init
-clambake route
-clambake dashboard
+cargo install my-little-soda
+my-little-soda init
+my-little-soda route
+my-little-soda dashboard
 ```
 
 ### Installation (`installation.md`)
@@ -42,7 +42,7 @@ Complete reference for all CLI commands:
 - `dashboard` - Phoenix observability
 
 ### Configuration (`configuration.md`)
-- `clambake.toml` structure
+- `my-little-soda.toml` structure
 - GitHub integration setup
 - Agent configuration
 - Phoenix deployment
@@ -89,7 +89,7 @@ Generated from source code:
 cargo doc --open
 
 # Online at
-https://docs.rs/clambake
+https://docs.rs/my-little-soda
 ```
 
 ## Documentation Principles
@@ -117,7 +117,7 @@ https://docs.rs/clambake
 ### Quick Reference
 | Need | Location |
 |------|----------|
-| Install Clambake | `getting-started/installation.md` |
+| Install My Little Soda | `getting-started/installation.md` |
 | Command reference | `user-guide/commands.md` |
 | Architecture | `architecture/design-decisions.md` |
 | API docs | `cargo doc` or docs.rs |

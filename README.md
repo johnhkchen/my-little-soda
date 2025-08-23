@@ -54,7 +54,7 @@ Before installing My Little Soda, ensure you have the following:
   - Enable in `my-little-soda.toml` or via `MY_LITTLE_SODA_DATABASE_URL`
 - **OpenTelemetry Endpoint**: For distributed tracing and observability
   - Defaults to stdout export if not configured
-  - Set via `CLAMBAKE_OBSERVABILITY_OTLP_ENDPOINT`
+  - Set via `MY_LITTLE_SODA_OBSERVABILITY_OTLP_ENDPOINT`
 
 > **Note**: My Little Soda is a coordination tool for GitHub repositories. It does not require API keys for AI services (OpenAI, Anthropic, etc.) as it manages workflows for an external autonomous AI agent that handles its own authentication.
 
@@ -85,8 +85,8 @@ Clambake supports multiple configuration methods in order of precedence:
 #### Option 1: Environment Variables (Recommended for CI/CD)
 ```bash
 export GITHUB_TOKEN="ghp_xxxxxxxxxxxxx"
-export CLAMBAKE_GITHUB_OWNER="your-username"
-export CLAMBAKE_GITHUB_REPO="your-repo"
+export MY_LITTLE_SODA_GITHUB_OWNER="your-username"
+export MY_LITTLE_SODA_GITHUB_REPO="your-repo"
 ```
 
 #### Option 2: Configuration File (Recommended for local development)
@@ -100,8 +100,8 @@ cp my-little-soda.example.toml my-little-soda.toml
 Create a `.env` file in your project root:
 ```bash
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
-CLAMBAKE_GITHUB_OWNER=your-username
-CLAMBAKE_GITHUB_REPO=your-repo
+MY_LITTLE_SODA_GITHUB_OWNER=your-username
+MY_LITTLE_SODA_GITHUB_REPO=your-repo
 ```
 
 ### Setup Your Repository
