@@ -60,6 +60,8 @@ pub struct AgentConfig {
     pub process_management: AgentProcessConfig,
     /// CI/CD mode optimizations
     pub ci_mode: CIModeConfig,
+    /// Work continuity and restart recovery settings
+    pub work_continuity: WorkContinuityConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -110,6 +112,24 @@ pub struct DatabaseConfig {
     pub auto_migrate: bool,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct WorkContinuityConfig {
+    /// Enable work continuity across process restarts
+    pub enable_continuity: bool,
+    /// Path to agent state file
+    pub state_file_path: String,
+    /// Backup interval in minutes
+    pub backup_interval_minutes: u32,
+    /// Maximum recovery attempts
+    pub max_recovery_attempts: u32,
+    /// Validation timeout in seconds
+    pub validation_timeout_seconds: u32,
+    /// Force fresh start after this many hours
+    pub force_fresh_start_after_hours: u32,
+    /// Preserve partial work during recovery
+    pub preserve_partial_work: bool,
+}
+
 impl Default for MyLittleSodaConfig {
     fn default() -> Self {
         Self {
@@ -149,6 +169,15 @@ impl Default for MyLittleSodaConfig {
                     workflow_state_persistence: true,
                     ci_timeout_adjustment: 300, // Additional 5 minutes for CI environments
                     enhanced_error_reporting: true,
+                },
+                work_continuity: WorkContinuityConfig {
+                    enable_continuity: true,
+                    state_file_path: ".my-little-soda/agent-state.json".to_string(),
+                    backup_interval_minutes: 5,
+                    max_recovery_attempts: 3,
+                    validation_timeout_seconds: 30,
+                    force_fresh_start_after_hours: 24,
+                    preserve_partial_work: true,
                 },
             },
             database: Some(DatabaseConfig {
