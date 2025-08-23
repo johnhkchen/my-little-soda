@@ -10,7 +10,7 @@ use rand::Rng;
 
 use super::{
     AutonomousWorkflowState,
-    StateTransitionRecord,
+    workflow_state_machine::StateTransitionRecord,
     error_recovery::AutonomousRecoveryAttempt,
 };
 

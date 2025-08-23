@@ -1,17 +1,83 @@
-// Command executor implementations
+//! Command execution module
+//!
+//! This module provides the `RealCommandExecutor` implementation that executes
+//! agent lifecycle commands against real Git repositories and GitHub APIs.
+//!
+//! # Architecture
+//!
+//! The executor handles three types of commands:
+//! - **Git commands**: Repository operations (checkout, commit, push, etc.)
+//! - **GitHub commands**: API operations (labels, issues, PRs, etc.)
+//! - **Print commands**: Console output for user feedback
+//!
+//! # Design Principles
+//!
+//! - **Dependency Injection**: Uses trait objects for testability
+//! - **Error Propagation**: Comprehensive error handling with context
+//! - **GitHub Source of Truth**: Prioritizes GitHub state over local state
+//! - **Atomic Operations**: Commands either succeed completely or fail cleanly
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use agent_lifecycle::executor::RealCommandExecutor;
+//! use agent_lifecycle::types::{Command, GitCommand};
+//!
+//! let executor = RealCommandExecutor::new(github_client, git_ops);
+//! let result = executor.execute(&Command::Git(GitCommand::Checkout { 
+//!     branch: "feature-branch".to_string() 
+//! }))?;
+//! ```
 
 use crate::agent_lifecycle::types::*;
 use crate::agent_lifecycle::traits::*;
 use anyhow::Result;
 
-/// Real command executor that performs actual Git and GitHub operations
+/// Production implementation of command execution
+/// 
+/// The `RealCommandExecutor` executes agent lifecycle commands against real
+/// systems - GitHub APIs and local Git repositories. It provides the runtime
+/// implementation of the abstract command patterns defined in the agent
+/// lifecycle state machine.
+/// 
+/// # Type Parameters
+/// 
+/// - `G`: GitHub operations trait implementation
+/// - `O`: Git operations trait implementation
+/// 
+/// # Command Types Supported
+/// 
+/// - **Git Commands**: All local repository operations
+/// - **GitHub Commands**: All GitHub API operations  
+/// - **Print Commands**: User-facing status messages
+/// 
+/// # Error Handling
+/// 
+/// All operations return `Result<CommandResult>` with detailed error context.
+/// Failed commands include information for debugging and potential retry.
 pub struct RealCommandExecutor<G: GitHubOperations, O: GitOperations> {
+    /// GitHub operations for API interactions
     github_ops: G,
+    /// Git operations for repository interactions
     git_ops: O,
 }
 
 impl<G: GitHubOperations, O: GitOperations> RealCommandExecutor<G, O> {
-    /// Create new real command executor
+    /// Create new real command executor with GitHub and Git operations
+    /// 
+    /// # Arguments
+    /// 
+    /// - `github_ops`: Implementation of GitHub API operations
+    /// - `git_ops`: Implementation of Git repository operations
+    /// 
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// let executor = RealCommandExecutor::new(
+    ///     GitHubClient::new()?,
+    ///     Git2Operations::new()?
+    /// );
+    /// ```
     pub fn new(github_ops: G, git_ops: O) -> Self {
         Self {
             github_ops,
@@ -21,7 +87,29 @@ impl<G: GitHubOperations, O: GitOperations> RealCommandExecutor<G, O> {
 }
 
 impl<G: GitHubOperations, O: GitOperations> CommandExecutor for RealCommandExecutor<G, O> {
-    /// Execute a single command
+    /// Execute a single command of any type
+    /// 
+    /// This is the main entry point for command execution. It dispatches
+    /// commands to appropriate handlers based on command type.
+    /// 
+    /// # Arguments
+    /// 
+    /// - `command`: The command to execute (Git, GitHub, or Print)
+    /// 
+    /// # Returns
+    /// 
+    /// - `CommandResult` containing execution status, output, and any errors
+    /// 
+    /// # Command Types
+    /// 
+    /// - **Git Commands**: Delegated to `execute_git_command`
+    /// - **GitHub Commands**: Delegated to `execute_github_command`  
+    /// - **Print Commands**: Executed inline with console output
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if the underlying operation fails. Error context
+    /// includes command type and specific failure information.
     fn execute(&self, command: &Command) -> Result<CommandResult> {
         match command {
             Command::Git(git_cmd) => self.execute_git_command(git_cmd),

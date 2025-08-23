@@ -206,7 +206,7 @@ impl BundleManager {
         }
         
         // Remember the current branch to restore it later
-        let original_branch = self.get_current_branch()?;
+        let _original_branch = self.get_current_branch()?;
         
         let bundle_branch = self.generate_bundle_branch_name(queued_branches);
         let base_branch = "main";

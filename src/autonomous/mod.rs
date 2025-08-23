@@ -27,86 +27,18 @@ pub mod persistence;
 pub mod work_continuity;
 pub mod state_validation;
 
+// Public exports - including internal dependencies for proper compilation
 pub use workflow_state_machine::{
-    AutonomousWorkflowState, 
-    AutonomousEvent, 
-    AutonomousWorkflowMachine,
-    AutonomousWorkflowError,
-    AutonomousStatusReport,
-    Issue, 
-    AgentId, 
-    WorkspaceState,
-    BlockerType,
-    PullRequest,
-    ReviewFeedback,
-    ConflictInfo,
-    CIFailure,
-    CompletedWork,
-    AbandonmentReason,
-    Priority,
-    StateTransitionRecord,
+    AutonomousWorkflowState, AutonomousEvent, AutonomousWorkflowMachine,
+    AgentId, AbandonmentReason, BlockerType, Priority, Issue, PullRequest, ConflictInfo
 };
+pub use error_recovery::{AutonomousErrorRecovery, ErrorType, RecoveryStrategy};
+pub use integration::{IntegrationCoordinator, CoordinationConfig};
+pub use persistence::{StatePersistenceManager, PersistenceConfig, CheckpointReason};
+pub use work_continuity::{WorkContinuityManager, WorkContinuityConfig, ResumeAction, ContinuityStatus};
+pub use state_validation::{StateDriftDetector, CorrectionAction};
 
-pub use error_recovery::{
-    AutonomousErrorRecovery,
-    RecoveryStrategy,
-    ErrorType,
-    FixType,
-    ConfidenceLevel,
-    AutonomousRecoveryAttempt,
-    AutonomousRecoveryReport,
-};
-
-pub use integration::{
-    AutonomousIntegration,
-    IntegrationCoordinator,
-    AutonomousIntegrationFactory,
-    IntegratedStatusReport,
-    IntegrationConfig,
-};
-
-pub use persistence::{
-    StatePersistenceManager,
-    PersistentWorkflowState,
-    PersistenceConfig,
-    CheckpointReason,
-    CheckpointInfo,
-    PersistenceError,
-};
-
-pub use work_continuity::{
-    WorkContinuityManager,
-    PersistentAgentState,
-    WorkContinuityConfig,
-    WorkContinuityError,
-    ResumeAction,
-    ContinuityStatus,
-    WorkspaceSnapshot,
-    WorkProgress,
-    PendingOperation,
-    RecoveryContext,
-};
-
-pub use state_validation::{
-    StateDriftDetector,
-    StateDrift,
-    StateDriftType,
-    DriftSeverity,
-    CorrectionAction,
-    CorrectionStrategy,
-    DriftThresholds,
-    ExpectedSystemState,
-    ExpectedIssueState,
-    ExpectedBranchState,
-    ExpectedPRState,
-    ExpectedWorkspaceState,
-    IssueState,
-    PRState,
-    ReviewState,
-    StateDriftError,
-    DriftDetectionReport,
-    ValidationHealth,
-};
+// AutonomousCoordinator is defined in this module
 
 use serde::{Deserialize, Serialize};
 use chrono::{Utc, Duration};
@@ -117,6 +49,8 @@ use rand::Rng;
 
 use crate::github::GitHubClient;
 use crate::agents::recovery::AutomaticRecovery;
+
+use workflow_state_machine::AutonomousWorkflowError;
 
 /// Main autonomous coordination system that orchestrates workflow state machine
 /// and error recovery for unattended operation

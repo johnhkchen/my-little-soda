@@ -458,7 +458,7 @@ impl WorkContinuityManager {
     }
     
     /// Get current work continuity status
-    pub async fn get_continuity_status(&self, agent_id: &str) -> Result<ContinuityStatus, WorkContinuityError> {
+    pub async fn get_continuity_status(&self, _agent_id: &str) -> Result<ContinuityStatus, WorkContinuityError> {
         let current_state = self.current_state.read().await;
         
         let status = match current_state.as_ref() {

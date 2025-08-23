@@ -1,17 +1,78 @@
-// Agent state detection logic
+//! Agent state detection module
+//!
+//! This module provides the `AgentStateDetector` implementation that determines
+//! the current state of an agent by examining GitHub issue labels and local git
+//! repository state.
+//!
+//! # Architecture
+//!
+//! The detector works by:
+//! - Checking GitHub for issues labeled with the agent ID
+//! - Examining the current git branch and commit status
+//! - Cross-referencing GitHub labels with repository state
+//! - Returning the appropriate `AgentState` based on the findings
+//!
+//! # Example
+//!
+//! ```rust,ignore
+//! use agent_lifecycle::detector::AgentStateDetector;
+//! use agent_lifecycle::types::AgentState;
+//!
+//! let detector = AgentStateDetector::new(github_ops, git_ops);
+//! let state = detector.detect_current_state("agent001")?;
+//!
+//! match state {
+//!     AgentState::Idle => println!("Agent is idle"),
+//!     AgentState::Assigned { .. } => println!("Agent has work assigned"),
+//!     // ... handle other states
+//! }
+//! ```
 
 use crate::agent_lifecycle::types::*;
 use crate::agent_lifecycle::traits::*;
 use anyhow::Result;
 
-/// Implementation of AgentStateDetector for real GitHub operations
+/// Real implementation of agent state detection
+/// 
+/// The `AgentStateDetector` determines agent state by coordinating between
+/// GitHub issue tracking and local git repository state. It follows the 
+/// "GitHub as source of truth" principle while using local git state
+/// to determine work progress.
+/// 
+/// # Type Parameters
+/// 
+/// - `G`: GitHub operations trait implementation
+/// - `O`: Git operations trait implementation
+/// 
+/// # State Detection Logic
+/// 
+/// 1. **Idle**: No issues labeled with agent ID
+/// 2. **Assigned**: Issue labeled but no matching work branch or commits
+/// 3. **Working**: Issue labeled with matching branch and commits ahead
+/// 4. **Other states**: Determined by specific label combinations
 pub struct AgentStateDetector<G: GitHubOperations, O: GitOperations> {
+    /// GitHub operations for checking issue labels and status
     github_ops: G,
+    /// Git operations for checking repository state
     git_ops: O,
 }
 
 impl<G: GitHubOperations, O: GitOperations> AgentStateDetector<G, O> {
-    /// Create new state detector
+    /// Create new state detector with GitHub and Git operations
+    /// 
+    /// # Arguments
+    /// 
+    /// - `github_ops`: Implementation of GitHub operations for issue/label checking
+    /// - `git_ops`: Implementation of Git operations for repository state checking
+    /// 
+    /// # Example
+    /// 
+    /// ```rust,ignore
+    /// let detector = AgentStateDetector::new(
+    ///     GitHubClient::new()?,
+    ///     Git2Operations::new()?
+    /// );
+    /// ```
     pub fn new(github_ops: G, git_ops: O) -> Self {
         Self {
             github_ops,
@@ -22,6 +83,26 @@ impl<G: GitHubOperations, O: GitOperations> AgentStateDetector<G, O> {
 
 impl<G: GitHubOperations, O: GitOperations> StateDetector for AgentStateDetector<G, O> {
     /// Detect current agent state based on GitHub labels and git state
+    /// 
+    /// This method implements the core state detection logic by:
+    /// 
+    /// 1. **Checking GitHub issues**: Looks for issues labeled with the agent ID
+    /// 2. **Examining git branches**: Checks if agent has a working branch
+    /// 3. **Counting commits**: Determines if work is in progress vs assigned
+    /// 
+    /// # Arguments
+    /// 
+    /// - `agent_id`: The ID of the agent to check (e.g., "agent001")
+    /// 
+    /// # Returns
+    /// 
+    /// - `AgentState::Idle`: No issues assigned to agent
+    /// - `AgentState::Assigned`: Issue assigned but no work started
+    /// - `AgentState::Working`: Issue assigned with commits on work branch
+    /// 
+    /// # Errors
+    /// 
+    /// Returns error if GitHub API calls or git operations fail
     fn detect_current_state(&self, agent_id: &str) -> Result<AgentState> {
         // Check if agent has any labeled issues
         let agent_issues = self.github_ops.get_issues_with_label(agent_id)?;
@@ -32,7 +113,7 @@ impl<G: GitHubOperations, O: GitOperations> StateDetector for AgentStateDetector
         
         // For now, check the first issue (single agent constraint)
         let issue_number = agent_issues[0];
-        let issue_labels = self.github_ops.get_labels(issue_number)?;
+        let _issue_labels = self.github_ops.get_labels(issue_number)?;
         
         // Get current branch to determine if agent is working
         let current_branch = self.git_ops.get_current_branch().ok();

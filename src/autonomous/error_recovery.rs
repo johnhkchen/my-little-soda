@@ -346,7 +346,7 @@ impl AutonomousErrorRecovery {
         &mut self,
         error_type: ErrorType,
         strategy: RecoveryStrategy,
-        context: &AutonomousWorkflowState,
+        _context: &AutonomousWorkflowState,
     ) -> Result<AutonomousRecoveryAttempt, RecoveryError> {
         let attempt_id = format!("recovery-{}-{}", Utc::now().timestamp(), rand::random::<u16>());
         let start_time = Utc::now();
