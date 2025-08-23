@@ -57,20 +57,20 @@ impl RouteCommand {
                         println!("🎯 QUICK START:");
                         println!("   → Create a task: gh issue create --title 'Your task' --label 'route:ready'");
                         println!("   → Check existing: gh issue list --label 'route:ready'");
-                        println!("   → Or try: clambake pop  # For single-agent workflow");
+                        println!("   → Or try: my-little-soda pop  # For single-agent workflow");
                     }
                     Ok(())
                 }
                 Err(e) => {
                     println!("{}", e);
                     println!();
-                    println!("🚀 ALTERNATIVE: Try 'clambake pop' for single-agent workflow");
+                    println!("🚀 ALTERNATIVE: Try 'my-little-soda pop' for single-agent workflow");
                     Err(e.into())
                 }
             }
         }).await.or_else(|_| {
             println!("📚 Need setup help? Run: clambake init");
-            println!("🚀 For single tasks: clambake pop");
+            println!("🚀 For single tasks: my-little-soda pop");
             Ok(())
         })
     }

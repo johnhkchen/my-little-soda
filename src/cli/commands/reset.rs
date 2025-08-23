@@ -75,7 +75,7 @@ impl ResetCommand {
                         println!("   🧹 {} agent labels removed", reset_count);
                         println!("   🤖 All agents now available for new work");
                         println!();
-                        println!("🎯 Ready for fresh start! Use 'clambake route' or 'clambake pop' to begin new work.");
+                        println!("🎯 Ready for fresh start! Use 'my-little-soda route' or 'my-little-soda pop' to begin new work.");
                         
                         Ok(())
                     }

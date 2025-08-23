@@ -48,7 +48,7 @@ impl PopCommand {
                         println!("   → Check progress: clambake status");
                         println!("   → Complete work: clambake land");
                         println!("   → Switch to main: git checkout main");
-                        println!("   → Force new task: clambake pop --force (not yet implemented)");
+                        println!("   → Force new task: my-little-soda pop --force (not yet implemented)");
                         println!();
                         println!("🎯 To work on multiple issues, complete current work first or switch branches.");
                         return Ok(());
@@ -96,14 +96,14 @@ impl PopCommand {
                     println!();
                     if self.mine_only {
                         println!("🎯 NO ASSIGNED TASKS:");
-                        println!("   → Try: clambake pop  # Get any available task");
+                        println!("   → Try: my-little-soda pop  # Get any available task");
                         println!("   → Create: gh issue create --title 'Your task' --label 'route:ready' --add-assignee @me");
                         println!("   → Check: gh issue list --assignee @me --label 'route:ready'");
                     } else {
                         println!("🎯 NO AVAILABLE TASKS:");
                         println!("   → Create: gh issue create --title 'Your task' --label 'route:ready'");
                         println!("   → Check existing: gh issue list --label 'route:ready'");
-                        println!("   → Try assigned: clambake pop --mine");
+                        println!("   → Try assigned: my-little-soda pop --mine");
                     }
                     Ok(())
                 }

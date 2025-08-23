@@ -93,7 +93,7 @@ impl InitCommand {
         println!("✅ Clambake initialization completed successfully!");
         println!();
         println!("🚀 Next steps:");
-        println!("   • clambake pop      # Claim your first task");
+        println!("   • my-little-soda pop      # Claim your first task");
         println!("   • clambake status   # Check system status");
         println!("   • gh issue create --title 'Your task' --label 'route:ready'");
         

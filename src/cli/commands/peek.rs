@@ -73,7 +73,7 @@ impl PeekCommand {
                             println!("📈 QUEUE DEPTH: {} total routable tasks available", issues.len());
                         }
                         
-                        println!("💡 Run 'clambake pop' to claim this task");
+                        println!("💡 Run 'my-little-soda pop' to claim this task");
                         Ok(())
                     }
                     Err(e) => {

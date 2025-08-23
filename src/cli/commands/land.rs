@@ -123,7 +123,7 @@ impl LandCommand {
         println!("   🤖 Agent {} is now free for new work", agent_id);
         println!();
         println!("🎯 Next steps:");
-        println!("   → Use 'clambake pop' to get your next task");
+        println!("   → Use 'my-little-soda pop' to get your next task");
         println!("   → Branch will be bundled into PR during next bundle cycle");
         
         // Check if we're at departure time and trigger bundling if needed
