@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error};
+use tracing::{info, warn};
 
 use crate::github::GitHubClient;
 use crate::agents::{coordinator::AgentCoordinator, recovery::AutoRecovery};
@@ -12,7 +12,6 @@ use super::{
     AutonomousWorkflowState, 
     AutonomousEvent,
     CoordinationConfig,
-    workflow_state_machine::StateTransitionRecord,
 };
 
 /// Integration layer between autonomous workflow and existing agent coordination
@@ -121,7 +120,7 @@ impl AutonomousIntegration {
                 );
                 
                 // Update agent state machine to reflect completion
-                let mut agent_state_machine = self.agent_state_machine.write().await;
+                let agent_state_machine = self.agent_state_machine.write().await;
                 // The agent should be freed and made available again
                 // This would be done through the existing workflow
             }
@@ -133,7 +132,7 @@ impl AutonomousIntegration {
                 );
                 
                 // Reset agent state machine
-                let mut agent_state_machine = self.agent_state_machine.write().await;
+                let agent_state_machine = self.agent_state_machine.write().await;
                 // Force reset through existing event system
             }
             _ => {

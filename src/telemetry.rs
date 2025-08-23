@@ -1,8 +1,6 @@
 use anyhow::Result;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
-use opentelemetry::trace::TracerProvider;
-use tracing_opentelemetry::OpenTelemetryLayer;
 
 /// Initialize OpenTelemetry tracing with distributed tracing support
 /// Exports to stdout by default, can be configured for OTLP/Jaeger in production

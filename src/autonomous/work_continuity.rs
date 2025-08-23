@@ -4,10 +4,8 @@
 //! It builds on the existing persistence and autonomous systems to provide seamless recovery
 //! of agent work context and ensures no work is lost during system interruptions.
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::Duration;
 use tokio::sync::{RwLock, mpsc};
 use chrono::{DateTime, Utc};
 use thiserror::Error;

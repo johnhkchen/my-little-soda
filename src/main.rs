@@ -16,6 +16,7 @@ mod observability;
 mod config;
 mod shutdown;
 mod database;
+mod autonomous;
 
 use cli::{Cli, Commands, AgentCommands};
 use cli::commands::{

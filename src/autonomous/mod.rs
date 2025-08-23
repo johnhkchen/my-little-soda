@@ -108,9 +108,8 @@ pub use state_validation::{
     ValidationHealth,
 };
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc, Duration};
+use chrono::{Utc, Duration};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn, error, debug};
@@ -349,7 +348,7 @@ impl AutonomousCoordinator {
         let mut workflow = self.workflow_machine.write().await;
         
         // Simulate encountering a blocker occasionally
-        if rand::thread_rng().gen::<f64>() < 0.1 { // 10% chance
+        if rand::rng().random::<f64>() < 0.1 { // 10% chance
             workflow.handle_event(AutonomousEvent::EncounterBlocker {
                 blocker: BlockerType::TestFailure {
                     test_name: "integration_test".to_string(),
@@ -502,7 +501,7 @@ impl AutonomousCoordinator {
         tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
         
         // Simulate receiving feedback
-        if rand::thread_rng().gen::<f64>() < 0.7 { // 70% chance of approval
+        if rand::rng().random::<f64>() < 0.7 { // 70% chance of approval
             let mut workflow = self.workflow_machine.write().await;
             workflow.handle_event(AutonomousEvent::ApprovalReceived).await?;
         }
@@ -528,7 +527,7 @@ impl AutonomousCoordinator {
         info!(agent_id = %self.agent_id, "Work approved, proceeding to merge");
         
         // Check for potential issues
-        if rand::thread_rng().gen::<f64>() < 0.1 { // 10% chance of merge conflict
+        if rand::rng().random::<f64>() < 0.1 { // 10% chance of merge conflict
             let conflicts = vec![ConflictInfo {
                 file: "src/main.rs".to_string(),
                 conflict_markers: 2,

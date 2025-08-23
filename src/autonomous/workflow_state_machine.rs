@@ -1,9 +1,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use chrono::{DateTime, Utc};
-use std::collections::HashMap;
-use statig::prelude::*;
-use tracing::{info, warn, error, debug};
+use tracing::{info, warn, error};
 
 use crate::github::{GitHubClient, errors::GitHubError};
 use crate::agents::recovery::{AutomaticRecovery, ComprehensiveRecoveryReport};

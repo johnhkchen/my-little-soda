@@ -1,13 +1,10 @@
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
-use thiserror::Error;
-use tracing::{info, warn, error, debug};
-use rand::Rng;
+use tracing::{info, warn, debug};
 
-use crate::github::{GitHubClient, errors::GitHubError};
-use crate::agents::recovery::{AutomaticRecovery, ComprehensiveRecoveryReport, RecoveryError};
+use crate::github::GitHubClient;
+use crate::agents::recovery::{AutomaticRecovery, RecoveryError};
 
 // Helper function to convert various errors to RecoveryError
 fn convert_error<E: std::fmt::Display>(error: E, context: &str) -> RecoveryError {
@@ -25,8 +22,7 @@ impl<T, E: std::fmt::Display> IntoRecoveryError<T> for Result<T, E> {
     }
 }
 use super::workflow_state_machine::{
-    AutonomousWorkflowState, AutonomousEvent, AutonomousWorkflowError,
-    BlockerType, ConflictInfo, CIFailure, AbandonmentReason
+    AutonomousWorkflowState, AbandonmentReason
 };
 
 /// Autonomous error recovery strategies for unattended operation

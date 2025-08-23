@@ -186,7 +186,7 @@ impl WorkIntegrator {
 
     /// Scan for merged PRs and clean up their branches
     pub async fn cleanup_all_merged_branches(&self) -> Result<Vec<String>, GitHubError> {
-        let mut cleaned_branches = Vec::new();
+        let cleaned_branches = Vec::new();
         
         // This would scan all PRs and clean up merged branches
         // For now, this is a placeholder for the full implementation

@@ -2,7 +2,6 @@ use anyhow::Result;
 use tracing::{info, warn};
 use std::time::Duration;
 use tokio::time::timeout;
-use tokio::signal;
 
 /// Graceful shutdown coordinator for Clambake
 pub struct ShutdownCoordinator {

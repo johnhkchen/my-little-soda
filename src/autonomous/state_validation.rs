@@ -4,13 +4,9 @@ use chrono::{DateTime, Utc, Duration};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::{info, warn, error, debug};
-use async_trait::async_trait;
 
 use crate::github::{GitHubClient, errors::GitHubError};
-use super::{
-    AutonomousWorkflowState, Issue, AgentId, PullRequest, 
-    AutonomousWorkflowError, Priority
-};
+use super::AutonomousWorkflowState;
 
 /// State drift detection and auto-correction system for long-running operations
 #[derive(Debug)]
@@ -451,7 +447,7 @@ impl StateDriftDetector {
                     }
                 );
             }
-            AutonomousWorkflowState::ReadyForReview { issue, pr, .. } => {
+            AutonomousWorkflowState::ReadyForReview {  pr, .. } => {
                 self.expected_state.pull_requests.insert(
                     pr.number,
                     ExpectedPRState {

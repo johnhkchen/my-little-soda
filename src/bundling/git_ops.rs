@@ -1,9 +1,9 @@
 use anyhow::{Result, anyhow};
-use git2::{Repository, BranchType, Oid, DiffOptions, Delta, ErrorCode};
+use git2::{Repository, BranchType, Oid, DiffOptions, ErrorCode};
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
-use super::types::{BundleErrorType, RecoveryStrategy, BundleAuditEntry, BundleOperationStatus, BundleState, RecoveryData};
+use super::types::{BundleErrorType, BundleAuditEntry, BundleOperationStatus, RecoveryData};
 use uuid::Uuid;
 
 /// Strategy for handling merge conflicts during bundling

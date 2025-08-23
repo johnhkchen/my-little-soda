@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -25,7 +24,7 @@ pub enum StateError {
     GitError(String),
     ValidationError(String),
 }
-use crate::github::{GitHubClient, errors::GitHubError};
+use crate::github::GitHubClient;
 
 /// Validation report for a single agent's state
 #[derive(Debug, Clone, Serialize, Deserialize)]

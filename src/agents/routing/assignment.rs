@@ -1,8 +1,6 @@
 use crate::github::{GitHubClient, GitHubError};
-use crate::agents::{Agent, AgentCoordinator};
+use crate::agents::AgentCoordinator;
 use crate::git::{GitOperations, Git2Operations};
-use octocrab::models::issues::Issue;
-use std::process::Command;
 
 #[derive(Debug)]
 pub struct AssignmentOperations;

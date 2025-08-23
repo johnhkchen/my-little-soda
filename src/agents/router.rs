@@ -2,7 +2,7 @@
 // Following VERBOTEN rules: GitHub is source of truth, atomic operations
 
 use crate::github::{GitHubClient, GitHubError};
-use crate::agents::{Agent, AgentCoordinator};
+use crate::agents::AgentCoordinator;
 use crate::agents::routing::{
     AssignmentOperations, IssueFilter, RoutingDecisions, RoutingCoordinator, RoutingAssignment
 };
@@ -22,7 +22,7 @@ pub struct AgentRouter {
 impl AgentRouter {
     pub async fn new() -> Result<Self, GitHubError> {
         let github_client = GitHubClient::new()?;
-        let mut coordinator = AgentCoordinator::new().await?;
+        let coordinator = AgentCoordinator::new().await?;
         
         // Initialize work continuity for agent001
         if let Err(e) = coordinator.initialize_work_continuity("agent001").await {

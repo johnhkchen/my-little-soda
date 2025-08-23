@@ -7,7 +7,7 @@ use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, error, debug};
+use tracing::info;
 
 use super::process_manager::{AgentProcess, ResourceUsage, ResourceSummary};
 

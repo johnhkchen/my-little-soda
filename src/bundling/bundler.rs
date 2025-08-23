@@ -6,11 +6,10 @@ use std::fs::File;
 use crate::train_schedule::QueuedBranch;
 use crate::github::{GitHubClient};
 use super::{
-    types::{BundleWindow, BundleResult, BundleState, BundleAuditEntry, BundleOperationStatus, BundleErrorType, RecoveryStrategy, RecoveryData},
+    types::{BundleWindow, BundleResult, BundleState, BundleAuditEntry, BundleOperationStatus, BundleErrorType, RecoveryStrategy},
     git_ops::{GitOperations, ConflictStrategy, ConflictCompatibilityReport},
 };
 use std::fs;
-use serde::{Serialize, Deserialize};
 
 /// Main bundle management system
 pub struct BundleManager {

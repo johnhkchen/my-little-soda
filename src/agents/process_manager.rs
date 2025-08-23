@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use tokio::process::{Child, Command};
-use tokio::time::{sleep, timeout};
 use tracing::{info, warn, error, debug};
 
 /// Resource limits for agent processes

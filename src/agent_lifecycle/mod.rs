@@ -19,8 +19,6 @@ pub mod tests;
 pub use types::*;
 pub use traits::*;
 pub use state_machine::*;
-pub use commands::*;
 
-// TODO: Re-enable when detector and executor are implemented
-// pub use detector::*;
-// pub use executor::*;
+pub use detector::*;
+pub use executor::*;

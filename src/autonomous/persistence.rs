@@ -1,19 +1,17 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 use tracing::{info, warn, error, debug};
 use rand::Rng;
 
 use super::{
-    AutonomousWorkflowState, 
-    AutonomousEvent,
+    AutonomousWorkflowState,
     StateTransitionRecord,
-    error_recovery::{AutonomousRecoveryAttempt, AutonomousRecoveryReport},
+    error_recovery::AutonomousRecoveryAttempt,
 };
 
 /// Errors that can occur during state persistence operations
@@ -268,7 +266,7 @@ impl StatePersistence for FileSystemPersistence {
         };
         
         // Update metadata
-        let checkpoint_id = format!("{}_{}", Utc::now().timestamp(), rand::thread_rng().gen::<u32>());
+        let checkpoint_id = format!("{}_{}", Utc::now().timestamp(), rand::rng().random::<u32>());
         state_to_save.checkpoint_metadata = CheckpointMetadata {
             checkpoint_id: checkpoint_id.clone(),
             creation_reason: reason.clone(),
@@ -354,7 +352,7 @@ impl StatePersistence for FileSystemPersistence {
         
         self.ensure_directories(&state.agent_id).await?;
         
-        let checkpoint_id = format!("{}_{}", Utc::now().timestamp(), rand::thread_rng().gen::<u32>());
+        let checkpoint_id = format!("{}_{}", Utc::now().timestamp(), rand::rng().random::<u32>());
         let checkpoint_file = self.get_checkpoint_file_path(&state.agent_id, &checkpoint_id);
         
         let mut checkpoint_state = state.clone();
