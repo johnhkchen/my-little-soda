@@ -1,7 +1,5 @@
 // Core types for the agent lifecycle state machine
 
-use std::collections::HashMap;
-
 /// Agent states in the lifecycle
 #[derive(Debug, Clone, PartialEq)]
 pub enum AgentState {

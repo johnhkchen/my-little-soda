@@ -13,7 +13,6 @@ use crate::autonomous::CheckpointReason;
 use crate::autonomous::ContinuityStatus;
 use crate::config::config;
 use statig::prelude::*;
-use statig::blocking::*;
 use std::collections::HashMap;
 use std::time::Instant;
 use tokio::sync::Mutex;

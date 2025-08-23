@@ -302,6 +302,273 @@ Comprehensive documentation is organized for different audiences and use cases:
 ### 🤖 Agent Integration
 - **[Agent Lifecycle](docs/agent_lifecycle.md)** - How autonomous agent operates and processes issues
 - **[System Analysis](docs/system_analysis_and_opportunities.md)** - Autonomous agent operation patterns
+- **[Autonomous System Features](#autonomous-system-features)** - State drift detection, error recovery, and work continuity
+- **[Troubleshooting Guide](#troubleshooting-autonomous-operation)** - Common issues and solutions for autonomous operation
+
+## Autonomous System Features
+
+My Little Soda provides advanced autonomous operation capabilities designed for unattended, long-running development workflows. These features ensure reliable operation and maintain work continuity even when issues arise.
+
+### 🔍 State Drift Detection
+
+The autonomous system continuously monitors for **state drift** - discrepancies between expected system state and actual GitHub/workspace state that can occur during long-running operations.
+
+**What State Drift Detection Monitors:**
+- **Issue assignments** - Detects if issues are unexpectedly reassigned or closed
+- **Branch state** - Monitors for deleted branches or unexpected commits  
+- **Pull request status** - Tracks unexpected merges, closes, or review changes
+- **Workspace consistency** - Validates local git state matches expectations
+
+**Automatic Correction Strategies:**
+```bash
+# Minor drifts: Update local expectations to match GitHub
+# Moderate drifts: Synchronize state and continue autonomously  
+# Critical drifts: Create issue for manual intervention, preserve work
+```
+
+**Configuration Example:**
+```bash
+# Enable drift detection with custom thresholds
+export MY_LITTLE_SODA_DRIFT_DETECTION_ENABLED=true
+export MY_LITTLE_SODA_DRIFT_VALIDATION_INTERVAL=5  # minutes
+export MY_LITTLE_SODA_MAX_COMMITS_BEHIND=10
+```
+
+### ⚡ Error Recovery System
+
+Autonomous error recovery handles various failure scenarios without human intervention:
+
+**Supported Error Types:**
+- **Git operations** - Push failures, merge conflicts, authentication issues
+- **Build failures** - Compilation errors, dependency issues, test failures  
+- **CI/CD failures** - Test timeouts, deployment issues, security scans
+- **GitHub API** - Rate limits, connectivity issues, permission changes
+
+**Recovery Strategies:**
+- **Automated fixes** - Syntax errors, simple merge conflicts, dependency updates
+- **Retry with backoff** - Network timeouts, temporary API failures
+- **Escalation** - Complex issues requiring human review
+
+**Example Recovery Scenarios:**
+```bash
+# Network timeout during git push
+# → Automatic retry with exponential backoff
+
+# Simple merge conflict in documentation  
+# → Automatic resolution and re-attempt
+
+# Critical security vulnerability detected
+# → Create tracking issue, preserve work, escalate
+```
+
+### 💾 Work Continuity & Persistence
+
+Ensures work continues seamlessly across agent restarts and system interruptions:
+
+**State Persistence Features:**
+- **Automatic checkpoints** - Regular saves of workflow state and progress
+- **Crash recovery** - Resume work after unexpected shutdowns  
+- **State validation** - Verify workspace consistency after restart
+- **Work preservation** - Never lose progress due to system issues
+
+**Checkpoint Configuration:**
+```toml
+# my-little-soda.toml
+[autonomous.persistence]
+enable_persistence = true
+auto_save_interval_minutes = 5
+max_state_history_entries = 100
+backup_retention_days = 7
+enable_integrity_checks = true
+```
+
+**Recovery Actions After Restart:**
+- **Continue work** - Resume from exactly where you left off
+- **Validate and resync** - Check state consistency before continuing
+- **Start fresh** - Begin new work if previous state is too old/invalid
+
+### 🛠️ Configuration Options
+
+**Full Autonomous System Configuration:**
+```toml
+# my-little-soda.toml
+[autonomous]
+max_work_hours = 8
+enable_drift_detection = true
+drift_validation_interval_minutes = 10
+
+[autonomous.recovery]
+max_recovery_attempts = 3
+recovery_timeout_minutes = 30
+enable_aggressive_recovery = false
+
+[autonomous.persistence] 
+enable_persistence = true
+persistence_directory = ".my-little-soda/state"
+auto_save_interval_minutes = 5
+
+[autonomous.monitoring]
+monitoring_interval_minutes = 5
+enable_performance_metrics = true
+```
+
+**Environment Variable Overrides:**
+```bash
+# Core autonomous settings
+export MY_LITTLE_SODA_MAX_WORK_HOURS=12
+export MY_LITTLE_SODA_ENABLE_DRIFT_DETECTION=true
+
+# Recovery settings  
+export MY_LITTLE_SODA_MAX_RECOVERY_ATTEMPTS=5
+export MY_LITTLE_SODA_RECOVERY_TIMEOUT_MINUTES=45
+
+# Persistence settings
+export MY_LITTLE_SODA_ENABLE_PERSISTENCE=true
+export MY_LITTLE_SODA_AUTO_SAVE_INTERVAL=3
+```
+
+### 📊 Monitoring & Observability
+
+Track autonomous operation health and performance:
+
+**Status Commands:**
+```bash
+# Check autonomous system status
+./target/release/my-little-soda status --autonomous
+
+# View drift detection report
+./target/release/my-little-soda drift-report
+
+# Check error recovery statistics  
+./target/release/my-little-soda recovery-report
+
+# Validate work continuity state
+./target/release/my-little-soda continuity-status
+```
+
+**Key Metrics Monitored:**
+- **Drift detection** - Validation frequency, detected drifts, correction success rate
+- **Error recovery** - Recovery attempts, success rate, average resolution time
+- **Work continuity** - Checkpoint frequency, restart recovery success, state integrity
+- **Performance** - Operation throughput, memory usage, processing times
+
+## Troubleshooting Autonomous Operation
+
+### Common State Drift Issues
+
+**Issue:** "Critical drift detected requiring manual intervention"
+```bash
+# Check what drifts were detected
+./target/release/my-little-soda drift-report
+
+# Common causes:
+# - Issue was closed while agent was working
+# - Work branch was deleted by another user  
+# - PR was merged without agent knowledge
+
+# Resolution:
+# 1. Review drift details in created GitHub issue
+# 2. Decide whether to restore state or start fresh
+# 3. Use my-little-soda reset if starting fresh
+```
+
+**Issue:** "State validation failed" 
+```bash
+# Verify workspace consistency
+git status
+git log --oneline -10
+
+# Check expected vs actual state
+./target/release/my-little-soda status --detailed
+
+# Resolution:
+# 1. Fix any uncommitted changes or conflicts
+# 2. Ensure branch matches expected state
+# 3. Run: my-little-soda pop --force-resync
+```
+
+### Error Recovery Troubleshooting
+
+**Issue:** "Recovery attempts exhausted"
+```bash
+# Check recovery history
+./target/release/my-little-soda recovery-report
+
+# View detailed error logs
+tail -f .my-little-soda/logs/autonomous.log
+
+# Resolution:
+# 1. Address root cause shown in recovery report
+# 2. Manually fix if automation can't handle
+# 3. Reset recovery state: my-little-soda reset --recovery-only
+```
+
+**Issue:** "Build failures persist after recovery"
+```bash
+# Test build manually
+cargo build --verbose
+
+# Check if dependencies changed
+git diff HEAD~1 Cargo.toml Cargo.lock
+
+# Resolution:
+# 1. Fix build issues manually
+# 2. Commit fixes: git commit -m "Fix build issues"  
+# 3. Continue: my-little-soda bottle
+```
+
+### Work Continuity Issues
+
+**Issue:** "Cannot resume work after restart"
+```bash
+# Check persistence state
+ls -la .my-little-soda/state/
+
+# Validate state files
+./target/release/my-little-soda continuity-status
+
+# Resolution:
+# 1. Check state file permissions
+# 2. Verify disk space availability
+# 3. If corrupted: my-little-soda reset --state-only
+```
+
+**Issue:** "Workspace inconsistencies after restart"
+```bash
+# Validate workspace state
+git status --porcelain
+git branch -vv
+
+# Check for uncommitted changes
+git diff HEAD
+
+# Resolution:
+# 1. Stash uncommitted changes: git stash
+# 2. Sync to expected branch: git checkout <expected-branch>
+# 3. Resume: my-little-soda pop --validate-workspace
+```
+
+### Performance Issues
+
+**Issue:** "Autonomous operations running slowly"
+```bash
+# Check system resources
+df -h .my-little-soda/  # Disk space
+ps aux | grep my-little-soda  # CPU usage
+
+# Review performance metrics
+./target/release/my-little-soda status --performance
+
+# Resolution:
+# 1. Clean old state files: my-little-soda cleanup --old-states
+# 2. Reduce monitoring frequency in config
+# 3. Disable non-essential features temporarily
+```
+
+**Need More Help?**
+- **[GitHub Issues](https://github.com/johnhkchen/my-little-soda/issues)** - Report problems or ask questions
+- **[System Specification](spec.md)** - Deep dive into autonomous system architecture  
+- **[Agent Lifecycle Documentation](docs/agent_lifecycle.md)** - Understanding agent behavior
 
 ## Support & Community
 

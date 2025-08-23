@@ -1,4 +1,4 @@
-use octocrab::{Octocrab, Error as OctocrabError};
+use octocrab::Octocrab;
 use std::fs;
 use std::path::Path;
 use async_trait::async_trait;

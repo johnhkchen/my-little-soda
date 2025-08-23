@@ -2,8 +2,7 @@
 // Following research recommendations for rate limiting and resilience
 
 use std::time::Duration;
-use tokio_retry::strategy::{ExponentialBackoff, jitter};
-use tokio_retry::Retry;
+// Note: Custom retry implementation - tokio_retry imports removed as unused
 use crate::github::GitHubError;
 use tracing::{warn, debug, error};
 
