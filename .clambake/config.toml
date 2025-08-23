@@ -1,6 +1,6 @@
 [github]
 owner = "johnhkchen"
-repo = "clambake"
+repo = "my-little-soda"
 
 [github.rate_limit]
 requests_per_hour = 5000
@@ -20,6 +20,6 @@ max_queue_size = 50
 processing_timeout_seconds = 1800
 
 [database]
-url = ".clambake/clambake.db"
+url = ".my-little-soda/my-little-soda.db"
 max_connections = 10
 auto_migrate = true

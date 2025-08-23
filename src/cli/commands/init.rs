@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use std::path::Path;
 use std::fs;
 use octocrab::Octocrab;
-use crate::config::{ClambakeConfig, GitHubConfig, ObservabilityConfig, AgentConfig, DatabaseConfig, RateLimitConfig, BundleConfig, AgentProcessConfig, CIModeConfig};
+use crate::config::{MyLittleSodaConfig, GitHubConfig, ObservabilityConfig, AgentConfig, DatabaseConfig, RateLimitConfig, BundleConfig, AgentProcessConfig, CIModeConfig};
 use crate::github::client::GitHubClient;
 use crate::github::errors::GitHubError;
 
@@ -129,7 +129,7 @@ impl InitCommand {
             
             // Test permissions by trying to fetch repository info
             let octocrab = Octocrab::builder()
-                .personal_token(std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("CLAMBAKE_GITHUB_TOKEN"))?)
+                .personal_token(std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?)
                 .build()?;
             
             let repo = octocrab.repos(github_client.owner(), github_client.repo())
@@ -186,7 +186,7 @@ impl InitCommand {
             .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
         let octocrab = Octocrab::builder()
-            .personal_token(std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("CLAMBAKE_GITHUB_TOKEN"))?)
+            .personal_token(std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?)
             .build()?;
 
         for label in &labels {
@@ -300,7 +300,7 @@ impl InitCommand {
         print!("⚙️  Generating clambake.toml... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
         
-        let config = ClambakeConfig {
+        let config = MyLittleSodaConfig {
             github: GitHubConfig {
                 token: None, // Will be read from env var
                 owner,
@@ -423,7 +423,7 @@ impl InitCommand {
         print!("✅ Verifying configuration is loadable... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
         
-        let _config = crate::config::ClambakeConfig::load()
+        let _config = crate::config::MyLittleSodaConfig::load()
             .map_err(|e| anyhow!("Generated configuration is invalid: {}", e))?;
         println!("✅");
 

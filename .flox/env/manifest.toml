@@ -10,7 +10,7 @@ version = 1
 
 
 ## Install Packages --------------------------------------------------
-##  Development tools for Clambake multi-agent orchestration
+##  Development tools for My Little Soda multi-agent orchestration
 ## -------------------------------------------------------------------
 [install]
 # Core Rust development tools
@@ -40,11 +40,11 @@ gcc.pkg-path = "gcc"
 
 
 ## Environment Variables ---------------------------------------------
-##  Clambake development environment configuration
+##  My Little Soda development environment configuration
 ## -------------------------------------------------------------------
 [vars]
-CLAMBAKE_ENV = "development"
-CLAMBAKE_CONFIG_DIR = "$FLOX_ENV_PROJECT/.clambake"
+MY_LITTLE_SODA_ENV = "development"
+MY_LITTLE_SODA_CONFIG_DIR = "$FLOX_ENV_PROJECT/.my-little-soda"
 RUST_LOG = "debug"
 RUST_BACKTRACE = "1"
 
@@ -53,22 +53,22 @@ PHOENIX_PORT = "6006"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
 
 # GitHub Integration (will be set from credential files)
-GITHUB_TOKEN_FILE = "$FLOX_ENV_PROJECT/.clambake/credentials/github_token"
-GITHUB_OWNER_FILE = "$FLOX_ENV_PROJECT/.clambake/credentials/github_owner"
-GITHUB_REPO_FILE = "$FLOX_ENV_PROJECT/.clambake/credentials/github_repo"
+GITHUB_TOKEN_FILE = "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_token"
+GITHUB_OWNER_FILE = "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_owner"
+GITHUB_REPO_FILE = "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_repo"
 
 
 ## Activation Hook ---------------------------------------------------
-##  Initialize Clambake development environment
+##  Initialize My Little Soda development environment
 ## -------------------------------------------------------------------
 [hook]
 on-activate = '''
-  echo "🚀 Activating Clambake Development Environment"
+  echo "🚀 Activating My Little Soda Development Environment"
   
   # Create credential directories if they don't exist
-  mkdir -p "$FLOX_ENV_PROJECT/.clambake/credentials"
-  mkdir -p "$FLOX_ENV_PROJECT/.clambake/config"
-  mkdir -p "$FLOX_ENV_PROJECT/.clambake/cache"
+  mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/credentials"
+  mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/config"
+  mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/cache"
   
   # Set up credential files with placeholders if they don't exist
   if [ ! -f "$GITHUB_TOKEN_FILE" ]; then
@@ -90,10 +90,10 @@ on-activate = '''
   unset GITHUB_TOKEN
   
   # Create symlink to debug build for development
-  if [ -f "$FLOX_ENV_PROJECT/target/debug/clambake" ]; then
-    mkdir -p "$FLOX_ENV_PROJECT/.clambake/bin"
-    ln -sf "$FLOX_ENV_PROJECT/target/debug/clambake" "$FLOX_ENV_PROJECT/.clambake/bin/clambake"
-    echo "🔗 Created symlink: clambake -> target/debug/clambake"
+  if [ -f "$FLOX_ENV_PROJECT/target/debug/my-little-soda" ]; then
+    mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/bin"
+    ln -sf "$FLOX_ENV_PROJECT/target/debug/my-little-soda" "$FLOX_ENV_PROJECT/.my-little-soda/bin/my-little-soda"
+    echo "🔗 Created symlink: my-little-soda -> target/debug/my-little-soda"
   fi
   
   # Warn about credential setup
@@ -101,7 +101,7 @@ on-activate = '''
     echo "⚠️  GitHub token is still a placeholder - run 'cargo run' for setup instructions"
   fi
   
-  echo "✅ Clambake environment ready! Run 'cargo run' to see onboarding instructions."
+  echo "✅ My Little Soda environment ready! Run 'cargo run' to see onboarding instructions."
   echo "💡 Use 'gh auth status' to check GitHub CLI authentication"
 '''
 
@@ -111,24 +111,24 @@ on-activate = '''
 ## -------------------------------------------------------------------
 [profile]
 common = '''
-  # Set Clambake-specific GitHub token from file (if exists and valid)
-  if [ -f "$FLOX_ENV_PROJECT/.clambake/credentials/github_token" ]; then
-    token_content="$(cat "$FLOX_ENV_PROJECT/.clambake/credentials/github_token" | tr -d '\n')"
+  # Set My Little Soda-specific GitHub token from file (if exists and valid)
+  if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_token" ]; then
+    token_content="$(cat "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_token" | tr -d '\n')"
     if [ "$token_content" != "YOUR_GITHUB_TOKEN_HERE" ] && [ -n "$token_content" ]; then
-      export CLAMBAKE_GITHUB_TOKEN="$token_content"
+      export MY_LITTLE_SODA_GITHUB_TOKEN="$token_content"
     fi
   fi
   
   # Set GitHub owner and repo from files (if exists and valid)
-  if [ -f "$FLOX_ENV_PROJECT/.clambake/credentials/github_owner" ]; then
-    owner_content="$(cat "$FLOX_ENV_PROJECT/.clambake/credentials/github_owner" | tr -d '\n')"
+  if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_owner" ]; then
+    owner_content="$(cat "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_owner" | tr -d '\n')"
     if [ "$owner_content" != "your-github-username" ] && [ -n "$owner_content" ]; then
       export GITHUB_OWNER="$owner_content"
     fi
   fi
   
-  if [ -f "$FLOX_ENV_PROJECT/.clambake/credentials/github_repo" ]; then
-    repo_content="$(cat "$FLOX_ENV_PROJECT/.clambake/credentials/github_repo" | tr -d '\n')"
+  if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_repo" ]; then
+    repo_content="$(cat "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_repo" | tr -d '\n')"
     if [ "$repo_content" != "your-repo-name" ] && [ -n "$repo_content" ]; then
       export GITHUB_REPO="$repo_content"
     fi
@@ -137,9 +137,9 @@ common = '''
   # Ensure GITHUB_TOKEN doesn't interfere with gh CLI
   unset GITHUB_TOKEN
   
-  # Add clambake debug build to PATH if symlink exists
-  if [ -f "$FLOX_ENV_PROJECT/.clambake/bin/clambake" ]; then
-    export PATH="$FLOX_ENV_PROJECT/.clambake/bin:$PATH"
+  # Add my-little-soda debug build to PATH if symlink exists
+  if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/bin/my-little-soda" ]; then
+    export PATH="$FLOX_ENV_PROJECT/.my-little-soda/bin:$PATH"
   fi
 '''
 ## Shell-specific customizations such as setting aliases go here:

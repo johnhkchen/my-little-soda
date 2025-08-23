@@ -1,10 +1,10 @@
-# Clambake Configuration Example
-# Copy this file to clambake.toml and customize as needed
+# My Little Soda Configuration Example
+# Copy this file to my-little-soda.toml and customize as needed
 
 [github]
 # GitHub repository settings
 owner = "johnhkchen"
-repo = "clambake"
+repo = "my-little-soda"
 
 # Rate limiting configuration
 [github.rate_limit]
@@ -35,13 +35,13 @@ processing_timeout_seconds = 1800
 # Optional database configuration
 # Uncomment to enable persistent state storage
 # [database]
-# url = ".clambake/clambake.db"
+# url = ".my-little-soda/my-little-soda.db"
 # max_connections = 10
 # auto_migrate = true
 
 # Environment variables can override any setting:
-# CLAMBAKE_GITHUB_TOKEN=ghp_xxx...
-# CLAMBAKE_GITHUB_OWNER=your-org
-# CLAMBAKE_GITHUB_REPO=your-repo
-# CLAMBAKE_OBSERVABILITY_LOG_LEVEL=debug
-# CLAMBAKE_AGENTS_MAX_AGENTS=8
+# MY_LITTLE_SODA_GITHUB_TOKEN=ghp_xxx...
+# MY_LITTLE_SODA_GITHUB_OWNER=your-org
+# MY_LITTLE_SODA_GITHUB_REPO=your-repo
+# MY_LITTLE_SODA_OBSERVABILITY_LOG_LEVEL=debug
+# MY_LITTLE_SODA_AGENTS_MAX_AGENTS=8

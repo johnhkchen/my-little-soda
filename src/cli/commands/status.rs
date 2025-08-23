@@ -50,7 +50,7 @@ impl StatusCommand {
                         }
                         
                         println!("📍 Current branch: {}", current_branch);
-                        println!("🚀 Mode: Manual (use 'clambake spawn --autonomous' for unattended)");
+                        println!("🚀 Mode: Manual (use 'my-little-soda spawn --autonomous' for unattended)");
                         println!();
                     }
                     Err(e) => {
@@ -119,16 +119,16 @@ impl StatusCommand {
                 
                 // Show next actions
                 println!("🎯 NEXT ACTIONS:");
-                println!("   → clambake pop       # Get highest priority task");
-                println!("   → clambake peek      # Preview task details");
-                println!("   → clambake spawn --autonomous  # Start unattended mode");
+                println!("   → my-little-soda pop       # Get highest priority task");
+                println!("   → my-little-soda peek      # Preview task details");
+                println!("   → my-little-soda spawn --autonomous  # Start unattended mode");
                 
                 Ok(())
             }
             Err(e) => {
                 println!("❌ System initialization failed: {}", e);
                 println!();
-                println!("📚 Setup help: clambake init");
+                println!("📚 Setup help: my-little-soda init");
                 println!("🔧 Check GitHub auth: gh auth status");
                 Err(e.into())
             }

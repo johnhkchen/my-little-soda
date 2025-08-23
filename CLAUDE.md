@@ -21,12 +21,13 @@
 ### Quick README Verification:
 ```bash
 # Test that key commands work as documented
-./target/release/clambake --help
-./target/release/clambake pop --help
-./target/release/clambake init --help
+./target/release/my-little-soda --help
+./target/release/my-little-soda pop --help
+./target/release/my-little-soda bottle --help
+./target/release/my-little-soda init --help
 
 # Verify repository functionality
-./target/release/clambake status
+./target/release/my-little-soda status
 ```
 
 **Remember**: Documentation debt is technical debt. Fix it promptly when discovered.

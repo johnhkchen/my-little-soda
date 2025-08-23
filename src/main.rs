@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
         Some(Commands::Reset) => {
             ResetCommand::new().with_ci_mode(cli.ci_mode).execute().await
         }
-        Some(Commands::Land { open_only, days, dry_run, verbose }) => {
+        Some(Commands::Bottle { open_only, days, dry_run, verbose }) => {
             LandCommand::new(!open_only, days, dry_run, verbose).with_ci_mode(cli.ci_mode).execute().await
         }
         Some(Commands::Bundle { force, dry_run, verbose, diagnose }) => {

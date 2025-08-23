@@ -33,7 +33,7 @@ impl std::fmt::Display for GitHubError {
                 write!(f, "🔑 {}\n\n", msg)?;
                 write!(f, "🔧 QUICK FIXES:\n")?;
                 write!(f, "   → Use GitHub CLI: gh auth login\n")?;
-                write!(f, "   → Set token directly: export CLAMBAKE_GITHUB_TOKEN=your_token\n")?;
+                write!(f, "   → Set token directly: export MY_LITTLE_SODA_GITHUB_TOKEN=your_token\n")?;
                 write!(f, "   → Create token at: https://github.com/settings/tokens\n")?;
                 write!(f, "     (needs 'repo' scope for private repos, 'public_repo' for public)")
             },

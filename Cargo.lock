@@ -359,53 +359,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clambake"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "assert_cmd",
- "async-trait",
- "chrono",
- "clap",
- "config",
- "dotenvy",
- "exponential-backoff",
- "fastrand",
- "fd-lock",
- "futures",
- "git2",
- "governor",
- "moka",
- "octocrab",
- "once_cell",
- "opentelemetry",
- "opentelemetry-stdout",
- "predicates",
- "proptest",
- "proptest-derive",
- "regex",
- "reqwest",
- "reqwest-middleware",
- "reqwest-retry",
- "serde",
- "serde_json",
- "sqlx",
- "statig",
- "tempfile",
- "thiserror 2.0.16",
- "time",
- "tokio",
- "tokio-graceful-shutdown",
- "tokio-retry",
- "toml",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "uuid",
- "wiremock",
-]
-
-[[package]]
 name = "clap"
 version = "4.5.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1771,6 +1724,53 @@ dependencies = [
  "tagptr",
  "thiserror 1.0.69",
  "uuid",
+]
+
+[[package]]
+name = "my-little-soda"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
+ "async-trait",
+ "chrono",
+ "clap",
+ "config",
+ "dotenvy",
+ "exponential-backoff",
+ "fastrand",
+ "fd-lock",
+ "futures",
+ "git2",
+ "governor",
+ "moka",
+ "octocrab",
+ "once_cell",
+ "opentelemetry",
+ "opentelemetry-stdout",
+ "predicates",
+ "proptest",
+ "proptest-derive",
+ "regex",
+ "reqwest",
+ "reqwest-middleware",
+ "reqwest-retry",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "statig",
+ "tempfile",
+ "thiserror 2.0.16",
+ "time",
+ "tokio",
+ "tokio-graceful-shutdown",
+ "tokio-retry",
+ "toml",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "uuid",
+ "wiremock",
 ]
 
 [[package]]

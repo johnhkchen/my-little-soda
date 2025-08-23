@@ -3,9 +3,9 @@ use config::{Config, File, Environment};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-/// Main configuration structure for Clambake
+/// Main configuration structure for My Little Soda
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ClambakeConfig {
+pub struct MyLittleSodaConfig {
     /// GitHub configuration
     pub github: GitHubConfig,
     /// Observability settings
@@ -110,13 +110,13 @@ pub struct DatabaseConfig {
     pub auto_migrate: bool,
 }
 
-impl Default for ClambakeConfig {
+impl Default for MyLittleSodaConfig {
     fn default() -> Self {
         Self {
             github: GitHubConfig {
                 token: None, // Will be read from env var or .clambakerc
                 owner: "johnhkchen".to_string(),
-                repo: "clambake".to_string(),
+                repo: "my-little-soda".to_string(),
                 rate_limit: RateLimitConfig {
                     requests_per_hour: 5000,
                     burst_capacity: 100,
@@ -139,7 +139,7 @@ impl Default for ClambakeConfig {
                     claude_code_path: "claude-code".to_string(),
                     timeout_minutes: 30,
                     cleanup_on_failure: true,
-                    work_dir_prefix: ".clambake/agents".to_string(),
+                    work_dir_prefix: ".my-little-soda/agents".to_string(),
                     enable_real_agents: false, // Start with mocks by default for safety
                 },
                 ci_mode: CIModeConfig {
@@ -152,7 +152,7 @@ impl Default for ClambakeConfig {
                 },
             },
             database: Some(DatabaseConfig {
-                url: ".clambake/clambake.db".to_string(),
+                url: ".my-little-soda/my-little-soda.db".to_string(),
                 max_connections: 10,
                 auto_migrate: true,
             }),
@@ -160,22 +160,22 @@ impl Default for ClambakeConfig {
     }
 }
 
-impl ClambakeConfig {
+impl MyLittleSodaConfig {
     /// Load configuration from multiple sources with precedence:
     /// 1. Default values
-    /// 2. Configuration files (clambake.toml, .clambakerc)
-    /// 3. Environment variables (prefixed with CLAMBAKE_)
+    /// 2. Configuration files (my-little-soda.toml, .my-little-soda-rc)
+    /// 3. Environment variables (prefixed with MY_LITTLE_SODA_)
     pub fn load() -> Result<Self> {
         // Start with default configuration
         let mut builder = Config::builder();
 
         // Try to load from configuration files
-        if Path::new("clambake.toml").exists() {
-            builder = builder.add_source(File::with_name("clambake"));
+        if Path::new("my-little-soda.toml").exists() {
+            builder = builder.add_source(File::with_name("my-little-soda"));
         }
         
-        if Path::new(".clambakerc").exists() {
-            builder = builder.add_source(File::with_name(".clambakerc"));
+        if Path::new(".my-little-soda-rc").exists() {
+            builder = builder.add_source(File::with_name(".my-little-soda-rc"));
         }
 
         // Override with environment variables
@@ -188,19 +188,19 @@ impl ClambakeConfig {
         let config = builder.build()?;
         
         // Deserialize into our config struct
-        let mut clambake_config: ClambakeConfig = config.try_deserialize()?;
+        let mut my_little_soda_config: MyLittleSodaConfig = config.try_deserialize()?;
 
         // Special handling for GitHub token - check multiple sources
-        if clambake_config.github.token.is_none() {
+        if my_little_soda_config.github.token.is_none() {
             // Try environment variable
             if let Ok(token) = std::env::var("GITHUB_TOKEN") {
-                clambake_config.github.token = Some(token);
-            } else if let Ok(token) = std::env::var("CLAMBAKE_GITHUB_TOKEN") {
-                clambake_config.github.token = Some(token);
+                my_little_soda_config.github.token = Some(token);
+            } else if let Ok(token) = std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN") {
+                my_little_soda_config.github.token = Some(token);
             }
         }
 
-        Ok(clambake_config)
+        Ok(my_little_soda_config)
     }
 
     /// Save configuration to file
@@ -221,15 +221,15 @@ impl ClambakeConfig {
 }
 
 /// Global configuration instance
-static CONFIG: std::sync::LazyLock<Result<ClambakeConfig, anyhow::Error>> = 
+static CONFIG: std::sync::LazyLock<Result<MyLittleSodaConfig, anyhow::Error>> = 
     std::sync::LazyLock::new(|| {
         // Load .env file first
-        let _ = ClambakeConfig::load_env_file();
-        ClambakeConfig::load()
+        let _ = MyLittleSodaConfig::load_env_file();
+        MyLittleSodaConfig::load()
     });
 
 /// Get the global configuration
-pub fn config() -> Result<&'static ClambakeConfig> {
+pub fn config() -> Result<&'static MyLittleSodaConfig> {
     CONFIG.as_ref().map_err(|e| anyhow::anyhow!("Failed to load configuration: {}", e))
 }
 

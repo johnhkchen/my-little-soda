@@ -30,6 +30,6 @@ pub use git::{GitOperations, Git2Operations, CommitInfo};
 pub use bundling::{BundleManager, BundleResult, BundleWindow};
 pub use http::{RateLimitedHttpClient};
 pub use observability::{GitHubApiMetrics, github_metrics, create_workflow_span, OperationTimer};
-pub use config::{ClambakeConfig, config, init_config};
+pub use config::{MyLittleSodaConfig, config, init_config};
 pub use shutdown::ShutdownCoordinator;
 pub use database::{init_database, shutdown_database};

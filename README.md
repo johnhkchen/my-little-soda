@@ -1,15 +1,15 @@
-# Clambake
+# My Little Soda
 
 **Multi-agent AI orchestration for GitHub repositories.** 
 
-Clambake coordinates multiple AI coding assistants working on your GitHub Issues simultaneously. It prevents conflicts and manages their progress through proper development workflows.
+My Little Soda coordinates multiple AI coding assistants working on your GitHub Issues simultaneously. It prevents conflicts and manages their progress through proper development workflows.
 
-[![Property-Based Tests](https://github.com/johnhkchen/clambake/actions/workflows/property-tests.yml/badge.svg)](https://github.com/johnhkchen/clambake/actions/workflows/property-tests.yml)
+[![Property-Based Tests](https://github.com/johnhkchen/my-little-soda/actions/workflows/property-tests.yml/badge.svg)](https://github.com/johnhkchen/my-little-soda/actions/workflows/property-tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/johnhkchen/clambake)
-[![Status](https://img.shields.io/badge/status-Early%20Alpha-red.svg)](https://github.com/johnhkchen/clambake)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](https://github.com/johnhkchen/my-little-soda)
+[![Status](https://img.shields.io/badge/status-Early%20Alpha-red.svg)](https://github.com/johnhkchen/my-little-soda)
 
-## What Clambake Does
+## What My Little Soda Does
 
 - **🤖 Coordinates AI agents** working on different GitHub Issues simultaneously
 - **🔀 Prevents conflicts** with automatic branch isolation for each agent
@@ -29,7 +29,7 @@ Clambake coordinates multiple AI coding assistants working on your GitHub Issues
 
 ### Prerequisites
 
-Before installing Clambake, ensure you have the following:
+Before installing My Little Soda, ensure you have the following:
 
 #### Required
 - **GitHub CLI**: `gh auth login` (for GitHub API access)
@@ -41,7 +41,7 @@ Before installing Clambake, ensure you have the following:
 - **GitHub Personal Access Token**: Required for API operations
   - Create at: https://github.com/settings/tokens
   - Required scopes: `repo`, `read:org` (for private repos)
-  - Can be set via `GITHUB_TOKEN` or `CLAMBAKE_GITHUB_TOKEN` environment variable
+  - Can be set via `GITHUB_TOKEN` or `MY_LITTLE_SODA_GITHUB_TOKEN` environment variable
 
 #### Repository Permissions
 - **Write access** to the target repository (for creating branches, PRs, and labels)
@@ -50,8 +50,8 @@ Before installing Clambake, ensure you have the following:
 
 #### Optional Dependencies
 - **Database** (SQLite): For persistent state storage and metrics
-  - Auto-created at `.clambake/clambake.db` if enabled
-  - Enable in `clambake.toml` or via `CLAMBAKE_DATABASE_URL`
+  - Auto-created at `.my-little-soda/my-little-soda.db` if enabled
+  - Enable in `my-little-soda.toml` or via `MY_LITTLE_SODA_DATABASE_URL`
 - **OpenTelemetry Endpoint**: For distributed tracing and observability
   - Defaults to stdout export if not configured
   - Set via `CLAMBAKE_OBSERVABILITY_OTLP_ENDPOINT`
@@ -63,17 +63,17 @@ Before installing Clambake, ensure you have the following:
 - **macOS** (Intel and Apple Silicon)  
 - **Windows** (Windows 10/11)
 
-> **Windows Note:** Use `.\target\release\clambake.exe` instead of `./target/release/clambake`
+> **Windows Note:** Use `.\target\release\my-little-soda.exe` instead of `./target/release/my-little-soda`
 
 ### Option 1: Build from Source
 
 ```bash
-git clone https://github.com/johnhkchen/clambake.git
-cd clambake
+git clone https://github.com/johnhkchen/my-little-soda.git
+cd my-little-soda
 cargo build --release
 ```
 
-Executable location: `./target/release/clambake` (Windows: `.\target\release\clambake.exe`)
+Executable location: `./target/release/my-little-soda` (Windows: `.\target\release\my-little-soda.exe`)
 
 ### Option 2: Pre-built Binaries
 Pre-built binaries are planned for future releases.
@@ -92,8 +92,8 @@ export CLAMBAKE_GITHUB_REPO="your-repo"
 #### Option 2: Configuration File (Recommended for local development)
 Copy the example configuration and customize:
 ```bash
-cp clambake.example.toml clambake.toml
-# Edit clambake.toml with your repository details
+cp my-little-soda.example.toml my-little-soda.toml
+# Edit my-little-soda.toml with your repository details
 ```
 
 #### Option 3: .env File
@@ -107,23 +107,23 @@ CLAMBAKE_GITHUB_REPO=your-repo
 ### Setup Your Repository
 
 #### Option 1: Automated Setup (Coming Soon)
-The `clambake init` command will automate repository setup in a future release:
+The `my-little-soda init` command will automate repository setup in a future release:
 
 ```bash
 # Future: One-command setup (WIP)
-./target/release/clambake init --agents 3
+./target/release/my-little-soda init --agents 3
 ```
 
 **What this will do:**
 - ✅ Validate GitHub authentication and permissions
 - 🏷️  Create required routing labels (`route:ready`, `route:priority-high`, etc.)
-- ⚙️  Generate `clambake.toml` configuration 
+- ⚙️  Generate `my-little-soda.toml` configuration 
 - 🤖 Initialize agent capacity and tracking
-- 📁 Create `.clambake/` directory structure
+- 📁 Create `.my-little-soda/` directory structure
 - ✅ Verify setup and test connectivity
 
 #### Option 2: Manual Setup (Current Required Process)
-Until `clambake init` is implemented, set up your repository manually:
+Until `my-little-soda init` is implemented, set up your repository manually:
 
 **1. Create Required GitHub Labels:**
 ```bash
@@ -143,17 +143,17 @@ gh label create "route:priority-very-high" --color "d73a4a" --description "Prior
 
 **2. Verify Configuration:**
 ```bash
-# Test that clambake can connect to your repository
-./target/release/clambake status
+# Test that my-little-soda can connect to your repository
+./target/release/my-little-soda status
 ```
 
-**3. Start Using Clambake:**
+**3. Start Using My Little Soda:**
 ```bash
 # Label some issues as ready for agents
 gh issue edit <issue-number> --add-label "route:ready"
 
 # Begin agent workflow
-./target/release/clambake pop
+./target/release/my-little-soda pop
 ```
 
 > 📖 **Need help?** See the [complete installation guide](docs/README.md#installation) for troubleshooting and advanced configuration.
@@ -166,9 +166,9 @@ gh issue edit <issue-number> --add-label "route:ready"
 
 **Already installed?** Here's the essential workflow:
 
-1. **Get a task:** `./target/release/clambake pop`
+1. **Get a task:** `./target/release/my-little-soda pop`
 2. **Work on it:** Make your changes and commit
-3. **Submit work:** `./target/release/clambake land`
+3. **Submit work:** `./target/release/my-little-soda bottle`
 4. **Repeat:** System automatically assigns next task
 
 See [Usage Examples](#usage-examples) for detailed commands.
@@ -181,7 +181,7 @@ Start your development session by claiming work:
 
 ```bash
 # Get your next assigned task (primary command)
-./target/release/clambake pop
+./target/release/my-little-soda pop
 ```
 
 **What this does:**
@@ -199,7 +199,7 @@ git add .
 git commit -m "Implement feature X"
 
 # Complete your work and create PR
-./target/release/clambake land
+./target/release/my-little-soda bottle
 ```
 
 **What `land` does:**
@@ -213,7 +213,7 @@ Check what's happening in your repository:
 
 ```bash
 # View agent status and task queue
-./target/release/clambake status
+./target/release/my-little-soda status
 ```
 
 Example output:
@@ -233,7 +233,7 @@ See what work is available without claiming it:
 
 ```bash
 # Preview the next task you would get
-./target/release/clambake peek
+./target/release/my-little-soda peek
 ```
 
 ### Complete Daily Workflow Example
@@ -242,7 +242,7 @@ Here's a typical development session:
 
 ```bash
 # 1. Start your day - get first task
-./target/release/clambake pop
+./target/release/my-little-soda pop
 # ✅ Assigned issue #42: Fix login bug
 
 # 2. Work on the issue (implement your solution)
@@ -251,11 +251,11 @@ git add .
 git commit -m "Fix login validation bug"
 
 # 3. Submit your work
-./target/release/clambake land
+./target/release/my-little-soda bottle
 # ✅ PR created, work submitted for review
 
 # 4. Get next task immediately
-./target/release/clambake pop  
+./target/release/my-little-soda pop  
 # ✅ Assigned issue #45: Add user authentication
 
 # 5. Continue the cycle...
@@ -265,23 +265,23 @@ git commit -m "Fix login validation bug"
 
 ```bash
 # Initialize a new repository (run once per repo)
-./target/release/clambake init
+./target/release/my-little-soda init
 
 # Reset all agents (admin only)
-./target/release/clambake reset
+./target/release/my-little-soda reset
 
 # Bundle multiple PRs for review
-./target/release/clambake bundle
+./target/release/my-little-soda bundle
 ```
 
 ### Getting Help
 
 ```bash
 # See all available commands
-./target/release/clambake --help
+./target/release/my-little-soda --help
 
 # Get help for specific command
-./target/release/clambake pop --help
+./target/release/my-little-soda pop --help
 ```
 
 ## Documentation
@@ -306,7 +306,7 @@ Comprehensive documentation is organized for different audiences and use cases:
 
 **Need help? Start with:**
 - **[Complete Documentation](docs/README.md)** - User guides, troubleshooting, and configuration
-- **[GitHub Issues](https://github.com/johnhkchen/clambake/issues)** - Bug reports, feature requests, and questions
+- **[GitHub Issues](https://github.com/johnhkchen/my-little-soda/issues)** - Bug reports, feature requests, and questions
 - **[System Specification](spec.md)** - Architecture and design principles
 
 ## Contributing

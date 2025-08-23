@@ -39,17 +39,18 @@ where
 }
 
 pub async fn show_how_to_get_work() -> Result<()> {
-    println!("🎯 Clambake - Multi-Agent Development Orchestration");
+    println!("🎯 My Little Soda - Multi-Agent Development Orchestration");
     println!();
     println!("To get started:");
-    println!("  🚀 clambake pop      # Claim your next task");
-    println!("  📊 clambake status   # See system overview");
-    println!("  👁️  clambake peek     # Preview available work");
+    println!("  🚀 my-little-soda pop      # Claim your next task");
+    println!("  📊 my-little-soda status   # See system overview");
+    println!("  👁️  my-little-soda peek     # Preview available work");
+    println!("  🍼 my-little-soda bottle   # Complete work and bundle");
     println!();
     println!("Admin commands:");
-    println!("  🔀 clambake route    # Route tasks to agents");
-    println!("  ⚙️  clambake init     # Setup development environment");
+    println!("  🔀 my-little-soda route    # Route tasks to agents");
+    println!("  ⚙️  my-little-soda init     # Setup development environment");
     println!();
-    println!("💡 Start with 'clambake pop' to claim your first task!");
+    println!("💡 Start with 'my-little-soda pop' to claim your first task!");
     Ok(())
 }

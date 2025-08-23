@@ -3,10 +3,10 @@ use clap::{Parser, Subcommand};
 pub mod commands;
 
 #[derive(Parser)]
-#[command(name = "clambake")]
+#[command(name = "my-little-soda")]
 #[command(about = "GitHub-native multi-agent development orchestration")]
-#[command(long_about = "Clambake orchestrates multiple AI coding agents using GitHub Issues as tasks, \
-                       with automatic branch management and work coordination. Get started with 'clambake pop' \
+#[command(long_about = "My Little Soda orchestrates multiple AI coding agents using GitHub Issues as tasks, \
+                       with automatic branch management and work coordination. Get started with 'my-little-soda pop' \
                        to claim your next task.")]
 pub struct Cli {
     #[command(subcommand)]
@@ -56,8 +56,8 @@ pub enum Commands {
     },
     /// Reset all agents to idle state by removing agent labels from issues
     Reset,
-    /// Complete agent lifecycle by detecting merged work and cleaning up issues
-    Land {
+    /// Complete work and bundle into a PR (replaces the old land functionality)
+    Bottle {
         /// Only scan open issues (excludes auto-closed issues from GitHub PR merges)
         #[arg(long, help = "Only scan open issues, exclude recently closed issues")]
         open_only: bool,

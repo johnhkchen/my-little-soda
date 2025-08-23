@@ -1,6 +1,6 @@
 [github]
 owner = "johnhkchen"
-repo = "clambake"
+repo = "my-little-soda"
 
 [github.rate_limit]
 requests_per_hour = 5000
@@ -23,7 +23,7 @@ processing_timeout_seconds = 1800
 claude_code_path = "claude-code"
 timeout_minutes = 30
 cleanup_on_failure = true
-work_dir_prefix = ".clambake/agents"
+work_dir_prefix = ".my-little-soda/agents"
 enable_real_agents = false
 
 [agents.ci_mode]
@@ -35,6 +35,6 @@ ci_timeout_adjustment = 300
 enhanced_error_reporting = true
 
 [database]
-url = ".clambake/clambake.db"
+url = ".my-little-soda/my-little-soda.db"
 max_connections = 10
 auto_migrate = true

@@ -1,10 +1,10 @@
 /target
 
-# Clambake credentials and sensitive configuration
-.clambake/credentials/
-.clambake/cache/
-.clambake/metrics/
-.clambake/*.lock
+# My Little Soda credentials and sensitive configuration
+.my-little-soda/credentials/
+.my-little-soda/cache/
+.my-little-soda/metrics/
+.my-little-soda/*.lock
 *.token
 *.key
 

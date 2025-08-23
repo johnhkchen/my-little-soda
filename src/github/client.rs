@@ -65,7 +65,7 @@ impl GitHubClient {
 
     fn read_token() -> Result<String, GitHubError> {
         // First try environment variable (set by flox)
-        if let Ok(token) = std::env::var("CLAMBAKE_GITHUB_TOKEN") {
+        if let Ok(token) = std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN") {
             if token != "YOUR_GITHUB_TOKEN_HERE" && !token.is_empty() {
                 return Ok(token);
             }
@@ -75,7 +75,7 @@ impl GitHubClient {
         let token_path = ".clambake/credentials/github_token";
         if !Path::new(token_path).exists() {
             return Err(GitHubError::TokenNotFound(format!(
-                "GitHub token not found. Please set CLAMBAKE_GITHUB_TOKEN environment variable or create {} with your GitHub personal access token.",
+                "GitHub token not found. Please set MY_LITTLE_SODA_GITHUB_TOKEN environment variable or create {} with your GitHub personal access token.",
                 token_path
             )));
         }
