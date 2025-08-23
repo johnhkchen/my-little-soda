@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use std::path::Path;
 use std::fs;
 use octocrab::Octocrab;
-use crate::config::{MyLittleSodaConfig, GitHubConfig, ObservabilityConfig, AgentConfig, DatabaseConfig, RateLimitConfig, BundleConfig, AgentProcessConfig, CIModeConfig};
+use crate::config::{MyLittleSodaConfig, GitHubConfig, ObservabilityConfig, AgentConfig, DatabaseConfig, RateLimitConfig, BundleConfig, AgentProcessConfig, CIModeConfig, WorkContinuityConfig};
 use crate::github::client::GitHubClient;
 use crate::github::errors::GitHubError;
 
@@ -338,6 +338,7 @@ impl InitCommand {
                     ci_timeout_adjustment: 300,
                     enhanced_error_reporting: true,
                 },
+                work_continuity: WorkContinuityConfig::default(),
             },
             database: Some(DatabaseConfig {
                 url: ".clambake/clambake.db".to_string(),

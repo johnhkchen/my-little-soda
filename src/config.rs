@@ -130,6 +130,20 @@ pub struct WorkContinuityConfig {
     pub preserve_partial_work: bool,
 }
 
+impl Default for WorkContinuityConfig {
+    fn default() -> Self {
+        Self {
+            enable_continuity: true,
+            state_file_path: ".my-little-soda/agent-state.json".to_string(),
+            backup_interval_minutes: 5,
+            max_recovery_attempts: 3,
+            validation_timeout_seconds: 30,
+            force_fresh_start_after_hours: 24,
+            preserve_partial_work: true,
+        }
+    }
+}
+
 impl Default for MyLittleSodaConfig {
     fn default() -> Self {
         Self {

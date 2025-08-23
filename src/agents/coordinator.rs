@@ -5,7 +5,12 @@ use crate::github::{GitHubClient, GitHubError, GitHubActions};
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use crate::metrics::MetricsTracker;
 use crate::agent_lifecycle::{AgentStateMachine, AgentEvent};
-use crate::autonomous::{WorkContinuityManager, WorkContinuityConfig, PersistenceConfig, ResumeAction};
+use crate::autonomous::WorkContinuityManager;
+use crate::autonomous::WorkContinuityConfig;
+use crate::autonomous::PersistenceConfig;
+use crate::autonomous::ResumeAction;
+use crate::autonomous::CheckpointReason;
+use crate::autonomous::ContinuityStatus;
 use crate::config::config;
 use statig::prelude::*;
 use statig::blocking::*;
@@ -1044,7 +1049,7 @@ impl AgentCoordinator {
         match continuity_manager.checkpoint_state(
             agent_state,
             None, // Would be populated with autonomous state if available
-            crate::autonomous::CheckpointReason::StateTransition,
+            CheckpointReason::StateTransition,
         ).await {
             Ok(checkpoint_id) => {
                 info!("Work state checkpointed for agent {} ({})", agent_id, checkpoint_id);
@@ -1093,7 +1098,7 @@ impl AgentCoordinator {
     }
 
     /// Get current work continuity status
-    pub async fn get_work_continuity_status(&self, agent_id: &str) -> Option<crate::autonomous::ContinuityStatus> {
+    pub async fn get_work_continuity_status(&self, agent_id: &str) -> Option<ContinuityStatus> {
         let work_continuity_guard = self.work_continuity.lock().await;
         let continuity_manager = work_continuity_guard.as_ref()?;
 

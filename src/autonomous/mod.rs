@@ -712,8 +712,8 @@ impl AutonomousCoordinator {
         if let Some(workflow_state) = current_workflow_state {
             let mut detector = self.drift_detector.write().await;
             detector.update_expected_state(&workflow_state).await
-                .map_err(|e| AutonomousWorkflowError::RecoveryFailed { 
-                    error: format!("Failed to update expected state: {:?}", e) 
+                .map_err(|e| AutonomousWorkflowError::RecoveryError { 
+                    reason: format!("Failed to update expected state: {:?}", e) 
                 })?;
         }
         
@@ -721,8 +721,8 @@ impl AutonomousCoordinator {
         let detected_drifts = {
             let mut detector = self.drift_detector.write().await;
             detector.validate_state().await
-                .map_err(|e| AutonomousWorkflowError::RecoveryFailed { 
-                    error: format!("State validation failed: {:?}", e) 
+                .map_err(|e| AutonomousWorkflowError::RecoveryError { 
+                    reason: format!("State validation failed: {:?}", e) 
                 })?
         };
         
@@ -741,8 +741,8 @@ impl AutonomousCoordinator {
         let corrections = {
             let mut detector = self.drift_detector.write().await;
             detector.correct_drifts(detected_drifts.clone()).await
-                .map_err(|e| AutonomousWorkflowError::RecoveryFailed { 
-                    error: format!("Drift correction failed: {:?}", e) 
+                .map_err(|e| AutonomousWorkflowError::RecoveryError { 
+                    reason: format!("Drift correction failed: {:?}", e) 
                 })?
         };
         

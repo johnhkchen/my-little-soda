@@ -61,6 +61,12 @@ impl From<GitHubError> for RecoveryError {
     }
 }
 
+impl From<std::io::Error> for RecoveryError {
+    fn from(err: std::io::Error) -> Self {
+        RecoveryError::GitError(format!("IO error: {}", err))
+    }
+}
+
 /// Trait for automatic recovery operations
 #[async_trait]
 pub trait AutomaticRecovery {
