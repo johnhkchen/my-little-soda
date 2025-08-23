@@ -5,6 +5,8 @@ use crate::github::{GitHubClient, GitHubError, GitHubActions};
 use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use crate::metrics::MetricsTracker;
 use crate::agent_lifecycle::{AgentStateMachine, AgentEvent};
+use crate::autonomous::{WorkContinuityManager, WorkContinuityConfig, PersistenceConfig, ResumeAction};
+use crate::config::config;
 use statig::prelude::*;
 use statig::blocking::*;
 use std::collections::HashMap;
@@ -40,6 +42,8 @@ pub struct AgentCoordinator {
     metrics_tracker: MetricsTracker,
     // State machine for agent lifecycle management
     agent_state_machines: Arc<Mutex<HashMap<String, StateMachine<AgentStateMachine>>>>,
+    // Work continuity manager for persistent state across restarts
+    work_continuity: Arc<Mutex<Option<WorkContinuityManager>>>,
 }
 
 impl AgentCoordinator {
@@ -62,6 +66,7 @@ impl AgentCoordinator {
             agent_capacity: Arc::new(Mutex::new(agent_capacity)),
             metrics_tracker,
             agent_state_machines: Arc::new(Mutex::new(agent_state_machines)),
+            work_continuity: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -384,6 +389,11 @@ impl AgentCoordinator {
             metadata,
         ).await;
         
+        // Checkpoint work state after successful assignment
+        if let Err(e) = self.checkpoint_work_state(agent_id).await {
+            warn!("Failed to checkpoint after assignment: {:?}", e);
+        }
+        
         Ok(())
         }.instrument(span).await
     }
@@ -556,6 +566,11 @@ impl AgentCoordinator {
             true,
             metadata,
         ).await;
+        
+        // Checkpoint work state after successful assignment
+        if let Err(e) = self.checkpoint_work_state(agent_id).await {
+            warn!("Failed to checkpoint after assignment: {:?}", e);
+        }
         
         Ok(())
         }.instrument(span).await
@@ -918,6 +933,176 @@ impl AgentCoordinator {
             })
         } else {
             None
+        }
+    }
+
+    /// Initialize work continuity for the specified agent
+    pub async fn initialize_work_continuity(&self, agent_id: &str) -> Result<(), GitHubError> {
+        let config = match config() {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("Failed to load configuration for work continuity: {}", e);
+                return Ok(()); // Continue without work continuity
+            }
+        };
+
+        // Convert config structures
+        let continuity_config = WorkContinuityConfig {
+            enable_continuity: config.agents.work_continuity.enable_continuity,
+            state_file_path: std::path::PathBuf::from(&config.agents.work_continuity.state_file_path),
+            backup_interval_minutes: config.agents.work_continuity.backup_interval_minutes,
+            max_recovery_attempts: config.agents.work_continuity.max_recovery_attempts,
+            validation_timeout_seconds: config.agents.work_continuity.validation_timeout_seconds,
+            force_fresh_start_after_hours: config.agents.work_continuity.force_fresh_start_after_hours,
+            preserve_partial_work: config.agents.work_continuity.preserve_partial_work,
+        };
+
+        let persistence_config = PersistenceConfig {
+            enable_persistence: continuity_config.enable_continuity,
+            persistence_directory: continuity_config.state_file_path.parent()
+                .unwrap_or(&std::path::PathBuf::from(".my-little-soda"))
+                .to_path_buf(),
+            auto_save_interval_minutes: continuity_config.backup_interval_minutes,
+            max_state_history_entries: 1000,
+            max_recovery_history_entries: 500,
+            compress_old_states: true,
+            backup_retention_days: 7,
+            enable_integrity_checks: true,
+        };
+
+        if !continuity_config.enable_continuity {
+            info!("Work continuity disabled for agent {}", agent_id);
+            return Ok(());
+        }
+
+        let mut continuity_manager = WorkContinuityManager::new(
+            continuity_config,
+            self.github_client.clone(),
+            persistence_config,
+        );
+
+        match continuity_manager.initialize(agent_id).await {
+            Ok(_) => {
+                info!("Work continuity initialized for agent {}", agent_id);
+                let mut work_continuity = self.work_continuity.lock().await;
+                *work_continuity = Some(continuity_manager);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Failed to initialize work continuity for agent {}: {:?}", agent_id, e);
+                // Continue without work continuity rather than failing
+                Ok(())
+            }
+        }
+    }
+
+    /// Attempt to recover work state after process restart
+    pub async fn attempt_work_recovery(&self, agent_id: &str) -> Result<Option<ResumeAction>, GitHubError> {
+        let work_continuity_guard = self.work_continuity.lock().await;
+        let continuity_manager = match work_continuity_guard.as_ref() {
+            Some(manager) => manager,
+            None => {
+                info!("Work continuity not initialized for agent {}", agent_id);
+                return Ok(None);
+            }
+        };
+
+        match continuity_manager.recover_from_checkpoint(agent_id).await {
+            Ok(resume_action) => {
+                info!(
+                    "Work recovery attempted for agent {}: {:?}", 
+                    agent_id,
+                    resume_action.is_some()
+                );
+                Ok(resume_action)
+            }
+            Err(e) => {
+                warn!("Work recovery failed for agent {}: {:?}", agent_id, e);
+                // Return None to indicate fresh start rather than failing
+                Ok(None)
+            }
+        }
+    }
+
+    /// Save current work state to persistent storage
+    pub async fn checkpoint_work_state(&self, agent_id: &str) -> Result<(), GitHubError> {
+        let work_continuity_guard = self.work_continuity.lock().await;
+        let continuity_manager = match work_continuity_guard.as_ref() {
+            Some(manager) => manager,
+            None => return Ok(()), // Continuity not enabled
+        };
+
+        let state_machines = self.agent_state_machines.lock().await;
+        let agent_state = match state_machines.get(agent_id) {
+            Some(sm) => sm.inner(),
+            None => {
+                warn!("No state machine found for agent {}", agent_id);
+                return Ok(());
+            }
+        };
+
+        match continuity_manager.checkpoint_state(
+            agent_state,
+            None, // Would be populated with autonomous state if available
+            crate::autonomous::CheckpointReason::StateTransition,
+        ).await {
+            Ok(checkpoint_id) => {
+                info!("Work state checkpointed for agent {} ({})", agent_id, checkpoint_id);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Failed to checkpoint work state for agent {}: {:?}", agent_id, e);
+                // Continue without checkpointing rather than failing
+                Ok(())
+            }
+        }
+    }
+
+    /// Resume interrupted work based on recovery action
+    pub async fn resume_interrupted_work(
+        &self,
+        agent_id: &str,
+        resume_action: ResumeAction,
+    ) -> Result<(), GitHubError> {
+        let work_continuity_guard = self.work_continuity.lock().await;
+        let continuity_manager = match work_continuity_guard.as_ref() {
+            Some(manager) => manager,
+            None => return Ok(()), // Continuity not enabled
+        };
+
+        let mut state_machines = self.agent_state_machines.lock().await;
+        let agent_state = match state_machines.get_mut(agent_id) {
+            Some(sm) => unsafe { sm.inner_mut() },
+            None => {
+                warn!("No state machine found for agent {}", agent_id);
+                return Ok(());
+            }
+        };
+
+        match continuity_manager.resume_interrupted_work(resume_action, agent_state).await {
+            Ok(_) => {
+                info!("Successfully resumed interrupted work for agent {}", agent_id);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Failed to resume interrupted work for agent {}: {:?}", agent_id, e);
+                // Continue with fresh start rather than failing
+                Ok(())
+            }
+        }
+    }
+
+    /// Get current work continuity status
+    pub async fn get_work_continuity_status(&self, agent_id: &str) -> Option<crate::autonomous::ContinuityStatus> {
+        let work_continuity_guard = self.work_continuity.lock().await;
+        let continuity_manager = work_continuity_guard.as_ref()?;
+
+        match continuity_manager.get_continuity_status(agent_id).await {
+            Ok(status) => Some(status),
+            Err(e) => {
+                warn!("Failed to get continuity status for agent {}: {:?}", agent_id, e);
+                None
+            }
         }
     }
 }

@@ -22,7 +22,31 @@ pub struct AgentRouter {
 impl AgentRouter {
     pub async fn new() -> Result<Self, GitHubError> {
         let github_client = GitHubClient::new()?;
-        let coordinator = AgentCoordinator::new().await?;
+        let mut coordinator = AgentCoordinator::new().await?;
+        
+        // Initialize work continuity for agent001
+        if let Err(e) = coordinator.initialize_work_continuity("agent001").await {
+            eprintln!("Warning: Failed to initialize work continuity: {:?}", e);
+        }
+        
+        // Attempt to recover previous work state
+        match coordinator.attempt_work_recovery("agent001").await {
+            Ok(Some(resume_action)) => {
+                println!("🔄 Found previous work state, attempting recovery...");
+                if let Err(e) = coordinator.resume_interrupted_work("agent001", resume_action).await {
+                    eprintln!("Warning: Failed to resume interrupted work: {:?}", e);
+                    println!("📋 Starting fresh...");
+                }
+            }
+            Ok(None) => {
+                // No previous work to recover, normal startup
+            }
+            Err(e) => {
+                eprintln!("Warning: Work recovery failed: {:?}", e);
+                println!("📋 Starting fresh...");
+            }
+        }
+        
         let metrics_tracker = MetricsTracker::new();
         
         // Create routing components

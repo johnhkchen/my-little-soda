@@ -24,6 +24,7 @@ pub mod workflow_state_machine;
 pub mod error_recovery;
 pub mod integration;
 pub mod persistence;
+pub mod work_continuity;
 
 pub use workflow_state_machine::{
     AutonomousWorkflowState, 
@@ -33,8 +34,7 @@ pub use workflow_state_machine::{
     AutonomousStatusReport,
     Issue, 
     AgentId, 
-    WorkspaceState, 
-    WorkProgress,
+    WorkspaceState,
     BlockerType,
     PullRequest,
     ReviewFeedback,
@@ -71,6 +71,19 @@ pub use persistence::{
     CheckpointReason,
     CheckpointInfo,
     PersistenceError,
+};
+
+pub use work_continuity::{
+    WorkContinuityManager,
+    PersistentAgentState,
+    WorkContinuityConfig,
+    WorkContinuityError,
+    ResumeAction,
+    ContinuityStatus,
+    WorkspaceSnapshot,
+    WorkProgress,
+    PendingOperation,
+    RecoveryContext,
 };
 
 use async_trait::async_trait;
