@@ -180,7 +180,7 @@ impl MyLittleSodaConfig {
 
         // Override with environment variables
         builder = builder.add_source(
-            Environment::with_prefix("CLAMBAKE")
+            Environment::with_prefix("MY_LITTLE_SODA")
                 .separator("_")
                 .try_parsing(true)
         );
