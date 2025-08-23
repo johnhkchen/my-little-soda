@@ -16,6 +16,7 @@ pub mod observability;
 pub mod config;
 pub mod shutdown;
 pub mod database;
+pub mod autonomous;
 
 // Re-export key types for easy access
 pub use github::{GitHubClient, GitHubError};
@@ -33,3 +34,13 @@ pub use observability::{GitHubApiMetrics, github_metrics, create_workflow_span, 
 pub use config::{MyLittleSodaConfig, config, init_config};
 pub use shutdown::ShutdownCoordinator;
 pub use database::{init_database, shutdown_database};
+pub use autonomous::{
+    AutonomousCoordinator, 
+    AutonomousWorkflowMachine, 
+    AutonomousWorkflowState, 
+    AutonomousEvent,
+    AutonomousErrorRecovery,
+    StatePersistenceManager,
+    IntegrationCoordinator,
+    CoordinationConfig,
+};
