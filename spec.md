@@ -1,24 +1,54 @@
-# Clambake: GitHub-Native Agent Orchestration CLI
+# My Little Soda: GitHub-Native Autonomous Agent CLI
 
 ## Overview
 
-A high-performance Rust CLI tool that orchestrates 8-12 concurrent autonomous coding agents using GitHub's native agile development platform. Clambake integrates Claude Code sub-agents with Arize Phoenix observability to provide a complete multi-agent development infrastructure. It routes tickets, coordinates concurrent agent work, and ensures completed code lands on main through proper GitHub workflows - making enterprise-scale multi-agent development feasible when "just code the bare minimum happy path" agile is no longer sufficient.
+A high-performance Rust CLI tool that enables a single autonomous coding agent to work continuously on your GitHub Issues while you focus elsewhere. My Little Soda provides unattended operation and multiplicative productivity through the one-agent-per-repo architecture. It routes issues, manages autonomous agent work, and ensures completed code lands on main through proper GitHub workflows - enabling true multiplicative productivity where 8 hours human work + 3 autonomous agents across different repositories = 32 repo-hours of progress.
 
 ## Core Problem Statement
 
-**The Multi-Agent Development Reality**: With Claude Code sub-agents enabling 8-12 concurrent coding agents per developer, traditional "just code the bare minimum happy path" agile development becomes impossible. The coordination complexity grows exponentially, requiring enterprise-grade infrastructure from day one.
+**The Autonomous Agent Reality**: Autonomous coding agents can work continuously on GitHub Issues, but traditional coordination systems fail when scaling across multiple repositories. The key insight is that productivity multiplies horizontally across repositories, not vertically within a single repository.
 
 **Current Failures at Scale**:
 - **Work Loss**: Agent cleanup destroys completed work before integration
-- **Workflow Fragmentation**: 90+ feature branches never merge to main  
-- **State Corruption**: Dual coordination systems (kanban.yaml + git) create synchronization failures
+- **Workflow Fragmentation**: Feature branches never merge to main  
+- **State Corruption**: Dual coordination systems create synchronization failures
 - **Assignment Drift**: Agents become disconnected from their actual work
-- **Observability Gaps**: No visibility into multi-agent decision paths and performance
-- **Coordination Overhead**: Manual agent management becomes developer bottleneck
+- **Coordination Complexity**: Multi-agent coordination within single repository creates exponential complexity
+- **Productivity Bottlenecks**: Manual agent management becomes developer bottleneck
 
-**Clambake Solution**: GitHub-native orchestration + Claude Code integration + Arize Phoenix observability = Complete multi-agent development platform that scales from day one to enterprise deployment.
+**My Little Soda Solution**: GitHub-native orchestration + single autonomous agent per repository + horizontal scaling across repositories = Multiplicative productivity through unattended operation while maintaining simplicity.
 
 ## Architecture Philosophy
+
+### 🏗️ CRITICAL ARCHITECTURAL CONSTRAINT
+
+**ONE AGENT PER REPOSITORY - NEVER CONCURRENT AGENTS IN SAME REPO**
+
+My Little Soda follows a strict **ONE AGENT PER REPOSITORY** architecture:
+
+✅ **Correct Architecture:**
+- Single autonomous agent processes issues sequentially within one repository
+- Scale productivity by running multiple My Little Soda instances across different repositories
+- Agent operates unattended while human focuses on other work
+- Multiplicative productivity: 8 hours human + 3 autonomous agents = 32 repo-hours
+
+❌ **Never Implement:**
+- Multiple concurrent agents in the same repository
+- Agent-to-agent coordination or communication
+- Resource sharing between agents in the same repo
+- Complex multi-agent merge conflict resolution
+
+**Why This Architecture?**
+
+**Productivity Focus:** The goal is multiplicative productivity through horizontal scaling across repositories, not complex coordination within a single repository.
+
+**Simplicity:** Single-agent operation eliminates:
+- Merge conflicts between agents
+- Complex coordination logic
+- Resource contention issues
+- Agent-to-agent communication overhead
+
+**Autonomous Operation:** Enables true unattended operation where the agent works continuously while the human developer focuses elsewhere.
 
 ### GitHub-Native Everything
 - **GitHub Issues** = Authoritative ticket system
@@ -48,12 +78,12 @@ A high-performance Rust CLI tool that orchestrates 8-12 concurrent autonomous co
 - **Dependency Inversion**: Core orchestration logic depends on abstractions, not GitHub API specifics
 - **Don't Repeat Yourself**: Common patterns (state transitions, error handling, recovery) are abstracted into reusable components
 
-### Claude Code Integration Philosophy
-- **Sub-Agent Orchestration**: Leverage Claude Code's native sub-agent system for 8-12 concurrent agents
-- **Git Worktree Coordination**: Use git worktrees to enable multiple Claude Code instances with shared local development setup
-- **Extended Thinking Integration**: Automatic "think harder" triggers for complex coordination decisions
-- **Context Management**: Intelligent /clear and context window management across agent sessions
-- **Test-Driven Agent Development**: TDD workflows specifically designed for multi-agent concurrent development
+### Autonomous Agent Integration Philosophy
+- **Single Agent Operation**: One autonomous agent processes issues sequentially within repository
+- **Unattended Operation**: Agent works continuously while human focuses on other repositories or tasks
+- **Sequential Processing**: Issues are processed one at a time to eliminate coordination complexity
+- **Context Management**: Intelligent context window management for single agent sessions
+- **Test-Driven Development**: TDD workflows optimized for autonomous single-agent operation
 
 ### Arize Phoenix Observability Philosophy  
 - **Day-One Observability**: Phoenix tracing integrated from first agent deployment, not as afterthought
@@ -1064,25 +1094,26 @@ impl OrchestrationContainer {
 - **Performance Regression Testing**: Automated benchmarking to prevent performance degradation
 - **Chaos Engineering**: Simulate GitHub API failures to validate recovery mechanisms
 
-## Clambake Value Proposition: One-Stop Multi-Agent Development
+## My Little Soda Value Proposition: Multiplicative Productivity Through Autonomous Agents
 
-### The Multi-Agent Development Reality
+### The Autonomous Agent Development Reality
 
 **Traditional Approach**: "Just code the bare minimum happy path" worked when development was sequential, single-developer focused, and complexity was manageable through simple coordination.
 
-**New Reality**: With Claude Code sub-agents enabling 8-12 concurrent coding agents per developer, traditional approaches fail catastrophically. The coordination complexity grows exponentially, requiring enterprise-grade infrastructure from day one.
+**New Reality**: With autonomous coding agents, developers can achieve multiplicative productivity by scaling horizontally across multiple repositories. The key insight is avoiding complex multi-agent coordination within a single repository while leveraging simple autonomous operation across many repositories.
 
-### Why Clambake Exists
+### Why My Little Soda Exists
 
-**Target Users**: Developers who want to leverage multi-agent development for webapp creation but don't want to build coordination infrastructure from scratch.
+**Target Users**: Developers who want to achieve multiplicative productivity through autonomous agents working across their repositories while they focus on other work.
 
-**Core Value**: Clambake provides the **complete infrastructure stack** that makes multi-agent concurrent development feasible:
+**Core Value**: My Little Soda provides the **complete infrastructure** that makes autonomous agent development feasible:
 
-1. **GitHub-Native Orchestration**: Professional ticket routing, branch management, PR workflows
-2. **Claude Code Integration**: Seamless sub-agent deployment, worktree isolation, context management  
-3. **Arize Phoenix Observability**: Day-one monitoring, performance optimization, debugging capabilities
-4. **Enterprise-Grade Coordination**: State consistency, work preservation, conflict resolution
-5. **Developer Experience**: Single CLI that handles the entire multi-agent lifecycle
+1. **GitHub-Native Orchestration**: Professional issue routing, branch management, PR workflows
+2. **Autonomous Agent Integration**: Seamless single-agent deployment, unattended operation, context management  
+3. **Observability**: Monitoring, performance optimization, debugging capabilities
+4. **Work Preservation**: State consistency, work preservation, automatic recovery
+5. **Developer Experience**: Single CLI that handles the entire autonomous agent lifecycle
+6. **Horizontal Scaling**: Simple architecture that scales across multiple repositories
 
 ### Competitive Landscape
 
@@ -1098,21 +1129,23 @@ impl OrchestrationContainer {
 - **Industry Standard Integrations**: Claude Code + Arize Phoenix + GitHub = proven stack
 - **Scales with Teams**: Individual developer → startup → enterprise deployment
 
-### Success Metrics for Multi-Agent Development
+### Success Metrics for Autonomous Agent Development
 
-**What Clambake Enables**:
-- **8-12 concurrent agents** working on the same codebase without conflicts
-- **Zero work loss** during agent coordination and cleanup
+**What My Little Soda Enables**:
+- **Single autonomous agent** working continuously on repository issues without conflicts
+- **Zero work loss** during agent operation and transitions
 - **95%+ integration success rate** from agent completion to main branch
-- **<2 second routing latency** for ticket assignment to available agents
+- **<2 second routing latency** for issue assignment to autonomous agent
 - **Complete observability** of agent decision-making and performance
-- **Automated recovery** from 90%+ of coordination failures
+- **Automated recovery** from 90%+ of operational failures
+- **Unattended operation** for hours or days while human works elsewhere
 
 **Developer Productivity Impact**:
-- **10x development velocity** through concurrent agent deployment
-- **Enterprise-grade reliability** without enterprise infrastructure overhead
-- **Day-one observability** preventing coordination issues before they scale
+- **Multiplicative productivity** through horizontal scaling across repositories
+- **Simple architecture** without complex coordination overhead
+- **Autonomous operation** enabling human focus on high-value work
 - **Professional workflows** that scale from proof-of-concept to production
+- **True unattended development** where agent works while human sleeps/focuses elsewhere
 
 ### The "Just Works" Multi-Agent Experience
 
@@ -1120,29 +1153,37 @@ impl OrchestrationContainer {
 ```bash
 git init my-webapp
 cd my-webapp
-clambake init --project-type webapp --agents 8
-# Complete multi-agent development environment ready
+my-little-soda init
+# Complete autonomous agent development environment ready
 ```
 
 **Day 2-N: Development Workflow**
 ```bash
-clambake route --priority high        # Route tickets to agents
-clambake status                       # Monitor agent progress  
-clambake land                         # Integrate completed work
-clambake dashboard                    # View Phoenix observability
+my-little-soda pop                   # Get next issue for agent
+# Agent works autonomously...
+my-little-soda bottle                # Submit completed work
+my-little-soda status                # Monitor agent progress
 ```
 
-**Month 1-N: Scale and Optimize**
+**Scaling Across Repositories**
 ```bash
-clambake metrics --analyze-performance    # Optimize agent allocation
-clambake agents --scale-to 12             # Scale concurrent capacity
-clambake traces --debug-bottlenecks       # Data-driven optimization
+# Terminal 1: Repository A
+cd repo-a && my-little-soda pop
+
+# Terminal 2: Repository B  
+cd repo-b && my-little-soda pop
+
+# Terminal 3: Repository C
+cd repo-c && my-little-soda pop
+
+# Result: 3 autonomous agents working across different repositories
+# Human focuses on other work while agents operate unattended
 ```
 
-### Future Vision: Multi-Agent Development Standard
+### Future Vision: Autonomous Agent Development Standard
 
-**Short Term**: Clambake becomes the standard way to set up multi-agent development for webapps
+**Short Term**: My Little Soda becomes the standard way to set up autonomous agent development across repositories
 **Medium Term**: Integration ecosystem grows (Linear, Slack, VS Code, monitoring tools)
-**Long Term**: Multi-agent development workflows become the new standard, replacing single-developer sequential development
+**Long Term**: Autonomous agent workflows become the new standard, enabling multiplicative productivity through horizontal scaling
 
-The goal is a GitHub-native orchestration system that makes autonomous agent development as reliable and predictable as traditional human development workflows, while operating at the 8-12 concurrent agent scale that modern AI development enables. Built with TDD practices and SOLID principles to ensure maintainability, extensibility, and reliability at enterprise scale - delivered as a single Rust CLI that "just works" for any developer wanting to leverage multi-agent development productivity.
+The goal is a GitHub-native orchestration system that makes autonomous agent development as reliable and predictable as traditional human development workflows, while operating with the simplicity of single-agent-per-repository architecture that scales horizontally. Built with TDD practices and SOLID principles to ensure maintainability, extensibility, and reliability at enterprise scale - delivered as a single Rust CLI that "just works" for any developer wanting to leverage autonomous agent productivity across their repository ecosystem.
