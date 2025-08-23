@@ -423,18 +423,19 @@ impl AutonomousWorkflowMachine {
                 })
             }
             
-            (Some(AutonomousWorkflowState::InProgress { issue, agent, mut progress }), 
+            (Some(AutonomousWorkflowState::InProgress { issue, agent, progress }), 
              AutonomousEvent::MakeProgress { commits, files_changed }) => {
-                progress.commits_made += commits;
-                progress.files_changed += files_changed;
+                let mut updated_progress = progress.clone();
+                updated_progress.commits_made += commits;
+                updated_progress.files_changed += files_changed;
                 if let Some(start) = self.start_time {
-                    progress.elapsed_minutes = Utc::now().signed_duration_since(start).num_minutes() as u32;
+                    updated_progress.elapsed_minutes = Utc::now().signed_duration_since(start).num_minutes() as u32;
                 }
                 
                 Some(AutonomousWorkflowState::InProgress { 
                     issue: issue.clone(),
                     agent: agent.clone(),
-                    progress
+                    progress: updated_progress
                 })
             }
             
@@ -610,7 +611,7 @@ impl AutonomousWorkflowMachine {
                 
                 error!(
                     reason = ?reason,
-                    issue = ?issue.map(|i| i.number),
+                    issue = ?issue.as_ref().map(|i| i.number),
                     "Autonomous workflow abandoned"
                 );
                 

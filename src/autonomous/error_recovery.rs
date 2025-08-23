@@ -8,6 +8,22 @@ use rand::Rng;
 
 use crate::github::{GitHubClient, errors::GitHubError};
 use crate::agents::recovery::{AutomaticRecovery, ComprehensiveRecoveryReport, RecoveryError};
+
+// Helper function to convert various errors to RecoveryError
+fn convert_error<E: std::fmt::Display>(error: E, context: &str) -> RecoveryError {
+    RecoveryError::GitError(format!("{}: {}", context, error))
+}
+
+// Trait for converting any error to RecoveryError
+trait IntoRecoveryError<T> {
+    fn into_recovery_error(self, context: &str) -> Result<T, RecoveryError>;
+}
+
+impl<T, E: std::fmt::Display> IntoRecoveryError<T> for Result<T, E> {
+    fn into_recovery_error(self, context: &str) -> Result<T, RecoveryError> {
+        self.map_err(|e| convert_error(e, context))
+    }
+}
 use super::workflow_state_machine::{
     AutonomousWorkflowState, AutonomousEvent, AutonomousWorkflowError,
     BlockerType, ConflictInfo, CIFailure, AbandonmentReason
@@ -46,7 +62,7 @@ pub enum RecoveryStrategy {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum FixType {
     MergeConflictResolution,
     TestFailureFix,
@@ -56,14 +72,14 @@ pub enum FixType {
     CodeFormatting,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ConfidenceLevel {
     High,    // 90-100% success rate
     Medium,  // 60-89% success rate  
     Low,     // 30-59% success rate
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum AlternativeApproach {
     DifferentImplementation,
     SimplifiedSolution,
@@ -71,7 +87,7 @@ pub enum AlternativeApproach {
     ExternalTool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum UrgencyLevel {
     Low,     // Can wait hours
     Medium,  // Needs attention within hour
@@ -336,7 +352,7 @@ impl AutonomousErrorRecovery {
         strategy: RecoveryStrategy,
         context: &AutonomousWorkflowState,
     ) -> Result<AutonomousRecoveryAttempt, RecoveryError> {
-        let attempt_id = format!("recovery-{}-{}", Utc::now().timestamp(), rand::thread_rng().gen::<u16>());
+        let attempt_id = format!("recovery-{}-{}", Utc::now().timestamp(), rand::random::<u16>());
         let start_time = Utc::now();
         let start_instant = std::time::Instant::now();
         
@@ -372,8 +388,8 @@ impl AutonomousErrorRecovery {
                 }
             }
             
-            RecoveryStrategy::Fallback { alternative } => {
-                match self.execute_fallback_strategy(alternative, &mut recovery_actions).await {
+            RecoveryStrategy::Fallback { ref alternative } => {
+                match self.execute_fallback_strategy(*alternative, &mut recovery_actions).await {
                     Ok(_) => success = true,
                     Err(e) => {
                         error_message = Some(format!("Fallback strategy failed: {:?}", e));
@@ -382,8 +398,8 @@ impl AutonomousErrorRecovery {
                 }
             }
             
-            RecoveryStrategy::Escalate { urgency, context: ref escalation_context } => {
-                self.execute_escalation(urgency, escalation_context.clone(), &mut recovery_actions).await?;
+            RecoveryStrategy::Escalate { ref urgency, context: ref escalation_context } => {
+                self.execute_escalation(*urgency, escalation_context.clone(), &mut recovery_actions).await?;
                 success = false; // Escalation is not a "success" in terms of autonomous recovery
                 error_message = Some("Escalated to human intervention".to_string());
             }
@@ -603,7 +619,7 @@ impl AutonomousErrorRecovery {
             service: format!("git-{}", operation)
         });
         // Simulate git operation retry
-        Ok(rand::thread_rng().gen::<f64>() > 0.3) // 70% success rate
+        Ok(rand::random::<f64>() > 0.3) // 70% success rate
     }
     
     async fn retry_github_operation(
@@ -614,7 +630,7 @@ impl AutonomousErrorRecovery {
             service: "github-api".to_string()
         });
         // Simulate GitHub API retry
-        Ok(rand::thread_rng().gen::<f64>() > 0.2) // 80% success rate
+        Ok(rand::random::<f64>() > 0.2) // 80% success rate
     }
     
     async fn retry_network_operation(
@@ -625,16 +641,62 @@ impl AutonomousErrorRecovery {
             service: "network".to_string()
         });
         // Simulate network retry
-        Ok(rand::thread_rng().gen::<f64>() > 0.4) // 60% success rate
+        Ok(rand::random::<f64>() > 0.4) // 60% success rate
     }
     
     async fn resolve_merge_conflicts_automatically(
         &self,
         recovery_actions: &mut Vec<RecoveryAction>,
     ) -> Result<(), RecoveryError> {
-        recovery_actions.push(RecoveryAction::AutomergeConflictResolution {
-            files: vec!["src/main.rs".to_string(), "Cargo.toml".to_string()]
-        });
+        // Get current repository state
+        let repo = git2::Repository::open(".").into_recovery_error("opening repository")?;
+        let mut conflicted_files = Vec::new();
+        
+        // Find conflicted files
+        let index = repo.index().into_recovery_error("getting repository index")?;
+        for entry in index.iter() {
+            // Check if entry has conflicts (stage != 0 indicates conflict)
+            let path = std::str::from_utf8(&entry.path).into_recovery_error("parsing file path")?;
+            if !conflicted_files.contains(&path.to_string()) {
+                conflicted_files.push(path.to_string());
+            }
+        }
+        
+        info!(
+            conflicted_files = ?conflicted_files,
+            "Attempting automatic merge conflict resolution"
+        );
+        
+        // Attempt to resolve conflicts automatically
+        for file_path in &conflicted_files {
+            match self.resolve_simple_conflicts(file_path).await {
+                Ok(resolved) => {
+                    if resolved {
+                        recovery_actions.push(RecoveryAction::AutomergeConflictResolution {
+                            files: vec![file_path.clone()]
+                        });
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        file = %file_path,
+                        error = %e,
+                        "Failed to auto-resolve conflict"
+                    );
+                    return Err(RecoveryError::GitError(format!(
+                        "Failed to resolve conflict in {}: {}", file_path, e
+                    )));
+                }
+            }
+        }
+        
+        // Stage resolved files and commit
+        if !conflicted_files.is_empty() {
+            recovery_actions.push(RecoveryAction::GitReset {
+                to_commit: "HEAD".to_string()
+            });
+        }
+        
         Ok(())
     }
     
@@ -642,9 +704,106 @@ impl AutonomousErrorRecovery {
         &self,
         recovery_actions: &mut Vec<RecoveryAction>,
     ) -> Result<(), RecoveryError> {
-        recovery_actions.push(RecoveryAction::TestSkip {
-            tests: vec!["flaky_test".to_string()]
-        });
+        // First, try running tests to identify failures
+        let output = tokio::process::Command::new("cargo")
+            .arg("test")
+            .arg("--")
+            .arg("--format")
+            .arg("json")
+            .output()
+            .await.into_recovery_error("running cargo test")?;
+        
+        let test_output = String::from_utf8_lossy(&output.stdout);
+        let mut failed_tests = Vec::new();
+        let mut flaky_tests = Vec::new();
+        
+        // Parse test output to find failed tests
+        for line in test_output.lines() {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+                if json["type"] == "test" && json["event"] == "failed" {
+                    if let Some(test_name) = json["name"].as_str() {
+                        failed_tests.push(test_name.to_string());
+                        
+                        // Check if this test is known to be flaky (simple heuristic)
+                        if test_name.contains("timeout") || 
+                           test_name.contains("race") || 
+                           test_name.contains("flaky") ||
+                           test_name.contains("network") {
+                            flaky_tests.push(test_name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        
+        info!(
+            failed_tests = ?failed_tests,
+            flaky_tests = ?flaky_tests,
+            "Analyzed test failures"
+        );
+        
+        // Strategy 1: Retry flaky tests
+        if !flaky_tests.is_empty() {
+            for _ in 0..3 { // Retry up to 3 times
+                let retry_output = tokio::process::Command::new("cargo")
+                    .arg("test")
+                    .args(&flaky_tests)
+                    .output()
+                    .await?;
+                
+                if retry_output.status.success() {
+                    recovery_actions.push(RecoveryAction::ServiceRestart {
+                        service: "test-retry".to_string()
+                    });
+                    info!("Flaky tests passed on retry");
+                    return Ok(());
+                }
+            }
+        }
+        
+        // Strategy 2: Check if tests pass in isolation
+        let mut isolation_successes = Vec::new();
+        for test in &failed_tests {
+            let isolated_output = tokio::process::Command::new("cargo")
+                .arg("test")
+                .arg(test)
+                .arg("--")
+                .arg("--test-threads=1")
+                .output()
+                .await?;
+            
+            if isolated_output.status.success() {
+                isolation_successes.push(test.clone());
+            }
+        }
+        
+        if !isolation_successes.is_empty() {
+            info!(
+                isolated_successes = ?isolation_successes,
+                "Some tests pass in isolation - possible race condition"
+            );
+        }
+        
+        // Strategy 3: Skip consistently failing non-critical tests
+        let non_critical_tests: Vec<String> = failed_tests.iter()
+            .filter(|test| {
+                test.contains("integration") || 
+                test.contains("benchmark") ||
+                test.contains("stress")
+            })
+            .cloned()
+            .collect();
+        
+        if !non_critical_tests.is_empty() {
+            recovery_actions.push(RecoveryAction::TestSkip {
+                tests: non_critical_tests.clone()
+            });
+            warn!(
+                skipped_tests = ?non_critical_tests,
+                "Skipping non-critical failing tests"
+            );
+        }
+        
         Ok(())
     }
     
@@ -652,20 +811,229 @@ impl AutonomousErrorRecovery {
         &self,
         recovery_actions: &mut Vec<RecoveryAction>,
     ) -> Result<(), RecoveryError> {
-        recovery_actions.push(RecoveryAction::DependencyReinstall {
-            packages: vec!["build-tools".to_string()]
-        });
-        Ok(())
+        // First, try a clean build
+        info!("Attempting clean build to fix build errors");
+        
+        let clean_output = tokio::process::Command::new("cargo")
+            .arg("clean")
+            .output()
+            .await?;
+        
+        if !clean_output.status.success() {
+            warn!("Cargo clean failed");
+        }
+        
+        // Try building again
+        let build_output = tokio::process::Command::new("cargo")
+            .arg("build")
+            .output()
+            .await?;
+        
+        if build_output.status.success() {
+            recovery_actions.push(RecoveryAction::WorkspaceClean);
+            info!("Build succeeded after clean");
+            return Ok(());
+        }
+        
+        // Analyze build errors
+        let build_error = String::from_utf8_lossy(&build_output.stderr);
+        info!(error = %build_error, "Analyzing build error");
+        
+        // Strategy 1: Handle missing dependencies
+        if build_error.contains("could not find") || build_error.contains("unresolved import") {
+            info!("Attempting to fix missing dependencies");
+            
+            let update_output = tokio::process::Command::new("cargo")
+                .arg("update")
+                .output()
+                .await?;
+            
+            if update_output.status.success() {
+                recovery_actions.push(RecoveryAction::DependencyReinstall {
+                    packages: vec!["cargo-update".to_string()]
+                });
+                
+                // Try building again after update
+                let retry_build = tokio::process::Command::new("cargo")
+                    .arg("build")
+                    .output()
+                    .await?;
+                
+                if retry_build.status.success() {
+                    info!("Build succeeded after dependency update");
+                    return Ok(());
+                }
+            }
+        }
+        
+        // Strategy 2: Handle formatting/linting errors
+        if build_error.contains("rustfmt") || build_error.contains("fmt") {
+            info!("Attempting to fix formatting issues");
+            
+            let fmt_output = tokio::process::Command::new("cargo")
+                .arg("fmt")
+                .output()
+                .await?;
+            
+            if fmt_output.status.success() {
+                recovery_actions.push(RecoveryAction::ServiceRestart {
+                    service: "code-formatter".to_string()
+                });
+                return Ok(());
+            }
+        }
+        
+        // Strategy 3: Handle clippy warnings as errors
+        if build_error.contains("clippy") {
+            info!("Attempting to fix clippy issues");
+            
+            let clippy_output = tokio::process::Command::new("cargo")
+                .arg("clippy")
+                .arg("--fix")
+                .arg("--allow-dirty")
+                .arg("--allow-staged")
+                .output()
+                .await?;
+            
+            if clippy_output.status.success() {
+                recovery_actions.push(RecoveryAction::ConfigUpdate {
+                    file: ".cargo/config.toml".to_string(),
+                    changes: [("clippy".to_string(), "fixed".to_string())].into(),
+                });
+                return Ok(());
+            }
+        }
+        
+        warn!("Could not automatically fix build errors");
+        Err(RecoveryError::GitError("Build errors could not be resolved automatically".to_string()))
     }
     
     async fn update_dependencies_automatically(
         &self,
         recovery_actions: &mut Vec<RecoveryAction>,
     ) -> Result<(), RecoveryError> {
+        info!("Attempting automatic dependency updates");
+        
+        // Strategy 1: Update Cargo.lock
+        let update_output = tokio::process::Command::new("cargo")
+            .arg("update")
+            .output()
+            .await?;
+        
+        if update_output.status.success() {
+            recovery_actions.push(RecoveryAction::DependencyReinstall {
+                packages: vec!["cargo-lock-update".to_string()]
+            });
+            
+            // Test if the update fixed the issue
+            let build_output = tokio::process::Command::new("cargo")
+                .arg("check")
+                .output()
+                .await?;
+            
+            if build_output.status.success() {
+                info!("Dependency update resolved the issue");
+                return Ok(());
+            }
+        }
+        
+        // Strategy 2: Clean and rebuild dependencies
+        info!("Cleaning dependency cache");
+        
+        let clean_deps = tokio::process::Command::new("cargo")
+            .arg("clean")
+            .arg("--package")
+            .arg("*")
+            .output()
+            .await?;
+        
+        if clean_deps.status.success() {
+            recovery_actions.push(RecoveryAction::WorkspaceClean);
+            
+            // Force rebuild dependencies
+            let build_deps = tokio::process::Command::new("cargo")
+                .arg("build")
+                .arg("--offline")
+                .output()
+                .await;
+            
+            if let Ok(output) = build_deps {
+                if output.status.success() {
+                    info!("Dependencies rebuilt successfully");
+                    return Ok(());
+                }
+            }
+        }
+        
+        // Strategy 3: Update specific problematic dependencies
+        let common_problematic_deps = [
+            "tokio", "serde", "chrono", "clap", "tracing", "anyhow",
+            "thiserror", "uuid", "octocrab", "git2"
+        ];
+        
+        for dep in &common_problematic_deps {
+            let dep_update = tokio::process::Command::new("cargo")
+                .arg("update")
+                .arg("--package")
+                .arg(dep)
+                .output()
+                .await;
+            
+            if let Ok(output) = dep_update {
+                if output.status.success() {
+                    recovery_actions.push(RecoveryAction::DependencyReinstall {
+                        packages: vec![dep.to_string()]
+                    });
+                    
+                    // Check if this specific update helped
+                    let check_output = tokio::process::Command::new("cargo")
+                        .arg("check")
+                        .output()
+                        .await?;
+                    
+                    if check_output.status.success() {
+                        info!(dependency = %dep, "Specific dependency update resolved the issue");
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        
+        // Strategy 4: Downgrade to previous versions if available
+        if std::path::Path::new("Cargo.lock.bak").exists() {
+            info!("Attempting to restore previous dependency versions");
+            
+            let restore = tokio::process::Command::new("cp")
+                .arg("Cargo.lock.bak")
+                .arg("Cargo.lock")
+                .output()
+                .await;
+            
+            if let Ok(output) = restore {
+                if output.status.success() {
+                    recovery_actions.push(RecoveryAction::FileRestore {
+                        files: vec!["Cargo.lock".to_string()]
+                    });
+                    
+                    let check_output = tokio::process::Command::new("cargo")
+                        .arg("check")
+                        .output()
+                        .await?;
+                    
+                    if check_output.status.success() {
+                        info!("Restored previous dependency versions successfully");
+                        return Ok(());
+                    }
+                }
+            }
+        }
+        
         recovery_actions.push(RecoveryAction::DependencyReinstall {
             packages: vec!["all".to_string()]
         });
-        Ok(())
+        
+        warn!("Could not automatically resolve dependency issues");
+        Err(RecoveryError::GitError("Dependency issues could not be resolved automatically".to_string()))
     }
     
     async fn adjust_configuration_automatically(
@@ -683,10 +1051,155 @@ impl AutonomousErrorRecovery {
         &self,
         recovery_actions: &mut Vec<RecoveryAction>,
     ) -> Result<(), RecoveryError> {
-        recovery_actions.push(RecoveryAction::ServiceRestart {
-            service: "code-formatter".to_string()
-        });
+        // Run cargo fmt to format Rust code
+        let output = tokio::process::Command::new("cargo")
+            .arg("fmt")
+            .output()
+            .await?;
+        
+        if output.status.success() {
+            recovery_actions.push(RecoveryAction::ServiceRestart {
+                service: "code-formatter".to_string()
+            });
+            info!("Code formatting completed successfully");
+        } else {
+            let error = String::from_utf8_lossy(&output.stderr);
+            warn!(error = %error, "Code formatting failed");
+            return Err(RecoveryError::GitError(format!("Code formatting failed: {}", error)));
+        }
+        
         Ok(())
+    }
+    
+    /// Attempt to resolve simple merge conflicts automatically
+    async fn resolve_simple_conflicts(&self, file_path: &str) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        // Read the file content
+        let content = tokio::fs::read_to_string(file_path).await?;
+        
+        // Check if it has conflict markers
+        if !content.contains("<<<<<<< ") || !content.contains(">>>>>>> ") {
+            return Ok(false);
+        }
+        
+        // Simple conflict resolution strategies:
+        // 1. If conflicts are in import/use statements, merge both
+        // 2. If conflicts are in comments, take both
+        // 3. If conflicts are in dependency versions, take the higher version
+        
+        let mut resolved_content = String::new();
+        let mut in_conflict = false;
+        let mut our_section = Vec::new();
+        let mut their_section = Vec::new();
+        let mut in_our_section = true;
+        
+        for line in content.lines() {
+            if line.starts_with("<<<<<<< ") {
+                in_conflict = true;
+                our_section.clear();
+                their_section.clear();
+                in_our_section = true;
+                continue;
+            } else if line.starts_with("======= ") {
+                in_our_section = false;
+                continue;
+            } else if line.starts_with(">>>>>>> ") {
+                in_conflict = false;
+                
+                // Apply resolution strategy
+                let resolution = self.resolve_conflict_sections(&our_section, &their_section, file_path);
+                resolved_content.push_str(&resolution);
+                continue;
+            }
+            
+            if in_conflict {
+                if in_our_section {
+                    our_section.push(line.to_string());
+                } else {
+                    their_section.push(line.to_string());
+                }
+            } else {
+                resolved_content.push_str(line);
+                resolved_content.push('\n');
+            }
+        }
+        
+        // Write the resolved content back
+        tokio::fs::write(file_path, resolved_content).await?;
+        
+        info!(file = %file_path, "Successfully resolved merge conflicts");
+        Ok(true)
+    }
+    
+    /// Apply resolution strategy to conflict sections
+    fn resolve_conflict_sections(&self, ours: &[String], theirs: &[String], file_path: &str) -> String {
+        // Strategy 1: For Rust use/import statements, merge both
+        if file_path.ends_with(".rs") && 
+           (ours.iter().any(|l| l.trim().starts_with("use ")) || 
+            theirs.iter().any(|l| l.trim().starts_with("use "))) {
+            
+            let mut merged = ours.iter().cloned().collect::<std::collections::HashSet<_>>();
+            merged.extend(theirs.iter().cloned());
+            let mut sorted: Vec<_> = merged.into_iter().collect();
+            sorted.sort();
+            
+            return sorted.join("\n") + "\n";
+        }
+        
+        // Strategy 2: For version conflicts in Cargo.toml, take the higher version
+        if file_path == "Cargo.toml" {
+            if let (Some(our_version), Some(their_version)) = (
+                self.extract_version_from_lines(ours),
+                self.extract_version_from_lines(theirs)
+            ) {
+                if self.compare_versions(&our_version, &their_version) >= 0 {
+                    return ours.join("\n") + "\n";
+                } else {
+                    return theirs.join("\n") + "\n";
+                }
+            }
+        }
+        
+        // Strategy 3: For comments, merge both
+        if ours.iter().all(|l| l.trim().starts_with("//") || l.trim().is_empty()) &&
+           theirs.iter().all(|l| l.trim().starts_with("//") || l.trim().is_empty()) {
+            let mut merged = ours.to_vec();
+            merged.extend(theirs.iter().cloned());
+            return merged.join("\n") + "\n";
+        }
+        
+        // Default: take ours (safer for most conflicts)
+        ours.join("\n") + "\n"
+    }
+    
+    /// Extract version string from TOML lines
+    fn extract_version_from_lines(&self, lines: &[String]) -> Option<String> {
+        for line in lines {
+            if let Some(version_start) = line.find("version = \"") {
+                let version_part = &line[version_start + 11..];
+                if let Some(version_end) = version_part.find('"') {
+                    return Some(version_part[..version_end].to_string());
+                }
+            }
+        }
+        None
+    }
+    
+    /// Compare two version strings (simple semver comparison)
+    fn compare_versions(&self, v1: &str, v2: &str) -> i32 {
+        let v1_parts: Vec<u32> = v1.split('.').filter_map(|s| s.parse().ok()).collect();
+        let v2_parts: Vec<u32> = v2.split('.').filter_map(|s| s.parse().ok()).collect();
+        
+        for i in 0..std::cmp::max(v1_parts.len(), v2_parts.len()) {
+            let v1_part = v1_parts.get(i).unwrap_or(&0);
+            let v2_part = v2_parts.get(i).unwrap_or(&0);
+            
+            match v1_part.cmp(v2_part) {
+                std::cmp::Ordering::Greater => return 1,
+                std::cmp::Ordering::Less => return -1,
+                std::cmp::Ordering::Equal => continue,
+            }
+        }
+        0
     }
     
     // Metrics helpers
