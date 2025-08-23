@@ -1,6 +1,6 @@
 # Issue #126: Migrate Bundling to GitHub Actions & Implement Real Agent Integration
 
-> **Replace prototype agent mocks with real Claude Code integration and leverage GitHub Actions for bundling workflows**
+> **Replace prototype agent mocks with real Claude Code integration and leverage GitHub Actions for autonomous single-agent workflows**
 
 ## Problem Statement
 
@@ -8,41 +8,41 @@
 - **Mock-Only System**: Comprehensive agent mocks (`src/agent_lifecycle/mocks.rs`) but no real Claude Code process spawning
 - **Manual Bundle Execution**: Bundling requires local Rust execution rather than cloud-native scheduling
 - **Process Management Gap**: No lifecycle management for real agent processes (spawn, monitor, cleanup)
-- **Scalability Bottleneck**: Single-machine bundling limits concurrent agent capacity
+- **Local Resource Dependency**: Single-machine bundling creates unnecessary local dependencies for autonomous agent operation
 
 ### Context
 - System architecture assumes real agents but currently only simulates work completion
 - GitHub Actions provides native scheduling, observability, and scaling that eliminates local resource constraints
-- Agent integration is prerequisite for validating multi-agent coordination assumptions
+- Agent integration is prerequisite for validating autonomous single-agent operation
 - Cloud-native bundling enables repository-level automation without local dependencies
 
 ### Strategic Value
 Real agent integration with GitHub Actions bundling provides:
-- **Authentic Validation**: Test multi-agent coordination with real Claude Code behavior patterns
+- **Autonomous Operation**: Enable single agent to work independently while human focuses elsewhere
 - **Operational Reliability**: Eliminate single points of failure from local bundling execution  
-- **Resource Scaling**: GitHub Actions scales bundling capacity without infrastructure management
+- **Resource Independence**: GitHub Actions removes local infrastructure dependencies
 - **Native Integration**: Leverage GitHub's scheduling, retry, and observability capabilities
 
 ## Target State
 
 ### Vision
 A production-ready system where:
-1. **Real Claude Code agents** execute work on assigned issues with full process lifecycle management
+1. **Single autonomous Claude Code agent** executes work sequentially on assigned issues with full process lifecycle management
 2. **GitHub Actions workflows** handle bundling scheduling, execution, and monitoring
-3. **Hybrid architecture** maintains local coordination with cloud-native bundle execution
-4. **Process isolation** ensures agent failures don't cascade to system stability
+3. **Autonomous architecture** enables unattended operation with cloud-native bundle execution
+4. **Process reliability** ensures agent operates continuously while human works elsewhere
 
 ### Success Metrics
 - **Agent Integration**: Successfully spawn, monitor, and cleanup real Claude Code processes
 - **GitHub Actions Migration**: 100% of bundling operations execute via GitHub Actions
 - **Process Reliability**: <5% agent process failure rate with automatic recovery
 - **Workflow Automation**: Zero manual intervention required for standard bundling operations
-- **Resource Efficiency**: Support 5+ concurrent agents without local resource exhaustion
+- **Autonomous Efficiency**: Support continuous single-agent operation without local resource constraints
 
 ### Non-Goals
 - Custom GitHub Actions runners or infrastructure
 - Agent work quality assessment or code review automation
-- Multi-repository bundling coordination
+- Cross-repository agent coordination
 - Advanced process monitoring beyond basic health checks
 
 ## Interfaces & Contracts
@@ -59,8 +59,8 @@ pub trait AgentProcessManager {
     /// Gracefully terminate agent process
     async fn terminate_agent(&self, process_id: &str) -> Result<()>;
     
-    /// Get all active agent processes
-    fn list_active_agents(&self) -> Vec<AgentProcess>;
+    /// Get current agent process status
+    fn get_agent_status(&self) -> Option<AgentProcess>;
 }
 
 pub struct AgentProcess {
@@ -115,9 +115,9 @@ jobs:
 ### Command-Line Interface
 ```bash
 # Enhanced agent management
-clambake spawn --agent agent001 --issue 123   # Spawn real Claude Code agent
-clambake monitor --agent agent001             # Monitor agent progress  
-clambake terminate --agent agent001           # Gracefully stop agent
+clambake agent start --issue 123              # Spawn real Claude Code agent for issue
+clambake agent status                          # Monitor agent progress  
+clambake agent stop                            # Gracefully stop agent
 
 # GitHub Actions integration
 clambake actions --trigger-bundle             # Manually trigger bundling workflow
@@ -128,11 +128,11 @@ clambake actions --logs --run-id 12345        # Fetch workflow logs
 ### Configuration Extensions
 ```toml
 # clambake.toml additions
-[agents]
+[agent]
 claude_code_path = "claude-code"
-max_concurrent = 5
 timeout_minutes = 30
 cleanup_on_failure = true
+max_idle_minutes = 10
 
 [github_actions]
 bundling_workflow = ".github/workflows/clambake-bundling.yml"
@@ -154,7 +154,7 @@ workflow_timeout_minutes = 15
 2. **Process Lifecycle Management** (90 minutes)
    - Implement process monitoring with heartbeat detection
    - Add graceful termination with timeout-based force kill
-   - Create automatic cleanup for failed or abandoned agents
+   - Create automatic cleanup for failed or abandoned agent
    - Add process status reporting and health checks
 
 ### Phase 2: GitHub Actions Workflow Creation (2 hours)
@@ -178,7 +178,7 @@ workflow_timeout_minutes = 15
 1. **End-to-End Integration** (30 minutes)
    - Connect real agent completion to GitHub Actions bundling triggers
    - Validate agent lifecycle with cloud-native bundling
-   - Test multi-agent scenarios with GitHub Actions coordination
+   - Test single-agent autonomous operation with GitHub Actions coordination
 
 2. **Error Handling & Recovery** (30 minutes)
    - Handle GitHub Actions failures gracefully
@@ -190,7 +190,7 @@ workflow_timeout_minutes = 15
 ### Task 1: Implement Claude Code Process Spawning (1 hour)
 - **Objective**: Replace agent mocks with real Claude Code process execution  
 - **Acceptance**: Successfully spawn Claude Code agent for assigned issue
-- **Files**: `src/agents/process_manager.rs`, agent lifecycle integration
+- **Files**: `src/agent/process_manager.rs`, agent lifecycle integration
 - **Test**: Spawn agent, verify process running, confirm issue assignment
 
 ### Task 2: Add Agent Process Monitoring (1 hour)
@@ -227,10 +227,10 @@ workflow_timeout_minutes = 15
 
 ### Process Tracking
 ```rust
-// In-memory process registry (no persistent storage needed)
-pub struct ProcessRegistry {
-    processes: HashMap<String, AgentProcess>,
-    agent_to_process: HashMap<String, String>,
+// Simple single-agent tracking (no persistent storage needed)
+pub struct AgentState {
+    current_process: Option<AgentProcess>,
+    last_active: DateTime<Utc>,
 }
 ```
 
@@ -247,9 +247,9 @@ pub struct ProcessRegistry {
 ## Observability & Monitoring
 
 ### Agent Process Metrics
-- Active agent count and resource usage
-- Agent completion rate and average duration
-- Process failure rates and common failure modes
+- Agent uptime and availability
+- Issue processing rate and average duration
+- Process failure rates and recovery time
 - Resource utilization (CPU, memory, file handles)
 
 ### GitHub Actions Integration Metrics  
@@ -281,7 +281,7 @@ warn!(
 ### Immediate Rollback (< 5 minutes)
 ```bash
 # Disable real agent integration
-clambake config set agents.enabled false
+clambake config set agent.enabled false
 
 # Disable GitHub Actions bundling  
 clambake config set github_actions.enabled false
@@ -290,11 +290,11 @@ clambake config set github_actions.enabled false
 ### Process Cleanup
 - Terminate all active agent processes gracefully
 - Cancel running GitHub Actions workflows
-- Fall back to mock agents and local bundling
+- Fall back to mock agent and local bundling
 - Maintain data integrity through rollback
 
 ### Recovery Approach
-- Real agents are additive to existing mock system
+- Real agent is additive to existing mock system
 - GitHub Actions bundling has local bundling fallback
 - System designed to degrade gracefully
 - No data loss during rollback operations
@@ -302,17 +302,17 @@ clambake config set github_actions.enabled false
 ## Definition of Done
 
 ### Functional Requirements
-- [ ] Real Claude Code agents successfully spawn and execute work
+- [ ] Real Claude Code agent successfully spawns and executes work
 - [ ] Agent processes are monitored and cleaned up appropriately
 - [ ] GitHub Actions bundling executes on schedule and via triggers
 - [ ] Local system integrates seamlessly with GitHub Actions workflows
-- [ ] Multi-agent scenarios work with cloud-native bundling
+- [ ] Single-agent autonomous operation works with cloud-native bundling
 
 ### Quality Requirements
 - [ ] Process spawning succeeds >95% of the time
-- [ ] Agent process monitoring detects completion within 30 seconds
+- [ ] Agent process monitoring detects state changes within 30 seconds
 - [ ] GitHub Actions bundling has <10 second trigger latency
-- [ ] System handles agent process failures without cascading issues
+- [ ] System handles agent process failures with automatic restart
 - [ ] End-to-end latency from agent completion to bundle PR <5 minutes
 
 ### Documentation Requirements  
@@ -328,7 +328,7 @@ clambake config set github_actions.enabled false
 |------|---------|-------------|------------|
 | Claude Code process instability | High | Medium | Process monitoring, automatic restart, timeout handling |
 | GitHub Actions rate limits | Medium | Low | Exponential backoff, fallback to local bundling |
-| Process resource exhaustion | Medium | Medium | Resource limits, concurrent agent caps, cleanup procedures |
+| Process resource exhaustion | Medium | Low | Resource limits, proper cleanup procedures |
 
 ### Operational Risks
 | Risk | Impact | Probability | Mitigation |
@@ -341,7 +341,7 @@ clambake config set github_actions.enabled false
 ### Agent Integration Metrics
 - **Process Success Rate**: >95% of agent spawns succeed
 - **Work Completion Rate**: Comparable to mock agent success rate
-- **Resource Efficiency**: <20% CPU usage per concurrent agent
+- **Resource Efficiency**: <20% CPU usage for autonomous agent operation
 - **Process Lifecycle**: Zero zombie processes after 24-hour operation
 
 ### GitHub Actions Migration Metrics
@@ -349,4 +349,4 @@ clambake config set github_actions.enabled false
 - **Bundling Latency**: <2 minutes from trigger to bundle PR creation
 - **Operational Autonomy**: Zero manual interventions required for 48-hour period
 
-This specification transforms Clambake from a sophisticated mock system into a production-ready multi-agent orchestration platform with cloud-native bundling capabilities.
+This specification transforms My Little Soda from a sophisticated mock system into a production-ready autonomous agent system with cloud-native bundling capabilities, enabling multiplicative productivity through unattended operation.

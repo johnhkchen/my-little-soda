@@ -19,9 +19,9 @@
 ### Strategic Value
 A robust state machine implementation provides:
 - **Eliminates Stuck Agents**: Systematic detection and recovery from inconsistent states
-- **Enables Concurrent Agents**: Reliable state management for multi-agent coordination
+- **Enables Autonomous Operation**: Reliable state management for continuous single-agent operation
 - **Reduces Operational Overhead**: Automatic state validation and recovery vs manual intervention
-- **Foundation for Scale**: Prerequisite for Architecture v2 multi-agent workflows
+- **Foundation for Autonomy**: Prerequisite for unattended autonomous agent operation
 
 ## Target State
 
@@ -33,15 +33,15 @@ A production-ready agent lifecycle system powered by `statig` state machine that
 4. **Maintains GitHub Sync**: Bidirectional synchronization between internal state and GitHub labels/branches
 
 ### Success Metrics
-- **Zero Stuck Agents**: No agents remain in inconsistent states for >5 minutes
+- **Zero Agent Downtime**: Agent never remains in inconsistent states for >5 minutes
 - **State Consistency**: 100% accuracy between internal state and GitHub/Git reality
 - **Automatic Recovery**: >90% of detected inconsistencies resolved without manual intervention
 - **Transition Validation**: All state changes go through validated state machine transitions
-- **Diagnostic Clarity**: Clear reporting on why agents are in specific states
+- **Diagnostic Clarity**: Clear reporting on why agent is in specific state
 
 ### Non-Goals
 - Advanced workflow orchestration beyond basic agent lifecycle
-- Cross-repository or cross-organization agent coordination
+- Cross-repository coordination (use separate My Little Soda instances per repo)
 - Integration with external state storage systems (Redis, databases)
 - Complex agent assignment algorithms (keep existing routing logic)
 
@@ -119,7 +119,7 @@ clambake agent recover --agent agent001          # Attempt automatic recovery
 clambake agent force-reset --agent agent001      # Force agent to idle state
 
 # State machine reporting
-clambake agent list --show-state                 # List all agents with states
+clambake agent status --show-state               # Show current agent state
 clambake agent history --agent agent001          # Show state transition history
 clambake agent validate --all                    # Validate all agent states
 ```
@@ -296,7 +296,7 @@ warn!(
 # Disable state machine validation
 clambake config set state_machine.enabled false
 
-# Force all agents to idle state
+# Force agent to idle state
 clambake agent force-reset --all
 ```
 
@@ -326,7 +326,7 @@ clambake agent force-reset --all
 - [ ] Integration tests verify state consistency with real GitHub API
 - [ ] Chaos tests demonstrate recovery from artificially induced stuck states
 - [ ] Performance tests show <100ms latency for state transitions
-- [ ] Manual testing confirms zero stuck agents over 24-hour period
+- [ ] Manual testing confirms agent operates continuously over 24-hour period
 
 ### Documentation Requirements
 - [ ] State machine architecture documentation updated
@@ -362,4 +362,4 @@ clambake agent force-reset --all
 - State consistency: >99% accuracy between internal state and external systems
 - Operational efficiency: Zero manual intervention required for standard stuck states
 
-This specification transforms the agent lifecycle from an ad-hoc manual system into a reliable, self-healing state machine that eliminates operational overhead while providing the foundation for robust multi-agent coordination.
+This specification transforms the agent lifecycle from an ad-hoc manual system into a reliable, self-healing state machine that eliminates operational overhead while enabling autonomous single-agent operation.
