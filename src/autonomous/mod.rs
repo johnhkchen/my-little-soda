@@ -25,6 +25,7 @@ pub mod error_recovery;
 pub mod integration;
 pub mod persistence;
 pub mod work_continuity;
+pub mod state_validation;
 
 pub use workflow_state_machine::{
     AutonomousWorkflowState, 
@@ -86,12 +87,33 @@ pub use work_continuity::{
     RecoveryContext,
 };
 
+pub use state_validation::{
+    StateDriftDetector,
+    StateDrift,
+    StateDriftType,
+    DriftSeverity,
+    CorrectionAction,
+    CorrectionStrategy,
+    DriftThresholds,
+    ExpectedSystemState,
+    ExpectedIssueState,
+    ExpectedBranchState,
+    ExpectedPRState,
+    ExpectedWorkspaceState,
+    IssueState,
+    PRState,
+    ReviewState,
+    StateDriftError,
+    DriftDetectionReport,
+    ValidationHealth,
+};
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Duration};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{info, warn, error};
+use tracing::{info, warn, error, debug};
 use rand::Rng;
 
 use crate::github::GitHubClient;
@@ -102,6 +124,7 @@ use crate::agents::recovery::AutomaticRecovery;
 pub struct AutonomousCoordinator {
     workflow_machine: Arc<RwLock<AutonomousWorkflowMachine>>,
     error_recovery: Arc<RwLock<AutonomousErrorRecovery>>,
+    drift_detector: Arc<RwLock<StateDriftDetector>>,
     github_client: GitHubClient,
     agent_id: String,
     coordination_config: CoordinationConfig,
@@ -116,6 +139,8 @@ pub struct CoordinationConfig {
     pub enable_aggressive_recovery: bool,
     pub enable_state_persistence: bool,
     pub monitoring_interval_minutes: u32,
+    pub enable_drift_detection: bool,
+    pub drift_validation_interval_minutes: u32,
 }
 
 impl Default for CoordinationConfig {
@@ -127,6 +152,8 @@ impl Default for CoordinationConfig {
             enable_aggressive_recovery: false,
             enable_state_persistence: true,
             monitoring_interval_minutes: 5,
+            enable_drift_detection: true,
+            drift_validation_interval_minutes: 10,
         }
     }
 }
@@ -147,9 +174,13 @@ impl AutonomousCoordinator {
             .with_timeout(config.recovery_timeout_minutes)
             .with_aggressive_recovery(config.enable_aggressive_recovery);
         
+        let drift_detector = StateDriftDetector::new(github_client.clone(), agent_id.clone())
+            .with_validation_interval(Duration::minutes(config.drift_validation_interval_minutes as i64));
+        
         Ok(Self {
             workflow_machine: Arc::new(RwLock::new(workflow_machine)),
             error_recovery: Arc::new(RwLock::new(error_recovery)),
+            drift_detector: Arc::new(RwLock::new(drift_detector)),
             github_client,
             agent_id,
             coordination_config: config,
@@ -270,6 +301,17 @@ impl AutonomousCoordinator {
                 _ => {
                     // Handle other states
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                }
+            }
+            
+            // Perform state drift detection if enabled
+            if self.coordination_config.enable_drift_detection {
+                if let Err(e) = self.perform_drift_detection().await {
+                    error!(
+                        agent_id = %self.agent_id,
+                        error = ?e,
+                        "State drift detection failed"
+                    );
                 }
             }
             
@@ -640,6 +682,127 @@ impl AutonomousCoordinator {
     /// Check if autonomous operation is running
     pub async fn is_running(&self) -> bool {
         *self.is_running.read().await
+    }
+    
+    /// Perform state drift detection and correction
+    async fn perform_drift_detection(&self) -> Result<(), AutonomousWorkflowError> {
+        let is_active = self.is_actively_working().await;
+        
+        let should_validate = {
+            let detector = self.drift_detector.read().await;
+            detector.needs_validation(is_active)
+        };
+        
+        if !should_validate {
+            return Ok(());
+        }
+        
+        debug!(
+            agent_id = %self.agent_id,
+            is_active = is_active,
+            "Performing state drift detection"
+        );
+        
+        // Update expected state from current workflow state
+        let current_workflow_state = {
+            let workflow = self.workflow_machine.read().await;
+            workflow.current_state().cloned()
+        };
+        
+        if let Some(workflow_state) = current_workflow_state {
+            let mut detector = self.drift_detector.write().await;
+            detector.update_expected_state(&workflow_state).await
+                .map_err(|e| AutonomousWorkflowError::RecoveryFailed { 
+                    error: format!("Failed to update expected state: {:?}", e) 
+                })?;
+        }
+        
+        // Perform validation
+        let detected_drifts = {
+            let mut detector = self.drift_detector.write().await;
+            detector.validate_state().await
+                .map_err(|e| AutonomousWorkflowError::RecoveryFailed { 
+                    error: format!("State validation failed: {:?}", e) 
+                })?
+        };
+        
+        if detected_drifts.is_empty() {
+            debug!(agent_id = %self.agent_id, "No state drifts detected");
+            return Ok(());
+        }
+        
+        info!(
+            agent_id = %self.agent_id,
+            drifts_count = detected_drifts.len(),
+            "State drifts detected, initiating correction"
+        );
+        
+        // Attempt to correct drifts
+        let corrections = {
+            let mut detector = self.drift_detector.write().await;
+            detector.correct_drifts(detected_drifts.clone()).await
+                .map_err(|e| AutonomousWorkflowError::RecoveryFailed { 
+                    error: format!("Drift correction failed: {:?}", e) 
+                })?
+        };
+        
+        // Log correction results
+        for (drift, correction) in detected_drifts.iter().zip(corrections.iter()) {
+            info!(
+                agent_id = %self.agent_id,
+                drift_type = ?drift.get_type(),
+                drift_severity = ?drift.get_severity(),
+                correction = ?correction,
+                "Applied drift correction"
+            );
+        }
+        
+        // Check if any corrections require stopping autonomous operation
+        let requires_intervention = corrections.iter().any(|c| {
+            matches!(c, CorrectionAction::RequireManualIntervention { .. })
+        });
+        
+        if requires_intervention {
+            warn!(
+                agent_id = %self.agent_id,
+                "Critical drift detected requiring manual intervention, stopping autonomous operation"
+            );
+            
+            let mut is_running = self.is_running.write().await;
+            *is_running = false;
+            
+            // Transition workflow to abandoned state
+            let mut workflow = self.workflow_machine.write().await;
+            workflow.handle_event(AutonomousEvent::ForceAbandon {
+                reason: AbandonmentReason::CriticalFailure {
+                    error: "Critical state drift detected requiring manual intervention".to_string(),
+                },
+            }).await?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Check if the agent is actively working (not idle)
+    async fn is_actively_working(&self) -> bool {
+        let workflow = self.workflow_machine.read().await;
+        match workflow.current_state() {
+            Some(AutonomousWorkflowState::InProgress { .. }) |
+            Some(AutonomousWorkflowState::Blocked { .. }) |
+            Some(AutonomousWorkflowState::ReadyForReview { .. }) |
+            Some(AutonomousWorkflowState::UnderReview { .. }) |
+            Some(AutonomousWorkflowState::ChangesRequested { .. }) |
+            Some(AutonomousWorkflowState::Approved { .. }) |
+            Some(AutonomousWorkflowState::MergeConflict { .. }) |
+            Some(AutonomousWorkflowState::CIFailure { .. }) => true,
+            _ => false,
+        }
+    }
+    
+    /// Get drift detection report
+    pub async fn get_drift_report(&self) -> DriftDetectionReport {
+        let detector = self.drift_detector.read().await;
+        detector.generate_drift_report()
     }
 }
 
