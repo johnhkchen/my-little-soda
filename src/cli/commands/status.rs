@@ -17,8 +17,12 @@ impl StatusCommand {
     }
 
     pub async fn execute(&self) -> Result<()> {
-        println!("🤖 CLAMBAKE SYSTEM STATUS");
-        println!("==========================");
+        // Get repository context
+        let repo_name = self.get_repo_name().unwrap_or_else(|| "unknown".to_string());
+        let current_branch = self.get_current_branch().unwrap_or_else(|| "unknown".to_string());
+        
+        println!("🤖 CLAMBAKE STATUS - Repository: {}", repo_name);
+        println!("==========================================");
         println!();
         
         print!("🔄 Gathering system information... ");
@@ -30,41 +34,23 @@ impl StatusCommand {
                 println!("✅");
                 println!();
                 
-                // Display agent status with better formatting
-                println!("📊 AGENT UTILIZATION:");
-                println!("────────────────────");
+                // Display agent status
+                println!("🔧 AGENT STATUS:");
+                println!("────────────────");
                 
-                // Get utilization data
+                // Get agent status
                 match router.get_agent_status().await {
                     Ok(utilization) => {
-                        let mut total_agents = 0;
-                        let mut available_agents = 0;
+                        let agent_available = utilization.values().any(|(current, max)| current < max);
                         
-                        for (agent_id, (current, max)) in utilization.iter() {
-                            total_agents += 1;
-                            if *current < *max {
-                                available_agents += 1;
-                            }
-                            
-                            if *current >= *max {
-                                println!("🔴 {} - BUSY ({}/{})", agent_id, current, max);
-                            } else {
-                                println!("🟢 {} - Available ({}/{})", agent_id, current, max);
-                            }
-                        }
-                        
-                        println!();
-                        println!("💼 CAPACITY OVERVIEW:");
-                        println!("   🎯 Total agents: {}", total_agents);
-                        println!("   ✅ Available: {}", available_agents);
-                        println!("   🔴 Busy: {}", total_agents - available_agents);
-                        
-                        if available_agents > 0 {
-                            println!("   🚀 Ready for new work!");
+                        if agent_available {
+                            println!("✅ Available - Ready for next task");
                         } else {
-                            println!("   ⏳ All agents busy - work will queue");
+                            println!("🔴 Busy - Currently working on assigned task");
                         }
                         
+                        println!("📍 Current branch: {}", current_branch);
+                        println!("🚀 Mode: Manual (use 'clambake spawn --autonomous' for unattended)");
                         println!();
                     }
                     Err(e) => {
@@ -73,52 +59,57 @@ impl StatusCommand {
                     }
                 }
                 
-                // Display state machine information
-                println!("🔧 STATE MACHINE STATUS:");
-                println!("───────────────────────");
-                
-                match router.get_agent_state_machine_status().await {
-                    Ok(states) => {
-                        if states.is_empty() {
-                            println!("⚠️  No state machines initialized");
-                        } else {
-                            for (agent_id, status) in states {
-                                println!("🤖 {}", status);
-                            }
-                        }
-                        println!();
-                    }
-                    Err(e) => {
-                        println!("❌ Failed to get state machine status: {}", e);
-                        println!();
-                    }
-                }
-                
-                // Display task queue
-                println!("📋 TASK QUEUE:");
-                println!("──────────────");
-                
+                // Display task queue with detailed issue information
                 match router.fetch_routable_issues().await {
                     Ok(issues) => {
                         if issues.is_empty() {
-                            println!("📭 No tasks in queue");
+                            println!("📋 ISSUE QUEUE:");
+                            println!("────────────────────────────");
+                            println!("📭 No tasks waiting");
                             println!("   💡 Create tasks with: gh issue create --title 'Your task' --label 'route:ready'");
+                            println!();
                         } else {
-                            println!("📊 {} tasks waiting for assignment", issues.len());
+                            println!("📋 ISSUE QUEUE ({} waiting):", issues.len());
+                            println!("────────────────────────────");
                             
-                            // Show priority breakdown
-                            let mut priority_counts = std::collections::HashMap::new();
-                            for issue in &issues {
-                                let priority = get_issue_priority_name(issue);
-                                *priority_counts.entry(priority).or_insert(0) += 1;
+                            // Sort issues by priority (highest first)
+                            let mut sorted_issues = issues.clone();
+                            sorted_issues.sort_by(|a, b| {
+                                use crate::priority::Priority;
+                                let priority_a = Priority::from_labels(&a.labels.iter().map(|l| l.name.as_str()).collect::<Vec<_>>());
+                                let priority_b = Priority::from_labels(&b.labels.iter().map(|l| l.name.as_str()).collect::<Vec<_>>());
+                                priority_b.cmp(&priority_a) // Higher priority first
+                            });
+                            
+                            // Show top 5 issues with details
+                            for (idx, issue) in sorted_issues.iter().take(5).enumerate() {
+                                let priority_info = self.get_priority_display(issue);
+                                let labels = issue.labels.iter()
+                                    .map(|l| l.name.as_str())
+                                    .filter(|name| !name.starts_with("route:") && !name.starts_with("agent"))
+                                    .collect::<Vec<_>>()
+                                    .join(",");
+                                
+                                println!("{} #{} {}", 
+                                    priority_info.0, 
+                                    issue.number, 
+                                    issue.title
+                                );
+                                println!("   📝 {} | Labels: {}", priority_info.1, 
+                                    if labels.is_empty() { "none".to_string() } else { labels });
+                                
+                                if idx < sorted_issues.len().min(5) - 1 {
+                                    println!();
+                                }
                             }
                             
-                            for (priority, count) in priority_counts {
-                                println!("   {} {} {} tasks", get_priority_emoji(&priority), count, priority);
+                            if sorted_issues.len() > 5 {
+                                println!();
+                                println!("   ... and {} more tasks", sorted_issues.len() - 5);
                             }
+                            
+                            println!();
                         }
-                        
-                        println!();
                     }
                     Err(e) => {
                         println!("❌ Failed to check task queue: {}", e);
@@ -126,12 +117,11 @@ impl StatusCommand {
                     }
                 }
                 
-                // Show helpful commands
-                println!("🎯 QUICK ACTIONS:");
-                println!("   → clambake pop      # Claim next task");
-                println!("   → clambake peek     # Preview next task");
-                println!("   → clambake route    # Route tasks to agents");
-                println!("   → clambake land     # Complete lifecycle");
+                // Show next actions
+                println!("🎯 NEXT ACTIONS:");
+                println!("   → clambake pop       # Get highest priority task");
+                println!("   → clambake peek      # Preview task details");
+                println!("   → clambake spawn --autonomous  # Start unattended mode");
                 
                 Ok(())
             }
@@ -142,6 +132,51 @@ impl StatusCommand {
                 println!("🔧 Check GitHub auth: gh auth status");
                 Err(e.into())
             }
+        }
+    }
+
+    fn get_repo_name(&self) -> Option<String> {
+        use std::process::Command;
+        let output = Command::new("git")
+            .args(&["remote", "get-url", "origin"])
+            .output()
+            .ok()?;
+        
+        let url = String::from_utf8(output.stdout).ok()?;
+        let repo_name = url.trim()
+            .strip_suffix(".git")?
+            .rsplit('/')
+            .next()?
+            .to_string();
+        Some(repo_name)
+    }
+
+    fn get_current_branch(&self) -> Option<String> {
+        use std::process::Command;
+        let output = Command::new("git")
+            .args(&["branch", "--show-current"])
+            .output()
+            .ok()?;
+        
+        String::from_utf8(output.stdout)
+            .ok()
+            .map(|s| s.trim().to_string())
+    }
+
+    fn get_priority_display(&self, issue: &Issue) -> (String, String) {
+        use crate::priority::Priority;
+        
+        let priority = Priority::from_labels(&issue.labels.iter()
+            .map(|l| l.name.as_str()).collect::<Vec<_>>());
+        
+        match priority {
+            Priority::Unblocker => ("🚨".to_string(), "Priority: Unblocker".to_string()),
+            Priority::MergeReady => ("🔴".to_string(), "Priority: High (Merge Ready)".to_string()),
+            Priority::VeryHigh => ("🔴".to_string(), "Priority: Very High".to_string()),
+            Priority::High => ("🔴".to_string(), "Priority: High".to_string()),
+            Priority::Medium => ("🟡".to_string(), "Priority: Medium".to_string()),
+            Priority::Low => ("🟢".to_string(), "Priority: Low".to_string()),
+            Priority::Normal => ("🟢".to_string(), "Priority: Normal".to_string()),
         }
     }
 }
