@@ -12,6 +12,8 @@ use super::{
     AutonomousWorkflowState, 
     AutonomousEvent,
     CoordinationConfig,
+    workflow_state_machine::{AutonomousStatusReport, AgentId, AbandonmentReason},
+    error_recovery::AutonomousRecoveryReport,
 };
 
 /// Integration layer between autonomous workflow and existing agent coordination
@@ -178,8 +180,8 @@ impl AutonomousIntegration {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntegratedStatusReport {
     pub agent_id: String,
-    pub autonomous_status: super::AutonomousStatusReport,
-    pub recovery_report: super::AutonomousRecoveryReport,
+    pub autonomous_status: AutonomousStatusReport,
+    pub recovery_report: AutonomousRecoveryReport,
     pub agent_state: AgentStateInfo,
     pub is_running: bool,
 }
@@ -243,7 +245,7 @@ impl AutonomousEventBridge for EventBridge {
         match agent_event {
             AgentEvent::Assign { .. } => {
                 Some(AutonomousEvent::AssignAgent {
-                    agent: super::AgentId(self.agent_id.clone()),
+                    agent: AgentId(self.agent_id.clone()),
                     workspace_ready: true,
                 })
             }
@@ -255,7 +257,7 @@ impl AutonomousEventBridge for EventBridge {
             }
             AgentEvent::Abandon => {
                 Some(AutonomousEvent::ForceAbandon {
-                    reason: super::AbandonmentReason::RequirementsChanged,
+                    reason: AbandonmentReason::RequirementsChanged,
                 })
             }
             _ => None,
@@ -353,7 +355,7 @@ impl AutonomousIntegrationFactory {
     
     /// Create autonomous system with existing agent coordinator
     pub async fn integrate_with_existing(
-        existing_coordinator: AgentCoordinator,
+        _existing_coordinator: AgentCoordinator,
         github_client: GitHubClient,
         agent_id: String,
         config: IntegrationConfig,

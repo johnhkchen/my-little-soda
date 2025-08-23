@@ -136,7 +136,7 @@ impl StateMachine {
 
     async fn atomic_start_review(&self, agent_id: &str, issue_url: &str, pr_number: u64) -> Result<TransitionResult, GitHubError> {
         let previous_state = AgentState::Completed(issue_url.to_string());
-        let new_state = AgentState::UnderReview(issue_url.to_string());
+        let _new_state = AgentState::UnderReview(issue_url.to_string());
         
         // Phase 1: Atomic transition from completed work to review state
         // This creates PR, removes route:ready label, and frees the agent

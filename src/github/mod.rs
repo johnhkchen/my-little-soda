@@ -8,12 +8,6 @@ pub mod types;
 pub mod errors;
 pub mod retry;
 
-pub use client::{GitHubClient, GitHubOps};
+pub use client::GitHubClient;
 pub use errors::GitHubError;
-pub use types::{ConflictAnalysis, ConflictRecoveryData, SafeMergeResult};
-pub use issues::IssueHandler;
-pub use pulls::{PullRequestHandler, PullRequestStatus};
-pub use branches::{BranchHandler, BranchInfo, BranchComparison};
-pub use comments::CommentHandler;
-pub use actions::{ActionsHandler, GitHubActions, WorkflowStatus, WorkflowRun};
-pub use retry::{GitHubRetryHandler, RetryConfig};
+pub use actions::{GitHubActions, WorkflowStatus};

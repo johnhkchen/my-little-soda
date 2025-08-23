@@ -434,7 +434,7 @@ impl StateDriftDetector {
         );
 
         match workflow_state {
-            AutonomousWorkflowState::Assigned { issue, agent, workspace } => {
+            AutonomousWorkflowState::Assigned { issue, agent, workspace: _ } => {
                 self.expected_state.issues.insert(
                     issue.number,
                     ExpectedIssueState {
