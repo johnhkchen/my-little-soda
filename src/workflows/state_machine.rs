@@ -281,7 +281,6 @@ impl StateMachine {
 #[cfg(test)]
 mod tests_parse_issue_number {
     use super::StateMachine;
-    use crate::github::GitHubError;
 
     // Unsafe helper: construct a StateMachine suitable for calling parse_issue_number_from_url,
     // which does not touch any fields.

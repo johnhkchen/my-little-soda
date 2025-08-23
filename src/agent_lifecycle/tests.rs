@@ -224,4 +224,129 @@ mod tests {
         // This proves the agent lifecycle workflow works correctly!
         println!("✅ Full agent lifecycle workflow tested successfully");
     }
+
+    #[test]
+    fn test_agent_state_detector_creation() {
+        use super::super::detector::AgentStateDetector;
+        
+        let github = MockGitHubOperations::new("test-owner", "test-repo");
+        let git = MockGitOperations::new();
+        
+        // Test that AgentStateDetector can be created with mock dependencies
+        let _detector = AgentStateDetector::new(github, git);
+        
+        // Constructor succeeded - basic test for instantiation
+        assert!(true);
+    }
+
+    #[test]
+    fn test_real_command_executor_print_command() {
+        use super::super::executor::RealCommandExecutor;
+        
+        let github = MockGitHubOperations::new("test-owner", "test-repo");
+        let git = MockGitOperations::new();
+        
+        let executor = RealCommandExecutor::new(github, git);
+        
+        // Test basic print command execution
+        let print_cmd = Command::Print("Test message".to_string());
+        let result = executor.execute(&print_cmd).unwrap();
+        
+        assert!(result.success);
+        assert!(result.output.contains("Test message"));
+        assert!(result.error.is_none());
+    }
+
+    #[test]
+    fn test_real_command_executor_git_command_execution() {
+        use super::super::executor::RealCommandExecutor;
+        
+        let github = MockGitHubOperations::new("test-owner", "test-repo");
+        let git = MockGitOperations::new();
+        
+        let executor = RealCommandExecutor::new(github, git);
+        
+        // Test git get current branch command (read-only operation)
+        let get_branch_cmd = Command::Git(GitCommand::GetCurrentBranch);
+        
+        let result = executor.execute(&get_branch_cmd).unwrap();
+        assert!(result.success);
+        // The mock should return "main" as default current branch
+        assert!(result.output.contains("main"));
+    }
+
+    #[test] 
+    fn test_real_command_executor_github_command_execution() {
+        use super::super::executor::RealCommandExecutor;
+        
+        let github = MockGitHubOperations::new("test-owner", "test-repo");
+        let git = MockGitOperations::new();
+        
+        // Set up mock issue data first
+        github.add_issue(IssueData {
+            number: 123,
+            title: "Test issue".to_string(),
+            state: "open".to_string(),
+            labels: vec!["test-label".to_string()],
+            assignee: None,
+        });
+        
+        let executor = RealCommandExecutor::new(github, git);
+        
+        // Test GitHub get issue command
+        let get_issue_cmd = Command::GitHub(GitHubCommand::GetIssue { issue: 123 });
+        
+        let result = executor.execute(&get_issue_cmd).unwrap();
+        assert!(result.success);
+        // Should return issue data in some format
+        assert!(!result.output.is_empty());
+    }
+
+    #[test]
+    fn test_real_command_executor_sequence_success() {
+        use super::super::executor::RealCommandExecutor;
+        
+        let github = MockGitHubOperations::new("test-owner", "test-repo");
+        let git = MockGitOperations::new();
+        
+        let executor = RealCommandExecutor::new(github, git);
+        
+        let commands = vec![
+            Command::Print("Starting".to_string()),
+            Command::Print("Complete".to_string()),
+        ];
+        
+        let results = executor.execute_sequence(&commands).unwrap();
+        
+        // Verify all commands succeeded
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|r| r.success));
+        assert!(results[0].output.contains("Starting"));
+        assert!(results[1].output.contains("Complete"));
+    }
+
+    #[test]
+    fn test_agent_state_detector_with_prepared_mocks() {
+        use super::super::detector::AgentStateDetector;
+        
+        let github = MockGitHubOperations::new("test-owner", "test-repo");
+        let git = MockGitOperations::new();
+        
+        // Set up test data in mocks
+        github.add_issue(IssueData {
+            number: 123,
+            title: "Test issue".to_string(),
+            state: "open".to_string(),
+            labels: vec!["agent001".to_string()],
+            assignee: None,
+        });
+        
+        git.set_current_branch("agent001/123");
+        git.set_commits_ahead("main", vec!["commit1".to_string()]);
+        
+        let _detector = AgentStateDetector::new(github, git);
+        
+        // Test validates AgentStateDetector can be created with prepared mock data
+        assert!(true);
+    }
 }

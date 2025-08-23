@@ -853,7 +853,7 @@ mod tests {
             }).await.unwrap();
             
             // Any subsequent event should trigger timeout
-            let result = workflow.handle_event(AutonomousEvent::StartWork).await;
+            let _result = workflow.handle_event(AutonomousEvent::StartWork).await;
             
             // Should either be abandoned or handle timeout gracefully
             assert!(workflow.current_state().is_some());

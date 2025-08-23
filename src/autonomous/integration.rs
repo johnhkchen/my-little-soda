@@ -122,7 +122,7 @@ impl AutonomousIntegration {
                 );
                 
                 // Update agent state machine to reflect completion
-                let agent_state_machine = self.agent_state_machine.write().await;
+                let _agent_state_machine = self.agent_state_machine.write().await;
                 // The agent should be freed and made available again
                 // This would be done through the existing workflow
             }
@@ -134,7 +134,7 @@ impl AutonomousIntegration {
                 );
                 
                 // Reset agent state machine
-                let agent_state_machine = self.agent_state_machine.write().await;
+                let _agent_state_machine = self.agent_state_machine.write().await;
                 // Force reset through existing event system
             }
             _ => {

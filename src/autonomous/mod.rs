@@ -30,13 +30,14 @@ pub mod state_validation;
 // Public exports - including internal dependencies for proper compilation
 pub use workflow_state_machine::{
     AutonomousWorkflowState, AutonomousEvent, AutonomousWorkflowMachine,
-    AgentId, AbandonmentReason, BlockerType, Priority, Issue, PullRequest, ConflictInfo
+    AgentId, AbandonmentReason, BlockerType, Priority, Issue, PullRequest, ConflictInfo,
+    CIFailure, CompletedWork, AutonomousStatusReport
 };
-pub use error_recovery::{AutonomousErrorRecovery, ErrorType, RecoveryStrategy};
-pub use integration::{IntegrationCoordinator, CoordinationConfig};
+pub use error_recovery::{AutonomousErrorRecovery, ErrorType, RecoveryStrategy, AutonomousRecoveryReport};
+pub use integration::{IntegrationCoordinator};
 pub use persistence::{StatePersistenceManager, PersistenceConfig, CheckpointReason};
 pub use work_continuity::{WorkContinuityManager, WorkContinuityConfig, ResumeAction, ContinuityStatus};
-pub use state_validation::{StateDriftDetector, CorrectionAction};
+pub use state_validation::{StateDriftDetector, CorrectionAction, DriftDetectionReport};
 
 // AutonomousCoordinator is defined in this module
 
@@ -312,7 +313,7 @@ impl AutonomousCoordinator {
         
         // Determine error type from blocker
         let error_type = match blocker {
-            BlockerType::TestFailure { test_name, error } => {
+            BlockerType::TestFailure { test_name, error: _ } => {
                 ErrorType::TestFailure {
                     test_suite: "integration".to_string(),
                     failed_tests: vec![test_name.clone()],

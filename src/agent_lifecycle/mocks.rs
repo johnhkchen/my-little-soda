@@ -467,7 +467,7 @@ impl CommandExecutor for MockCommandExecutor {
                     data: None,
                 })
             },
-            Command::Conditional { condition, then_cmd, else_cmd } => {
+            Command::Conditional { condition: _, then_cmd, else_cmd: _ } => {
                 // For mock, just execute the then command
                 self.execute(then_cmd)
             },

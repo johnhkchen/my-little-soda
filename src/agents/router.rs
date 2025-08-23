@@ -123,7 +123,7 @@ impl AgentRouter {
 mod tests {
     use super::*;
     use crate::priority::Priority;
-    use octocrab::models::{IssueState, Label};
+    use octocrab::models::IssueState;
     use std::sync::{Arc, Mutex};
 
     // Minimal stub types mirroring external dependencies for tests.
