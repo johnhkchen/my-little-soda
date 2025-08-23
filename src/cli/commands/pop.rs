@@ -44,8 +44,15 @@ impl PopCommand {
         
         // Check if we're already on a work branch
         if let Some(current_branch) = get_current_git_branch() {
-            if let Some((agent_id, issue_number_str)) = current_branch.split_once('/') {
+            if let Some((agent_id, branch_suffix)) = current_branch.split_once('/') {
                 if agent_id.starts_with("agent") {
+                    // Extract issue number from branch suffix (handle descriptive branch names)
+                    let issue_number_str = if let Some(dash_pos) = branch_suffix.find('-') {
+                        &branch_suffix[..dash_pos]
+                    } else {
+                        branch_suffix
+                    };
+                    
                     if let Ok(issue_number) = issue_number_str.parse::<u64>() {
                         println!("⚠️  You're already working on something!");
                         println!();
