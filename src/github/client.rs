@@ -208,6 +208,10 @@ impl GitHubClient {
         self.issues.add_label_to_issue(issue_number, label).await
     }
 
+    pub async fn remove_label_from_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
+        self.issues.remove_label(issue_number, label).await
+    }
+
     pub async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError> {
         self.issues.create_issue(title, body, labels).await
     }

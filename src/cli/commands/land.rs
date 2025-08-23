@@ -75,7 +75,23 @@ impl LandCommand {
             println!("📤 [DRY RUN] Would push branch to remote: {}", current_branch);
         }
         
-        // Step 2: Add route:review label to mark as ready for bundling
+        // Step 2: Remove route:ready label (if present) to transition from ready to review
+        if !self.dry_run {
+            print!("🏷️  Removing route:ready label from issue #{}... ", issue_number);
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            
+            // Note: It's OK if the label doesn't exist - GitHub API handles this gracefully
+            if let Err(e) = client.remove_label_from_issue(issue_number, "route:ready").await {
+                // Log warning but don't fail the entire operation
+                eprintln!("⚠️  Warning: Could not remove route:ready label: {}", e);
+                eprintln!("   This is usually safe - the label may not exist or may already be removed");
+            }
+            println!("✅");
+        } else {
+            println!("🏷️  [DRY RUN] Would remove route:ready label from issue #{}", issue_number);
+        }
+
+        // Step 3: Add route:review label to mark as ready for bundling
         if !self.dry_run {
             print!("🏷️  Adding route:review label to issue #{}... ", issue_number);
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
@@ -87,7 +103,7 @@ impl LandCommand {
             println!("🏷️  [DRY RUN] Would add route:review label to issue #{}", issue_number);
         }
         
-        // Step 3: Trigger state machine transition to complete work
+        // Step 4: Trigger state machine transition to complete work
         if !self.dry_run {
             print!("⚙️  Completing work in state machine... ");
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
@@ -99,7 +115,7 @@ impl LandCommand {
             println!("⚙️  [DRY RUN] Would complete work in state machine for agent {}", agent_id);
         }
         
-        // Step 4: Remove agent label to free the agent
+        // Step 5: Remove agent label to free the agent
         if !self.dry_run {
             print!("🤖 Freeing agent by removing {} label... ", agent_id);
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
@@ -117,9 +133,9 @@ impl LandCommand {
         }
         
         println!();
-        println!("✅ Land complete:");
+        println!("✅ Bottle complete:");
         println!("   🌿 Branch {} is ready for bundling", current_branch);
-        println!("   🏷️  Issue #{} marked with route:review", issue_number);
+        println!("   🏷️  Issue #{} label transition: route:ready → route:review", issue_number);
         println!("   🤖 Agent {} is now free for new work", agent_id);
         println!();
         println!("🎯 Next steps:");
