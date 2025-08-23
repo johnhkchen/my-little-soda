@@ -12,12 +12,27 @@ log_level = "info"
 metrics_enabled = true
 
 [agents]
-max_agents = 4
+max_agents = 1
 coordination_timeout_seconds = 300
 
 [agents.bundle_processing]
 max_queue_size = 50
 processing_timeout_seconds = 1800
+
+[agents.process_management]
+claude_code_path = "claude-code"
+timeout_minutes = 30
+cleanup_on_failure = true
+work_dir_prefix = ".clambake/agents"
+enable_real_agents = false
+
+[agents.ci_mode]
+enabled = false
+artifact_handling = "standard"
+github_token_strategy = "standard"
+workflow_state_persistence = true
+ci_timeout_adjustment = 300
+enhanced_error_reporting = true
 
 [database]
 url = ".clambake/clambake.db"

@@ -129,7 +129,7 @@ impl Default for ClambakeConfig {
                 metrics_enabled: true,
             },
             agents: AgentConfig {
-                max_agents: 4,
+                max_agents: 1,
                 coordination_timeout_seconds: 300, // 5 minutes
                 bundle_processing: BundleConfig {
                     max_queue_size: 50,

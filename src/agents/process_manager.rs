@@ -119,7 +119,7 @@ impl Default for ProcessManagerConfig {
     fn default() -> Self {
         Self {
             claude_code_path: "claude-code".to_string(),
-            max_concurrent_agents: 5,
+            max_concurrent_agents: 1,
             monitoring_interval_secs: 10,
             cleanup_interval_secs: 60,
             default_limits: ResourceLimits::default(),
