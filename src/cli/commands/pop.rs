@@ -2,12 +2,14 @@ use anyhow::Result;
 use crate::cli::commands::with_agent_router;
 use crate::train_schedule::TrainSchedule;
 use std::process::Command;
+use std::error::Error;
 
 pub struct PopCommand {
     pub mine_only: bool,
     pub bundle_branches: bool,
     pub auto_approve: bool,
     pub ci_mode: bool,
+    pub verbose: bool,
 }
 
 impl PopCommand {
@@ -17,7 +19,13 @@ impl PopCommand {
             bundle_branches,
             auto_approve,
             ci_mode: false,
+            verbose: false,
         }
+    }
+    
+    pub fn with_verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
+        self
     }
 
     pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
@@ -65,8 +73,23 @@ impl PopCommand {
         println!();
         
         with_agent_router(|router| async move {
+            if self.verbose {
+                println!("🔍 VERBOSE MODE: Enhanced diagnostic logging enabled");
+                println!("   → mine_only: {}", self.mine_only);
+                println!("   → ci_mode: {}", self.ci_mode);
+                println!("   → GitHub client: Checking connection...");
+            }
+            
             print!("📋 Searching for available tasks... ");
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            
+            if self.verbose {
+                println!();
+                println!("🔍 VERBOSE: Making GitHub API call to fetch issues...");
+                println!("   → API endpoint: GitHub Issues API");
+                println!("   → Filter: route:ready labels");
+                println!("   → Operation: {}", if self.mine_only { "pop_task_assigned_to_me" } else { "pop_any_available_task" });
+            }
             
             let result = if self.mine_only {
                 router.pop_task_assigned_to_me().await
@@ -108,6 +131,23 @@ impl PopCommand {
                     Ok(())
                 }
                 Err(e) => {
+                    if self.verbose {
+                        println!("❌");
+                        println!();
+                        println!("🔍 VERBOSE ERROR DETAILS:");
+                        println!("   → Error type: {:?}", std::any::type_name_of_val(&e));
+                        println!("   → Full error: {:#?}", e);
+                        println!("   → Error chain:");
+                        let mut source = e.source();
+                        let mut depth = 1;
+                        while let Some(err) = source {
+                            println!("     {}. {}", depth, err);
+                            source = err.source();
+                            depth += 1;
+                        }
+                        println!();
+                    }
+                    
                     println!("{}", e);
                     println!();
                     println!("🎯 TASK-SPECIFIC HELP:");
@@ -116,6 +156,15 @@ impl PopCommand {
                         println!("   → Check assigned to you: gh issue list --assignee @me --label 'route:ready'");
                     }
                     println!("   → Create new task: gh issue create --title 'Your task' --label 'route:ready'");
+                    
+                    if self.verbose {
+                        println!();
+                        println!("🔍 VERBOSE TROUBLESHOOTING:");
+                        println!("   → Try: RUST_LOG=debug my-little-soda pop --verbose");
+                        println!("   → Check GitHub token: ls -la .my-little-soda/credentials/");
+                        println!("   → Test API directly: curl -H 'Authorization: token YOUR_TOKEN' https://api.github.com/user");
+                    }
+                    
                     Err(e.into())
                 }
             }

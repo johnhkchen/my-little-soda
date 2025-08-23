@@ -68,8 +68,8 @@ async fn main() -> Result<()> {
         Some(Commands::Route { agents }) => {
             RouteCommand::new(agents).with_ci_mode(cli.ci_mode).execute().await
         },
-        Some(Commands::Pop { mine, bundle_branches, yes }) => {
-            PopCommand::new(mine, bundle_branches, yes).with_ci_mode(cli.ci_mode).execute().await
+        Some(Commands::Pop { mine, bundle_branches, yes, verbose }) => {
+            PopCommand::new(mine, bundle_branches, yes).with_ci_mode(cli.ci_mode).with_verbose(verbose).execute().await
         },
         Some(Commands::Status) => {
             StatusCommand::new().with_ci_mode(cli.ci_mode).execute().await

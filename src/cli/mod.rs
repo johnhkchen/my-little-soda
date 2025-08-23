@@ -36,6 +36,9 @@ pub enum Commands {
         /// Auto-approve all prompts during bundling (non-interactive mode)
         #[arg(short = 'y', long, help = "Skip interactive prompts and auto-approve bundling operations")]
         yes: bool,
+        /// Show detailed diagnostic information
+        #[arg(long, short = 'v', help = "Show detailed diagnostic information during task assignment")]
+        verbose: bool,
     },
     /// Display system status, agent utilization, and task queue overview
     Status,
