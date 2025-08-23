@@ -6,7 +6,7 @@ use crate::telemetry::{generate_correlation_id, create_coordination_span};
 use crate::metrics::MetricsTracker;
 use crate::agent_lifecycle::{AgentStateMachine, AgentEvent};
 use crate::autonomous::WorkContinuityManager;
-use crate::autonomous::WorkContinuityConfig;
+use crate::autonomous::WorkContinuityConfig as AutonomousWorkContinuityConfig;
 use crate::autonomous::PersistenceConfig;
 use crate::autonomous::ResumeAction;
 use crate::autonomous::CheckpointReason;
@@ -952,7 +952,7 @@ impl AgentCoordinator {
         };
 
         // Convert config structures
-        let continuity_config = WorkContinuityConfig {
+        let continuity_config = AutonomousWorkContinuityConfig {
             enable_continuity: config.agents.work_continuity.enable_continuity,
             state_file_path: std::path::PathBuf::from(&config.agents.work_continuity.state_file_path),
             backup_interval_minutes: config.agents.work_continuity.backup_interval_minutes,
