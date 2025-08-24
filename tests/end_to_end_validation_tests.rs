@@ -10,11 +10,10 @@
 //! - Performance vs mock agent baseline
 
 // Note: These imports are for conceptual testing - actual implementations may vary
-// use clambake::agents::{AgentCoordinator, Agent, AgentState};  
-// use clambake::github::{GitHubClient, GitHubError};
-// use clambake::bundling::Bundler;
-// use clambake::metrics::tracking::MetricsTracker;
-use std::collections::HashMap;
+// use my_little_soda::agents::{AgentCoordinator, Agent, AgentState};  
+// use my_little_soda::github::{GitHubClient, GitHubError};
+// use my_little_soda::bundling::Bundler;
+// use my_little_soda::metrics::tracking::MetricsTracker;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;

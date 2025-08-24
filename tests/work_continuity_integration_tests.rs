@@ -7,10 +7,10 @@
 mod tests {
     use anyhow::Result;
     use tempfile::TempDir;
-    use tokio_test;
+    
     use std::path::PathBuf;
     use std::time::Duration;
-    use uuid::Uuid;
+    
 
     use my_little_soda::{
         GitHubClient,

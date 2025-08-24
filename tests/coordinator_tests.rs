@@ -2,7 +2,7 @@
 //! Testing library/framework: Rust built-in test framework with Tokio async runtime (#[tokio::test]).
 //! These tests are integration tests that use the real GitHubClient.
 
-use clambake::agents::coordinator::{AgentCoordinator, AgentState};
+use my_little_soda::agents::coordinator::{AgentCoordinator, AgentState};
 
 #[tokio::test]
 async fn coordinator_can_be_created() {

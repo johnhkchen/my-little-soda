@@ -128,6 +128,12 @@ pub struct Issue {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentId(pub String);
 
+impl PartialEq<str> for AgentId {
+    fn eq(&self, other: &str) -> bool {
+        self.0 == other
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceState {
     pub branch_name: String,
@@ -268,6 +274,20 @@ pub struct AutonomousWorkflowMachine {
     pub github_client: Option<GitHubClient>,
     pub recovery_client: Option<Box<dyn AutomaticRecovery + Send + Sync>>,
     pub state_history: Vec<StateTransitionRecord>,
+}
+
+impl std::fmt::Debug for AutonomousWorkflowMachine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AutonomousWorkflowMachine")
+            .field("current_state", &self.current_state)
+            .field("agent_id", &self.agent_id)
+            .field("start_time", &self.start_time)
+            .field("max_work_hours", &self.max_work_hours)
+            .field("github_client", &self.github_client.is_some())
+            .field("recovery_client", &self.recovery_client.is_some())
+            .field("state_history", &self.state_history)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use anyhow::Result;
 
-use clambake::agents::{
+use my_little_soda::agents::{
     ProcessLifecycleManager, ProcessLifecycleConfig, ProcessManagerConfig,
     ResourceLimits, AlertThresholds, LoggingEventHandler,
 };

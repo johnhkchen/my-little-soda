@@ -1,4 +1,4 @@
-use clambake::github::{ConflictAnalysis, SafeMergeResult};
+use my_little_soda::github::{ConflictAnalysis, SafeMergeResult};
 use chrono::Datelike;
 
 #[tokio::test]

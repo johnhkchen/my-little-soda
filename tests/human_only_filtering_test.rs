@@ -1,7 +1,7 @@
 /// Human-only label filtering integration tests
 /// Tests that bot routing properly excludes human-only labeled tasks
 
-use clambake::agents::AgentRouter;
+use my_little_soda::agents::AgentRouter;
 
 #[tokio::test]
 async fn test_human_only_filtering_manual() {

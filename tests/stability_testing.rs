@@ -5,9 +5,9 @@
 //! Issue #185 acceptance criteria.
 
 // Note: These imports are for conceptual testing - actual implementations may vary
-// use clambake::agents::{AgentCoordinator, Agent, AgentState};
-// use clambake::github::{GitHubClient, GitHubError};
-// use clambake::metrics::tracking::MetricsTracker;
+// use my_little_soda::agents::{AgentCoordinator, Agent, AgentState};
+// use my_little_soda::github::{GitHubClient, GitHubError};
+// use my_little_soda::metrics::tracking::MetricsTracker;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};

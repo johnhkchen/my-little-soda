@@ -1,8 +1,7 @@
 // Property-Based Testing for Agent Coordination
 // Tests agent coordination invariants under all conditions using property-based testing
 
-use clambake::agents::{AgentCoordinator, Agent, AgentState};
-use clambake::github::{GitHubClient, GitHubError};
+use my_little_soda::agents::{AgentCoordinator, AgentState};
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
 use std::collections::HashMap;
@@ -141,7 +140,7 @@ impl MockAgentCoordinator {
 #[cfg(test)]
 mod property_tests {
     use super::*;
-    use proptest::prelude::*;
+    
 
     #[test]
     fn prop_no_over_assignment() {

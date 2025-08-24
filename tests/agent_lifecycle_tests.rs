@@ -9,8 +9,6 @@
 //! - State consistency across operations
 //! - Edge cases with partial state transitions
 
-use my_little_soda::github::GitHubError;
-use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 

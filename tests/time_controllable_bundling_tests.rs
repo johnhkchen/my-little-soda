@@ -7,10 +7,10 @@
 //! behavior rather than controlling real time, since the current implementation
 //! uses system time directly.
 
-use tokio::time::{pause, advance, Duration};
-use clambake::bundling::types::BundleWindow;
-use clambake::train_schedule::{TrainSchedule, ScheduleStatus};
-use chrono::{Local, Timelike};
+use tokio::time::Duration;
+use my_little_soda::bundling::types::BundleWindow;
+use my_little_soda::train_schedule::{TrainSchedule, ScheduleStatus};
+use chrono::Local;
 
 #[cfg(test)]
 mod tests {

@@ -1,8 +1,8 @@
 // Real GitHub Issue Routing Tests - No More Mock Tickets!
 // Following TDD approach to drive out real GitHub integration
 
-use clambake::github::{GitHubClient, GitHubError};
-use clambake::agents::AgentRouter;
+use my_little_soda::github::{GitHubClient, GitHubError};
+use my_little_soda::agents::AgentRouter;
 
 #[cfg(test)]
 mod real_github_routing_tests {

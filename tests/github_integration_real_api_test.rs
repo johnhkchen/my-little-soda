@@ -1,7 +1,7 @@
 // Real GitHub API Integration Tests
 // Tests GitHub integration with actual API calls in isolated environment
 
-use clambake::github::{GitHubClient, GitHubError};
+use my_little_soda::github::{GitHubClient, GitHubError};
 use octocrab;
 use std::env;
 use tokio;

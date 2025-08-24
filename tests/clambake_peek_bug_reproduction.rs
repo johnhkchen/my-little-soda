@@ -10,8 +10,6 @@
 //!
 //! This reproduces the exact bug we experienced.
 
-use clambake::agents::router::AgentRouter;
-use std::collections::HashMap;
 
 mod fixtures;
 

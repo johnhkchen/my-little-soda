@@ -4,7 +4,7 @@
 //! the bundling workflow and state machine integration to prevent
 //! regressions in complex multi-step operations.
 
-use clambake::github::GitHubError;
+use my_little_soda::github::GitHubError;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};

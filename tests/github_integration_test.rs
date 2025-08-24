@@ -1,7 +1,7 @@
 // GitHub Integration Tests - MVP Phase 1
 // Following the test-driven development approach from mvp.md
 
-use clambake::github::{GitHubClient, GitHubError};
+use my_little_soda::github::{GitHubClient, GitHubError};
 
 #[cfg(test)]
 mod github_integration_tests {

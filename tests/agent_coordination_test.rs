@@ -1,7 +1,7 @@
 // Agent Coordination Tests - MVP Phase 2
 // Following the test-driven development approach from mvp.md lines 87-162
 
-use clambake::github::{GitHubClient, GitHubError};
+use my_little_soda::github::{GitHubClient, GitHubError};
 
 #[cfg(test)]
 mod agent_lifecycle_tests {
@@ -18,7 +18,7 @@ mod agent_lifecycle_tests {
         // GIVEN: Available agents with different capacities
         // This will drive the creation of agent state management
         
-        use clambake::agents::AgentCoordinator;
+        use my_little_soda::agents::AgentCoordinator;
         
         let coordinator = match AgentCoordinator::new().await {
             Ok(coord) => coord,
@@ -52,7 +52,7 @@ mod agent_lifecycle_tests {
         // WHEN: We run clambake land
         // THEN: Work should be integrated to main branch
         
-        use clambake::agents::WorkIntegrator;
+        use my_little_soda::agents::WorkIntegrator;
         
         let integrator = match WorkIntegrator::new().await {
             Ok(integrator) => integrator,
@@ -95,7 +95,7 @@ mod agent_lifecycle_tests {
         // THEN: We should be able to route them to available agents
         // This drives the implementation of real GitHub → agent coordination
         
-        use clambake::agents::AgentRouter;
+        use my_little_soda::agents::AgentRouter;
         
         let router = match AgentRouter::new().await {
             Ok(router) => router,
@@ -124,7 +124,7 @@ mod agent_lifecycle_tests {
         // This test should drive the implementation of atomic state transitions
         // Following the pattern from mvp.md about atomic GitHub transactions
         
-        use clambake::workflows::{StateMachine, StateTransition};
+        use my_little_soda::workflows::{StateMachine, StateTransition};
         
         let state_machine = match StateMachine::new().await {
             Ok(sm) => sm,
@@ -165,7 +165,7 @@ mod coordination_integration_tests {
         // WHEN: We coordinate agents
         // THEN: All state should come from GitHub, not local files
         
-        use clambake::{AgentCoordinator, AgentRouter, WorkIntegrator};
+        use my_little_soda::{AgentCoordinator, AgentRouter, WorkIntegrator};
         
         // Test that all components use GitHub as source of truth
         let coordinator = match AgentCoordinator::new().await {
@@ -209,7 +209,7 @@ mod coordination_integration_tests {
         
         println!("🧪 Testing work preservation guarantee");
         
-        use clambake::agents::WorkIntegrator;
+        use my_little_soda::agents::WorkIntegrator;
         
         let integrator = match WorkIntegrator::new().await {
             Ok(integrator) => integrator,
@@ -273,8 +273,8 @@ mod next_agent_roadmap {
 // These are commented out because they don't exist yet - the next agent should create them
 
 /*
-use clambake::agents::{AgentCoordinator, AgentRouter, WorkIntegrator};
-use clambake::workflows::StateMachine;
+use my_little_soda::agents::{AgentCoordinator, AgentRouter, WorkIntegrator};
+use my_little_soda::workflows::StateMachine;
 
 #[cfg(test)]
 mod future_integration_tests {

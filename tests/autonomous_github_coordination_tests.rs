@@ -18,9 +18,10 @@ use my_little_soda::{
         Issue,
         Priority,
         AgentId,
-        WorkspaceState,
+        workflow_state_machine::WorkspaceState,
         AutonomousWorkflowMachine,
         PullRequest,
+        state_validation::{StateDriftError, ValidationHealth},
     },
     agents::recovery::AutoRecovery,
 };

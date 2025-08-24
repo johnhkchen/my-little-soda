@@ -1,4 +1,4 @@
-use clambake::github::GitHubError;
+use my_little_soda::github::GitHubError;
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 
@@ -100,7 +100,7 @@ impl GitHubOps for MockGitHubClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use clambake::agents::AgentCoordinator; // Not needed for current tests
+    // use my_little_soda::agents::AgentCoordinator; // Not needed for current tests
 
     #[tokio::test]
     async fn test_agent_labeling_tdd_style() {

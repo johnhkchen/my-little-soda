@@ -55,6 +55,7 @@ use workflow_state_machine::AutonomousWorkflowError;
 
 /// Main autonomous coordination system that orchestrates workflow state machine
 /// and error recovery for unattended operation
+#[derive(Debug)]
 pub struct AutonomousCoordinator {
     workflow_machine: Arc<RwLock<AutonomousWorkflowMachine>>,
     error_recovery: Arc<RwLock<AutonomousErrorRecovery>>,

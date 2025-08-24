@@ -155,6 +155,19 @@ pub struct AutonomousErrorRecovery {
     enable_aggressive_recovery: bool,
 }
 
+impl std::fmt::Debug for AutonomousErrorRecovery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AutonomousErrorRecovery")
+            .field("github_client", &"<GitHubClient>")
+            .field("base_recovery", &"<Box<dyn AutomaticRecovery>>")
+            .field("recovery_history", &self.recovery_history)
+            .field("max_recovery_attempts", &self.max_recovery_attempts)
+            .field("recovery_timeout_minutes", &self.recovery_timeout_minutes)
+            .field("enable_aggressive_recovery", &self.enable_aggressive_recovery)
+            .finish()
+    }
+}
+
 impl AutonomousErrorRecovery {
     pub fn new(
         github_client: GitHubClient,

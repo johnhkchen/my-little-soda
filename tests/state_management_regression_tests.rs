@@ -8,7 +8,7 @@
 //! Test structure follows existing patterns from tests/agent_labeling_test.rs
 //! and tests/expressive_test_framework.rs
 
-use clambake::github::GitHubError;
+use my_little_soda::github::GitHubError;
 use async_trait::async_trait;
 use std::sync::{Arc, Mutex};
 use std::process::Output;
