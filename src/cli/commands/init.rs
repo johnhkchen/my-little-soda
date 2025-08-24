@@ -270,6 +270,11 @@ impl InitCommand {
                 color: "bfdadc".to_string(),
                 description: "Task broken down from larger work".to_string(),
             },
+            LabelSpec {
+                name: "code-quality".to_string(),
+                color: "d4c5f9".to_string(),
+                description: "Code quality improvements, refactoring, and technical debt reduction".to_string(),
+            },
         ]
     }
 
