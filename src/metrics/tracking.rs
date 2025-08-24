@@ -1,13 +1,19 @@
+use super::storage::MetricsStorage;
+use super::types::*;
 use crate::github::GitHubError;
 use crate::telemetry::generate_correlation_id;
-use super::types::*;
-use super::storage::MetricsStorage;
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH, Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug)]
 pub struct MetricsTracker {
     pub(super) storage: MetricsStorage,
+}
+
+impl Default for MetricsTracker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MetricsTracker {
@@ -26,7 +32,7 @@ impl MetricsTracker {
         decision_outcome: RoutingDecision,
     ) -> Result<(), GitHubError> {
         let routing_duration_ms = routing_start.elapsed().as_millis() as u64;
-        
+
         let metrics = RoutingMetrics {
             correlation_id: correlation_id.clone(),
             routing_start_time: SystemTime::now()
@@ -41,11 +47,11 @@ impl MetricsTracker {
                 routing_duration_ms,
                 issues_evaluated,
                 agents_available,
-                &decision_outcome
+                &decision_outcome,
             ),
         };
 
-        // Log structured metrics for telemetry  
+        // Log structured metrics for telemetry
         tracing::info!(
             correlation.id = &correlation_id,
             routing.duration_ms = routing_duration_ms,
@@ -86,7 +92,7 @@ impl MetricsTracker {
             state: state.to_string(),
         };
 
-        // Log structured metrics for telemetry  
+        // Log structured metrics for telemetry
         tracing::info!(
             agent.id = agent_id,
             agent.utilization_percentage = utilization_percentage,
@@ -97,7 +103,9 @@ impl MetricsTracker {
             "Agent utilization tracked"
         );
 
-        self.storage.store_agent_utilization_metrics(metrics).await?;
+        self.storage
+            .store_agent_utilization_metrics(metrics)
+            .await?;
         Ok(())
     }
 
@@ -129,7 +137,7 @@ impl MetricsTracker {
             metadata: metadata.clone(),
         };
 
-        // Log structured metrics for telemetry  
+        // Log structured metrics for telemetry
         tracing::info!(
             correlation.id = &correlation_id,
             coordination.operation = operation,
@@ -170,7 +178,7 @@ impl MetricsTracker {
             pr_number,
         };
 
-        // Log structured metrics for telemetry  
+        // Log structured metrics for telemetry
         tracing::info!(
             issue.number = issue_number,
             agent.id = agent_id,
@@ -180,13 +188,15 @@ impl MetricsTracker {
             correlation.id = &attempt.correlation_id,
             "Integration attempt tracked"
         );
-        
+
         self.storage.store_integration_attempt(attempt).await?;
 
         Ok(())
     }
 
-    pub async fn detect_and_store_bottlenecks(&self) -> Result<Vec<PerformanceBottleneck>, GitHubError> {
+    pub async fn detect_and_store_bottlenecks(
+        &self,
+    ) -> Result<Vec<PerformanceBottleneck>, GitHubError> {
         let detector = super::bottleneck::BottleneckDetector::new();
         detector.detect_and_store_bottlenecks().await
     }

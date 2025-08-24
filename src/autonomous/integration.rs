@@ -4,17 +4,14 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
-use crate::github::GitHubClient;
-use crate::agents::{coordinator::AgentCoordinator, recovery::AutoRecovery};
-use crate::agent_lifecycle::state_machine::{AgentStateMachine, AgentEvent};
 use super::{
-    AutonomousCoordinator, 
-    AutonomousWorkflowState, 
-    AutonomousEvent,
-    CoordinationConfig,
-    workflow_state_machine::{AutonomousStatusReport, AgentId, AbandonmentReason},
     error_recovery::AutonomousRecoveryReport,
+    workflow_state_machine::{AbandonmentReason, AgentId, AutonomousStatusReport},
+    AutonomousCoordinator, AutonomousEvent, AutonomousWorkflowState, CoordinationConfig,
 };
+use crate::agent_lifecycle::state_machine::{AgentEvent, AgentStateMachine};
+use crate::agents::{coordinator::AgentCoordinator, recovery::AutoRecovery};
+use crate::github::GitHubClient;
 
 /// Integration layer between autonomous workflow and existing agent coordination
 pub struct AutonomousIntegration {
@@ -37,18 +34,19 @@ impl AutonomousIntegration {
         // Create existing components
         let agent_coordinator = AgentCoordinator::new().await?;
         let agent_state_machine = Arc::new(RwLock::new(AgentStateMachine::new(agent_id.clone())));
-        
+
         // Create recovery client
         let recovery_client = Box::new(AutoRecovery::new(github_client.clone(), true));
-        
+
         // Create autonomous coordinator
         let autonomous_coordinator = AutonomousCoordinator::new(
             github_client.clone(),
             agent_id.clone(),
             recovery_client,
             config,
-        ).await?;
-        
+        )
+        .await?;
+
         Ok(Self {
             autonomous_coordinator,
             agent_coordinator,
@@ -57,43 +55,53 @@ impl AutonomousIntegration {
             agent_id,
         })
     }
-    
+
     /// Start integrated autonomous operation
-    pub async fn start_integrated_operation(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn start_integrated_operation(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!(
             agent_id = %self.agent_id,
             "Starting integrated autonomous operation"
         );
-        
+
         // Synchronize initial state between systems
         self.synchronize_initial_state().await?;
-        
+
         // Start autonomous coordinator
-        self.autonomous_coordinator.start_autonomous_operation().await?;
-        
+        self.autonomous_coordinator
+            .start_autonomous_operation()
+            .await?;
+
         // Synchronize final state
         self.synchronize_final_state().await?;
-        
+
         Ok(())
     }
-    
+
     /// Stop integrated autonomous operation
-    pub async fn stop_integrated_operation(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn stop_integrated_operation(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!(
             agent_id = %self.agent_id,
             "Stopping integrated autonomous operation"
         );
-        
-        self.autonomous_coordinator.stop_autonomous_operation().await?;
+
+        self.autonomous_coordinator
+            .stop_autonomous_operation()
+            .await?;
         self.synchronize_final_state().await?;
-        
+
         Ok(())
     }
-    
+
     /// Synchronize initial state between autonomous and existing systems
-    async fn synchronize_initial_state(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn synchronize_initial_state(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let agent_state_machine = self.agent_state_machine.read().await;
-        
+
         // Check current agent state
         if agent_state_machine.is_available() {
             info!(
@@ -108,21 +116,23 @@ impl AutonomousIntegration {
             );
             return Err("Agent not available for autonomous operation".into());
         }
-        
+
         Ok(())
     }
-    
+
     /// Synchronize final state after autonomous operation
-    async fn synchronize_final_state(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn synchronize_final_state(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let status_report = self.autonomous_coordinator.get_status_report().await;
-        
+
         match status_report.current_state {
             Some(AutonomousWorkflowState::Merged { .. }) => {
                 info!(
                     agent_id = %self.agent_id,
                     "Autonomous work completed successfully, updating agent state"
                 );
-                
+
                 // Update agent state machine to reflect completion
                 let _agent_state_machine = self.agent_state_machine.write().await;
                 // The agent should be freed and made available again
@@ -134,7 +144,7 @@ impl AutonomousIntegration {
                     reason = ?reason,
                     "Autonomous work abandoned, resetting agent state"
                 );
-                
+
                 // Reset agent state machine
                 let _agent_state_machine = self.agent_state_machine.write().await;
                 // Force reset through existing event system
@@ -147,15 +157,15 @@ impl AutonomousIntegration {
                 );
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Get comprehensive status including both systems
     pub async fn get_integrated_status(&self) -> IntegratedStatusReport {
         let autonomous_status = self.autonomous_coordinator.get_status_report().await;
         let recovery_report = self.autonomous_coordinator.get_recovery_report().await;
-        
+
         let agent_state = {
             let agent_state_machine = self.agent_state_machine.read().await;
             AgentStateInfo {
@@ -167,7 +177,7 @@ impl AutonomousIntegration {
                 commits_ahead: agent_state_machine.commits_ahead(),
             }
         };
-        
+
         IntegratedStatusReport {
             agent_id: self.agent_id.clone(),
             autonomous_status,
@@ -202,10 +212,16 @@ pub struct AgentStateInfo {
 #[async_trait]
 pub trait AutonomousEventBridge {
     /// Convert autonomous event to agent lifecycle event
-    async fn convert_to_agent_event(&self, autonomous_event: &AutonomousEvent) -> Option<AgentEvent>;
-    
+    async fn convert_to_agent_event(
+        &self,
+        autonomous_event: &AutonomousEvent,
+    ) -> Option<AgentEvent>;
+
     /// Convert agent event to autonomous event
-    async fn convert_to_autonomous_event(&self, agent_event: &AgentEvent) -> Option<AutonomousEvent>;
+    async fn convert_to_autonomous_event(
+        &self,
+        agent_event: &AgentEvent,
+    ) -> Option<AutonomousEvent>;
 }
 
 /// Implementation of the bridge between event systems
@@ -221,7 +237,10 @@ impl EventBridge {
 
 #[async_trait]
 impl AutonomousEventBridge for EventBridge {
-    async fn convert_to_agent_event(&self, autonomous_event: &AutonomousEvent) -> Option<AgentEvent> {
+    async fn convert_to_agent_event(
+        &self,
+        autonomous_event: &AutonomousEvent,
+    ) -> Option<AgentEvent> {
         match autonomous_event {
             AutonomousEvent::AssignAgent { .. } => {
                 Some(AgentEvent::Assign {
@@ -230,38 +249,27 @@ impl AutonomousEventBridge for EventBridge {
                     branch: format!("{}/autonomous-work", self.agent_id),
                 })
             }
-            AutonomousEvent::StartWork => {
-                Some(AgentEvent::StartWork { commits_ahead: 0 })
-            }
-            AutonomousEvent::CompleteWork => {
-                Some(AgentEvent::CompleteWork)
-            }
-            AutonomousEvent::ForceAbandon { .. } => {
-                Some(AgentEvent::Abandon)
-            }
+            AutonomousEvent::StartWork => Some(AgentEvent::StartWork { commits_ahead: 0 }),
+            AutonomousEvent::CompleteWork => Some(AgentEvent::CompleteWork),
+            AutonomousEvent::ForceAbandon { .. } => Some(AgentEvent::Abandon),
             _ => None, // Many autonomous events don't have direct agent equivalents
         }
     }
-    
-    async fn convert_to_autonomous_event(&self, agent_event: &AgentEvent) -> Option<AutonomousEvent> {
+
+    async fn convert_to_autonomous_event(
+        &self,
+        agent_event: &AgentEvent,
+    ) -> Option<AutonomousEvent> {
         match agent_event {
-            AgentEvent::Assign { .. } => {
-                Some(AutonomousEvent::AssignAgent {
-                    agent: AgentId(self.agent_id.clone()),
-                    workspace_ready: true,
-                })
-            }
-            AgentEvent::StartWork { .. } => {
-                Some(AutonomousEvent::StartWork)
-            }
-            AgentEvent::CompleteWork => {
-                Some(AutonomousEvent::CompleteWork)
-            }
-            AgentEvent::Abandon => {
-                Some(AutonomousEvent::ForceAbandon {
-                    reason: AbandonmentReason::RequirementsChanged,
-                })
-            }
+            AgentEvent::Assign { .. } => Some(AutonomousEvent::AssignAgent {
+                agent: AgentId(self.agent_id.clone()),
+                workspace_ready: true,
+            }),
+            AgentEvent::StartWork { .. } => Some(AutonomousEvent::StartWork),
+            AgentEvent::CompleteWork => Some(AutonomousEvent::CompleteWork),
+            AgentEvent::Abandon => Some(AutonomousEvent::ForceAbandon {
+                reason: AbandonmentReason::RequirementsChanged,
+            }),
             _ => None,
         }
     }
@@ -281,28 +289,31 @@ impl IntegrationCoordinator {
         agent_id: String,
         config: CoordinationConfig,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let integration = AutonomousIntegration::new(github_client, agent_id.clone(), config).await?;
+        let integration =
+            AutonomousIntegration::new(github_client, agent_id.clone(), config).await?;
         let event_bridge = EventBridge::new(agent_id);
-        
+
         Ok(Self {
             integration,
             event_bridge,
         })
     }
-    
+
     /// Run integrated autonomous operation with event synchronization
-    pub async fn run_with_event_sync(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn run_with_event_sync(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Starting integrated autonomous operation with event synchronization");
-        
+
         // Start the integration
         self.integration.start_integrated_operation().await?;
-        
+
         // Monitor and synchronize events between systems
         // In a real implementation, this would set up event listeners and synchronization
-        
+
         Ok(())
     }
-    
+
     /// Get integrated status
     pub async fn get_status(&self) -> IntegratedStatusReport {
         self.integration.get_integrated_status().await
@@ -346,16 +357,14 @@ impl AutonomousIntegrationFactory {
             config = ?config,
             "Creating integrated autonomous system"
         );
-        
-        let coordinator = IntegrationCoordinator::new(
-            github_client,
-            agent_id,
-            config.coordination_config,
-        ).await?;
-        
+
+        let coordinator =
+            IntegrationCoordinator::new(github_client, agent_id, config.coordination_config)
+                .await?;
+
         Ok(coordinator)
     }
-    
+
     /// Create autonomous system with existing agent coordinator
     pub async fn integrate_with_existing(
         _existing_coordinator: AgentCoordinator,
@@ -367,7 +376,7 @@ impl AutonomousIntegrationFactory {
             agent_id = %agent_id,
             "Integrating autonomous system with existing coordinator"
         );
-        
+
         // For now, create new coordinator - in real implementation would integrate existing
         Self::create_integrated_system(github_client, agent_id, config).await
     }
@@ -381,44 +390,50 @@ mod tests {
     async fn test_integration_creation() {
         let github_client = GitHubClient::new().unwrap();
         let config = IntegrationConfig::default();
-        
+
         let coordinator = AutonomousIntegrationFactory::create_integrated_system(
             github_client,
             "test-agent".to_string(),
             config,
-        ).await;
-        
+        )
+        .await;
+
         assert!(coordinator.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_event_bridge_conversion() {
         let bridge = EventBridge::new("test-agent".to_string());
-        
+
         let autonomous_event = AutonomousEvent::StartWork;
         let agent_event = bridge.convert_to_agent_event(&autonomous_event).await;
-        
+
         assert!(matches!(agent_event, Some(AgentEvent::StartWork { .. })));
-        
+
         if let Some(agent_event) = agent_event {
             let back_to_autonomous = bridge.convert_to_autonomous_event(&agent_event).await;
-            assert!(matches!(back_to_autonomous, Some(AutonomousEvent::StartWork)));
+            assert!(matches!(
+                back_to_autonomous,
+                Some(AutonomousEvent::StartWork)
+            ));
         }
     }
-    
+
     #[tokio::test]
     async fn test_status_report_structure() {
         let github_client = GitHubClient::new().unwrap();
         let config = IntegrationConfig::default();
-        
+
         let coordinator = AutonomousIntegrationFactory::create_integrated_system(
             github_client,
             "test-agent".to_string(),
             config,
-        ).await.unwrap();
-        
+        )
+        .await
+        .unwrap();
+
         let status = coordinator.get_status().await;
-        
+
         assert_eq!(status.agent_id, "test-agent");
         assert!(!status.is_running);
         assert!(status.agent_state.is_available);

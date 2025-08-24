@@ -12,9 +12,12 @@ pub fn init_telemetry() -> Result<()> {
             tracing_subscriber::fmt::layer()
                 .json()
                 .with_current_span(true)
-                .with_span_list(true)
+                .with_span_list(true),
         )
-        .with(tracing_subscriber::EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
+        .with(
+            tracing_subscriber::EnvFilter::from_default_env()
+                .add_directive(tracing::Level::INFO.into()),
+        )
         .init();
 
     tracing::info!("Clambake telemetry initialized with structured logging and span support");
@@ -46,9 +49,9 @@ pub fn create_coordination_span(
 /// Shutdown telemetry gracefully
 pub fn shutdown_telemetry() {
     tracing::info!("Shutting down telemetry...");
-    
+
     // For basic structured logging, no special shutdown needed
     // In the future, this would flush OpenTelemetry spans
-    
+
     tracing::info!("Clambake telemetry shutdown complete");
 }

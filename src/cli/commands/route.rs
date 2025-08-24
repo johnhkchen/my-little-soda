@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::cli::commands::with_agent_router;
+use anyhow::Result;
 
 pub struct RouteCommand {
     pub agents: u32,
@@ -8,7 +8,7 @@ pub struct RouteCommand {
 
 impl RouteCommand {
     pub fn new(agents: u32) -> Self {
-        Self { 
+        Self {
             agents,
             ci_mode: false,
         }
@@ -20,24 +20,27 @@ impl RouteCommand {
     }
 
     pub async fn execute(&self) -> Result<()> {
-        println!("🔀 [ADMIN] Routing up to {} tickets to available agents", self.agents);
+        println!(
+            "🔀 [ADMIN] Routing up to {} tickets to available agents",
+            self.agents
+        );
         println!();
-        
+
         with_agent_router(|router| async move {
             print!("🔍 Scanning for routable issues... ");
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
-            
+
             match router.route_issues_to_agents().await {
                 Ok(assignments) => {
                     println!("✅");
                     let routed_count = assignments.len().min(self.agents as usize);
-                    
+
                     if routed_count > 0 {
-                        print!("🎯 Assigning {} tasks to agents... ", routed_count);
+                        print!("🎯 Assigning {routed_count} tasks to agents... ");
                         std::io::Write::flush(&mut std::io::stdout()).unwrap();
                         println!("✅");
                         println!();
-                        println!("✅ Successfully routed {} real GitHub issues to agents:", routed_count);
+                        println!("✅ Successfully routed {routed_count} real GitHub issues to agents:");
                         println!("📋 ROUTING STATUS: Issues assigned in GitHub and branches created");
                         println!();
                         for (i, assignment) in assignments.iter().take(self.agents as usize).enumerate() {
@@ -62,7 +65,7 @@ impl RouteCommand {
                     Ok(())
                 }
                 Err(e) => {
-                    println!("{}", e);
+                    println!("{e}");
                     println!();
                     println!("🚀 ALTERNATIVE: Try 'my-little-soda pop' for single-agent workflow");
                     Err(e.into())

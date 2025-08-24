@@ -1,9 +1,9 @@
 // GitHub Actions API integration for workflow automation
-use octocrab::Octocrab;
-use serde_json::json;
 use super::errors::GitHubError;
 use async_trait::async_trait;
-use tracing::{info, warn, debug};
+use octocrab::Octocrab;
+use serde_json::json;
+use tracing::{debug, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct ActionsHandler {
@@ -53,16 +53,28 @@ pub struct WorkflowRun {
 #[async_trait]
 pub trait GitHubActions {
     /// Trigger a workflow by filename with optional inputs
-    async fn trigger_workflow(&self, workflow_file: &str, inputs: Option<serde_json::Value>) -> Result<(), GitHubError>;
-    
+    async fn trigger_workflow(
+        &self,
+        workflow_file: &str,
+        inputs: Option<serde_json::Value>,
+    ) -> Result<(), GitHubError>;
+
     /// Get workflow run status by run ID
     async fn get_workflow_run(&self, run_id: u64) -> Result<WorkflowRun, GitHubError>;
-    
+
     /// Get recent workflow runs for a specific workflow
-    async fn get_workflow_runs(&self, workflow_file: &str, limit: Option<u32>) -> Result<Vec<WorkflowRun>, GitHubError>;
-    
+    async fn get_workflow_runs(
+        &self,
+        workflow_file: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<WorkflowRun>, GitHubError>;
+
     /// Wait for workflow completion with timeout
-    async fn wait_for_workflow_completion(&self, run_id: u64, timeout_seconds: u64) -> Result<WorkflowStatus, GitHubError>;
+    async fn wait_for_workflow_completion(
+        &self,
+        run_id: u64,
+        timeout_seconds: u64,
+    ) -> Result<WorkflowStatus, GitHubError>;
 }
 
 impl ActionsHandler {
@@ -77,7 +89,11 @@ impl ActionsHandler {
 
 #[async_trait]
 impl GitHubActions for ActionsHandler {
-    async fn trigger_workflow(&self, workflow_file: &str, inputs: Option<serde_json::Value>) -> Result<(), GitHubError> {
+    async fn trigger_workflow(
+        &self,
+        workflow_file: &str,
+        inputs: Option<serde_json::Value>,
+    ) -> Result<(), GitHubError> {
         info!(
             workflow_file = workflow_file,
             owner = %self.owner,
@@ -122,19 +138,26 @@ impl GitHubActions for ActionsHandler {
 
         // Simplified implementation for now - would need proper octocrab workflow API
         warn!("get_workflow_run is not fully implemented yet - returning mock data");
-        
+
         Ok(WorkflowRun {
             id: run_id,
             status: WorkflowStatus::Unknown("not_implemented".to_string()),
             conclusion: None,
-            html_url: format!("https://github.com/{}/{}/actions/runs/{}", self.owner, self.repo, run_id),
+            html_url: format!(
+                "https://github.com/{}/{}/actions/runs/{}",
+                self.owner, self.repo, run_id
+            ),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             workflow_name: "clambake-bundling".to_string(),
         })
     }
 
-    async fn get_workflow_runs(&self, workflow_file: &str, limit: Option<u32>) -> Result<Vec<WorkflowRun>, GitHubError> {
+    async fn get_workflow_runs(
+        &self,
+        workflow_file: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<WorkflowRun>, GitHubError> {
         debug!(
             workflow_file = workflow_file,
             limit = ?limit,
@@ -143,24 +166,29 @@ impl GitHubActions for ActionsHandler {
 
         // Simplified implementation for now - would need proper octocrab workflow API
         warn!("get_workflow_runs is not fully implemented yet - returning mock data");
-        
+
         let _limit = limit.unwrap_or(5);
-        
+
         // Return mock data for now
-        Ok(vec![
-            WorkflowRun {
-                id: 12345,
-                status: WorkflowStatus::Completed,
-                conclusion: Some("success".to_string()),
-                html_url: format!("https://github.com/{}/{}/actions/runs/12345", self.owner, self.repo),
-                created_at: chrono::Utc::now() - chrono::Duration::hours(1),
-                updated_at: chrono::Utc::now() - chrono::Duration::minutes(30),
-                workflow_name: "Clambake Bundle Management".to_string(),
-            }
-        ])
+        Ok(vec![WorkflowRun {
+            id: 12345,
+            status: WorkflowStatus::Completed,
+            conclusion: Some("success".to_string()),
+            html_url: format!(
+                "https://github.com/{}/{}/actions/runs/12345",
+                self.owner, self.repo
+            ),
+            created_at: chrono::Utc::now() - chrono::Duration::hours(1),
+            updated_at: chrono::Utc::now() - chrono::Duration::minutes(30),
+            workflow_name: "Clambake Bundle Management".to_string(),
+        }])
     }
 
-    async fn wait_for_workflow_completion(&self, run_id: u64, timeout_seconds: u64) -> Result<WorkflowStatus, GitHubError> {
+    async fn wait_for_workflow_completion(
+        &self,
+        run_id: u64,
+        timeout_seconds: u64,
+    ) -> Result<WorkflowStatus, GitHubError> {
         info!(
             run_id = run_id,
             timeout_seconds = timeout_seconds,
@@ -169,15 +197,12 @@ impl GitHubActions for ActionsHandler {
 
         // Simplified implementation for now
         warn!("wait_for_workflow_completion is not fully implemented yet");
-        
+
         // Simulate a completed workflow after a short delay
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        
-        info!(
-            run_id = run_id,
-            "Mock workflow completion"
-        );
-        
+
+        info!(run_id = run_id, "Mock workflow completion");
+
         Ok(WorkflowStatus::Completed)
     }
 }

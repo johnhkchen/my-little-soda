@@ -8,9 +8,9 @@ use tokio;
 
 /// Helper to check if we're in a test environment with real GitHub credentials
 fn has_test_credentials() -> bool {
-    env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() && 
-    env::var("GITHUB_OWNER").is_ok() &&
-    env::var("GITHUB_REPO").is_ok()
+    env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok()
+        && env::var("GITHUB_OWNER").is_ok()
+        && env::var("GITHUB_REPO").is_ok()
 }
 
 /// Helper to create a unique test identifier
@@ -48,10 +48,10 @@ mod real_api_integration_tests {
         // Validate client configuration
         let owner = client.owner();
         let repo = client.repo();
-        
+
         assert!(!owner.is_empty(), "Owner should not be empty");
         assert!(!repo.is_empty(), "Repo should not be empty");
-        
+
         println!("🔗 Connected to GitHub repo: {}/{}", owner, repo);
     }
 
@@ -68,7 +68,7 @@ mod real_api_integration_tests {
         match client.fetch_issues().await {
             Ok(issues) => {
                 println!("✅ Successfully fetched {} open issues", issues.len());
-                
+
                 // Validate issue structure
                 for issue in issues.iter().take(3) {
                     assert!(issue.number > 0, "Issue should have valid number");
@@ -77,7 +77,10 @@ mod real_api_integration_tests {
                 }
             }
             Err(GitHubError::ApiError(e)) => {
-                println!("🔌 GitHub API error (expected in some test environments): {:?}", e);
+                println!(
+                    "🔌 GitHub API error (expected in some test environments): {:?}",
+                    e
+                );
                 // This is acceptable in isolated test environments
             }
             Err(e) => {
@@ -104,7 +107,10 @@ mod real_api_integration_tests {
                 return;
             }
             Err(e) => {
-                println!("⏭️  Cannot test assignment - failed to fetch issues: {:?}", e);
+                println!(
+                    "⏭️  Cannot test assignment - failed to fetch issues: {:?}",
+                    e
+                );
                 return;
             }
         };
@@ -112,21 +118,31 @@ mod real_api_integration_tests {
         let test_issue = &issues[0];
         let issue_number = test_issue.number;
 
-        println!("🎯 Testing assignment on issue #{}: {}", issue_number, test_issue.title);
+        println!(
+            "🎯 Testing assignment on issue #{}: {}",
+            issue_number, test_issue.title
+        );
 
         // Test issue assignment
         match client.assign_issue(issue_number, assignee).await {
             Ok(updated_issue) => {
-                println!("✅ Successfully assigned issue #{} to {}", issue_number, assignee);
-                
+                println!(
+                    "✅ Successfully assigned issue #{} to {}",
+                    issue_number, assignee
+                );
+
                 // Validate assignment
-                let assignees: Vec<String> = updated_issue.assignees
+                let assignees: Vec<String> = updated_issue
+                    .assignees
                     .iter()
                     .map(|user| user.login.clone())
                     .collect();
-                    
-                assert!(assignees.contains(&assignee.to_string()), 
-                    "Issue should be assigned to {}", assignee);
+
+                assert!(
+                    assignees.contains(&assignee.to_string()),
+                    "Issue should be assigned to {}",
+                    assignee
+                );
             }
             Err(GitHubError::ApiError(_)) => {
                 println!("🔌 Assignment API error (may be expected in test environment)");
@@ -154,14 +170,17 @@ mod real_api_integration_tests {
         match client.create_branch(&test_branch, "main").await {
             Ok(()) => {
                 println!("✅ Successfully created test branch: {}", test_branch);
-                
+
                 // Test branch cleanup
                 match client.delete_branch(&test_branch).await {
                     Ok(()) => {
                         println!("✅ Successfully cleaned up test branch: {}", test_branch);
                     }
                     Err(e) => {
-                        println!("⚠️  Branch cleanup failed (manual cleanup may be needed): {:?}", e);
+                        println!(
+                            "⚠️  Branch cleanup failed (manual cleanup may be needed): {:?}",
+                            e
+                        );
                     }
                 }
             }
@@ -187,19 +206,26 @@ mod real_api_integration_tests {
         match client.fetch_open_pull_requests().await {
             Ok(prs) => {
                 println!("✅ Successfully fetched {} open PRs", prs.len());
-                
+
                 if let Some(test_pr) = prs.first() {
                     let pr_number = test_pr.number;
-                    println!("🔍 Testing PR operations on #{}: {}", pr_number, 
-                        test_pr.title.as_ref().unwrap_or(&"(no title)".to_string()));
+                    println!(
+                        "🔍 Testing PR operations on #{}: {}",
+                        pr_number,
+                        test_pr.title.as_ref().unwrap_or(&"(no title)".to_string())
+                    );
 
                     // Test PR status checking
                     match client.get_pr_status(pr_number).await {
                         Ok(status) => {
-                            println!("✅ PR #{} status - State: {}, Mergeable: {:?}, CI: {}", 
-                                pr_number, status.state, status.mergeable, status.ci_status);
-                            println!("   Approved: {}, Changes Requested: {}", 
-                                status.approved_reviews, status.requested_changes);
+                            println!(
+                                "✅ PR #{} status - State: {}, Mergeable: {:?}, CI: {}",
+                                pr_number, status.state, status.mergeable, status.ci_status
+                            );
+                            println!(
+                                "   Approved: {}, Changes Requested: {}",
+                                status.approved_reviews, status.requested_changes
+                            );
                         }
                         Err(e) => {
                             println!("⚠️  PR status check failed: {:?}", e);
@@ -254,20 +280,26 @@ mod real_api_integration_tests {
         // Test adding label
         match client.add_label_to_issue(issue_number, &test_label).await {
             Ok(()) => {
-                println!("✅ Successfully added test label '{}' to issue #{}", test_label, issue_number);
-                
+                println!(
+                    "✅ Successfully added test label '{}' to issue #{}",
+                    test_label, issue_number
+                );
+
                 // Verify label was added by fetching the issue
                 match client.fetch_issue(issue_number).await {
                     Ok(updated_issue) => {
-                        let labels: Vec<String> = updated_issue.labels
+                        let labels: Vec<String> = updated_issue
+                            .labels
                             .iter()
                             .map(|label| label.name.clone())
                             .collect();
-                        
+
                         if labels.contains(&test_label) {
                             println!("✅ Label verification successful");
                         } else {
-                            println!("⚠️  Label not found in updated issue (may have been processed)");
+                            println!(
+                                "⚠️  Label not found in updated issue (may have been processed)"
+                            );
                         }
                     }
                     Err(e) => {
@@ -301,7 +333,10 @@ mod real_api_integration_tests {
                 return;
             }
             Err(e) => {
-                println!("⏭️  Cannot test blocking detection - failed to fetch issues: {:?}", e);
+                println!(
+                    "⏭️  Cannot test blocking detection - failed to fetch issues: {:?}",
+                    e
+                );
                 return;
             }
         };
@@ -309,13 +344,19 @@ mod real_api_integration_tests {
         // Test blocking detection on first few issues
         for issue in issues.iter().take(3) {
             let issue_number = issue.number;
-            
+
             match client.issue_has_blocking_pr(issue_number).await {
                 Ok(has_blocking_pr) => {
-                    println!("✅ Issue #{} blocking PR status: {}", issue_number, has_blocking_pr);
+                    println!(
+                        "✅ Issue #{} blocking PR status: {}",
+                        issue_number, has_blocking_pr
+                    );
                 }
                 Err(e) => {
-                    println!("⚠️  Blocking PR detection failed for issue #{}: {:?}", issue_number, e);
+                    println!(
+                        "⚠️  Blocking PR detection failed for issue #{}: {:?}",
+                        issue_number, e
+                    );
                 }
             }
         }
@@ -382,7 +423,10 @@ mod real_api_integration_tests {
             }
         };
 
-        println!("✅ Atomic operation sequence completed for issue #{}", issue_number);
+        println!(
+            "✅ Atomic operation sequence completed for issue #{}",
+            issue_number
+        );
         println!("   Original state preserved, operations were non-destructive");
     }
 }
@@ -406,7 +450,10 @@ mod test_isolation_and_cleanup {
 
         if let Ok(repo) = env::var("GITHUB_REPO") {
             assert!(
-                repo.contains("test") || repo.contains("staging") || repo.contains("dev") || repo == "clambake",
+                repo.contains("test")
+                    || repo.contains("staging")
+                    || repo.contains("dev")
+                    || repo == "clambake",
                 "GitHub tests should run against test repositories only. Repo: {}",
                 repo
             );
@@ -421,7 +468,10 @@ mod test_isolation_and_cleanup {
 
         // Test cleanup utilities are available
         let test_id = generate_test_id();
-        assert!(test_id.contains("clambake-test"), "Test ID should be identifiable");
+        assert!(
+            test_id.contains("clambake-test"),
+            "Test ID should be identifiable"
+        );
         assert!(test_id.len() > 10, "Test ID should be unique enough");
 
         println!("✅ Cleanup mechanisms validated");

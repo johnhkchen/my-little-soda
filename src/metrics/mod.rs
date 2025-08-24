@@ -1,18 +1,18 @@
 // Integration Success Tracking and Metrics
 // Provides tracking for work integration success rates and performance
 
-pub mod types;
+pub mod analysis;
+pub mod bottleneck;
+pub mod performance;
+pub mod reports;
 pub mod storage;
 pub mod tracking;
-pub mod analysis;
-pub mod reports;
-pub mod performance;
-pub mod bottleneck;
+pub mod types;
 
 // Re-export public types and main interfaces
-pub use types::*;
-pub use tracking::MetricsTracker;
 pub use analysis::MetricsAnalyzer;
+pub use tracking::MetricsTracker;
+pub use types::*;
 
 use crate::github::GitHubError;
 use std::collections::HashMap;
@@ -24,7 +24,10 @@ impl MetricsTracker {
         self.storage.load_integration_attempts().await
     }
 
-    pub async fn calculate_metrics(&self, lookback_hours: Option<u64>) -> Result<IntegrationMetrics, GitHubError> {
+    pub async fn calculate_metrics(
+        &self,
+        lookback_hours: Option<u64>,
+    ) -> Result<IntegrationMetrics, GitHubError> {
         let analyzer = MetricsAnalyzer::new();
         analyzer.calculate_metrics(lookback_hours).await
     }
@@ -34,12 +37,18 @@ impl MetricsTracker {
         analyzer.format_metrics_report(metrics, detailed)
     }
 
-    pub async fn format_performance_report(&self, lookback_hours: Option<u64>) -> Result<String, GitHubError> {
+    pub async fn format_performance_report(
+        &self,
+        lookback_hours: Option<u64>,
+    ) -> Result<String, GitHubError> {
         let analyzer = MetricsAnalyzer::new();
         analyzer.format_performance_report(lookback_hours).await
     }
 
-    pub async fn export_metrics_for_monitoring(&self, lookback_hours: Option<u64>) -> Result<HashMap<String, serde_json::Value>, GitHubError> {
+    pub async fn export_metrics_for_monitoring(
+        &self,
+        lookback_hours: Option<u64>,
+    ) -> Result<HashMap<String, serde_json::Value>, GitHubError> {
         let analyzer = MetricsAnalyzer::new();
         analyzer.export_metrics_for_monitoring(lookback_hours).await
     }

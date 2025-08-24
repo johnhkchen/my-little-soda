@@ -3,13 +3,13 @@
 //! This module provides a high-level interface that integrates process management,
 //! resource monitoring, and cleanup functionality into a cohesive system.
 
+use anyhow::Result;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use anyhow::Result;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 use super::process_manager::{AgentProcessManager, ProcessManagerConfig, ResourceLimits};
-use super::resource_monitor::{ResourceMonitor, AlertThresholds, Alert};
+use super::resource_monitor::{Alert, AlertThresholds, ResourceMonitor};
 
 /// Comprehensive process lifecycle manager
 #[derive(Debug)]
@@ -90,7 +90,11 @@ pub struct LoggingEventHandler;
 impl LifecycleEventHandler for LoggingEventHandler {
     fn handle_event(&self, event: LifecycleEvent) {
         match event {
-            LifecycleEvent::ProcessSpawned { process_id, agent_id, issue_number } => {
+            LifecycleEvent::ProcessSpawned {
+                process_id,
+                agent_id,
+                issue_number,
+            } => {
                 info!(
                     process_id = %process_id,
                     agent_id = %agent_id,
@@ -98,7 +102,12 @@ impl LifecycleEventHandler for LoggingEventHandler {
                     "Agent process spawned"
                 );
             }
-            LifecycleEvent::ProcessCompleted { process_id, agent_id, issue_number, runtime_seconds } => {
+            LifecycleEvent::ProcessCompleted {
+                process_id,
+                agent_id,
+                issue_number,
+                runtime_seconds,
+            } => {
                 info!(
                     process_id = %process_id,
                     agent_id = %agent_id,
@@ -107,7 +116,12 @@ impl LifecycleEventHandler for LoggingEventHandler {
                     "Agent process completed successfully"
                 );
             }
-            LifecycleEvent::ProcessFailed { process_id, agent_id, issue_number, error } => {
+            LifecycleEvent::ProcessFailed {
+                process_id,
+                agent_id,
+                issue_number,
+                error,
+            } => {
                 error!(
                     process_id = %process_id,
                     agent_id = %agent_id,
@@ -123,35 +137,33 @@ impl LifecycleEventHandler for LoggingEventHandler {
                     "Agent process terminated"
                 );
             }
-            LifecycleEvent::ResourceAlert { alert } => {
-                match alert.severity {
-                    super::resource_monitor::AlertSeverity::Critical |
-                    super::resource_monitor::AlertSeverity::Emergency => {
-                        error!(
-                            alert_id = %alert.id,
-                            severity = ?alert.severity,
-                            message = %alert.message,
-                            "Critical resource alert"
-                        );
-                    }
-                    super::resource_monitor::AlertSeverity::Warning => {
-                        warn!(
-                            alert_id = %alert.id,
-                            severity = ?alert.severity,
-                            message = %alert.message,
-                            "Resource warning alert"
-                        );
-                    }
-                    super::resource_monitor::AlertSeverity::Info => {
-                        info!(
-                            alert_id = %alert.id,
-                            severity = ?alert.severity,
-                            message = %alert.message,
-                            "Resource info alert"
-                        );
-                    }
+            LifecycleEvent::ResourceAlert { alert } => match alert.severity {
+                super::resource_monitor::AlertSeverity::Critical
+                | super::resource_monitor::AlertSeverity::Emergency => {
+                    error!(
+                        alert_id = %alert.id,
+                        severity = ?alert.severity,
+                        message = %alert.message,
+                        "Critical resource alert"
+                    );
                 }
-            }
+                super::resource_monitor::AlertSeverity::Warning => {
+                    warn!(
+                        alert_id = %alert.id,
+                        severity = ?alert.severity,
+                        message = %alert.message,
+                        "Resource warning alert"
+                    );
+                }
+                super::resource_monitor::AlertSeverity::Info => {
+                    info!(
+                        alert_id = %alert.id,
+                        severity = ?alert.severity,
+                        message = %alert.message,
+                        "Resource info alert"
+                    );
+                }
+            },
             LifecycleEvent::ProcessCleanedUp { process_id, reason } => {
                 info!(
                     process_id = %process_id,
@@ -168,7 +180,7 @@ impl ProcessLifecycleManager {
     pub async fn new(config: ProcessLifecycleConfig) -> Result<Self> {
         let mut process_manager = AgentProcessManager::new(config.process_config.clone());
         process_manager.start_background_tasks().await;
-        
+
         let resource_monitor = ResourceMonitor::new(config.alert_thresholds.clone());
 
         Ok(Self {
@@ -204,7 +216,9 @@ impl ProcessLifecycleManager {
     ) -> Result<String> {
         let process_id = {
             let process_manager = self.process_manager.lock().unwrap();
-            process_manager.spawn_agent(agent_id, issue_number, branch_name, limits).await?
+            process_manager
+                .spawn_agent(agent_id, issue_number, branch_name, limits)
+                .await?
         };
 
         // Emit spawn event
@@ -275,7 +289,8 @@ impl ProcessLifecycleManager {
         config: ProcessLifecycleConfig,
         event_handler: Arc<dyn LifecycleEventHandler>,
     ) {
-        let mut interval = tokio::time::interval(Duration::from_secs(config.alert_check_interval_secs));
+        let mut interval =
+            tokio::time::interval(Duration::from_secs(config.alert_check_interval_secs));
 
         loop {
             interval.tick().await;
@@ -300,12 +315,8 @@ impl ProcessLifecycleManager {
 
             // Perform automatic cleanup
             if config.enable_auto_cleanup {
-                Self::perform_cleanup(
-                    &process_manager,
-                    &active_processes,
-                    &config,
-                    &event_handler,
-                ).await;
+                Self::perform_cleanup(&process_manager, &active_processes, &config, &event_handler)
+                    .await;
             }
         }
     }
@@ -319,7 +330,7 @@ impl ProcessLifecycleManager {
     ) {
         // Collect cleanup candidates first
         let mut cleanup_tasks = Vec::new();
-        
+
         for process in processes {
             let should_cleanup = match &process.status {
                 super::process_manager::ProcessStatus::Completed { completed_at, .. } => {
@@ -334,9 +345,15 @@ impl ProcessLifecycleManager {
 
             if should_cleanup {
                 let reason = match &process.status {
-                    super::process_manager::ProcessStatus::Completed { .. } => "Completed process cleanup",
-                    super::process_manager::ProcessStatus::Failed { .. } => "Failed process cleanup",
-                    super::process_manager::ProcessStatus::TimedOut { .. } => "Timed out process cleanup",
+                    super::process_manager::ProcessStatus::Completed { .. } => {
+                        "Completed process cleanup"
+                    }
+                    super::process_manager::ProcessStatus::Failed { .. } => {
+                        "Failed process cleanup"
+                    }
+                    super::process_manager::ProcessStatus::TimedOut { .. } => {
+                        "Timed out process cleanup"
+                    }
                     _ => "Unknown cleanup reason",
                 };
 
@@ -350,7 +367,7 @@ impl ProcessLifecycleManager {
                 let pm = process_manager.lock().unwrap();
                 pm.terminate_agent_sync(&process_id, &reason)
             };
-            
+
             if let Err(e) = result {
                 error!(
                     process_id = %process_id,

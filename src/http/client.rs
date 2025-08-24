@@ -1,19 +1,14 @@
-use octocrab::{Octocrab, Error as OctocrabError};
-use governor::{
-    RateLimiter, 
-    Quota, 
-    DefaultDirectRateLimiter,
-    Jitter
-};
+use governor::{DefaultDirectRateLimiter, Jitter, Quota, RateLimiter};
+use octocrab::{Error as OctocrabError, Octocrab};
 // Retry functionality will be integrated in future versions
 // use reqwest_middleware::ClientBuilder;
 // use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use moka::future::Cache;
+use serde::{Deserialize, Serialize};
+use std::num::NonZeroU32;
 use std::sync::Arc;
 use std::time::Duration;
-use std::num::NonZeroU32;
 use tracing::{debug, info};
-use serde::{Serialize, Deserialize};
 
 /// Rate-limited HTTP client that wraps Octocrab with proper GitHub API rate limiting
 #[derive(Debug)]
@@ -43,9 +38,7 @@ impl RateLimitedHttpClient {
 
         // Build octocrab with personal token
         // Note: reqwest-middleware/retry will be added in future octocrab integration
-        let octocrab = Octocrab::builder()
-            .personal_token(token)
-            .build()?;
+        let octocrab = Octocrab::builder().personal_token(token).build()?;
 
         // Create cache for responses (5 minute TTL, 1000 entry capacity)
         let cache = Cache::builder()
@@ -63,9 +56,15 @@ impl RateLimitedHttpClient {
     }
 
     /// Execute a request with rate limiting and caching
-    pub async fn execute_with_rate_limit<F, T>(&self, cache_key: Option<String>, request: F) -> Result<T, OctocrabError>
+    pub async fn execute_with_rate_limit<F, T>(
+        &self,
+        cache_key: Option<String>,
+        request: F,
+    ) -> Result<T, OctocrabError>
     where
-        F: Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T, OctocrabError>> + Send>>,
+        F: Fn() -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<T, OctocrabError>> + Send>,
+        >,
         T: Clone + Serialize + for<'de> Deserialize<'de>,
     {
         // Check cache first if cache_key is provided
@@ -79,7 +78,9 @@ impl RateLimitedHttpClient {
         }
 
         // Wait for rate limit permission
-        self.rate_limiter.until_ready_with_jitter(Jitter::up_to(Duration::from_millis(100))).await;
+        self.rate_limiter
+            .until_ready_with_jitter(Jitter::up_to(Duration::from_millis(100)))
+            .await;
 
         debug!("Executing GitHub API request with rate limiting");
 
@@ -125,10 +126,12 @@ impl RateLimitedHttpClient {
         info!("HTTP client cache cleared");
     }
 
-    /// Invalidate specific cache entries (useful after write operations)  
+    /// Invalidate specific cache entries (useful after write operations)
     pub async fn invalidate_cache_pattern(&self, pattern: &str) {
         // Simple pattern matching - invalidate all keys containing the pattern
-        let keys_to_remove: Vec<String> = self.cache.iter()
+        let keys_to_remove: Vec<String> = self
+            .cache
+            .iter()
             .filter(|(key, _)| key.contains(pattern))
             .map(|(key, _)| key.as_ref().clone())
             .collect();

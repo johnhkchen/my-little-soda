@@ -1,12 +1,12 @@
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
-use chrono::{DateTime, Utc, Duration};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::{info, warn, error, debug};
+use thiserror::Error;
+use tracing::{debug, error, info, warn};
 
-use crate::github::{GitHubClient, errors::GitHubError};
 use super::AutonomousWorkflowState;
+use crate::github::{errors::GitHubError, GitHubClient};
 
 /// State drift detection and auto-correction system for long-running operations
 #[derive(Debug)]
@@ -15,15 +15,15 @@ pub struct StateDriftDetector {
     validation_interval: Duration,
     drift_thresholds: DriftThresholds,
     correction_strategies: Vec<CorrectionStrategy>,
-    
+
     /// State tracking
     expected_state: ExpectedSystemState,
     last_validation: DateTime<Utc>,
     detected_drifts: Vec<StateDrift>,
-    
+
     /// GitHub client for validation
     github_client: GitHubClient,
-    
+
     /// Agent context
     agent_id: String,
 }
@@ -46,7 +46,7 @@ pub enum CorrectionStrategy {
     GitHubAuthoritative,
     /// Preserve agent work at all costs during corrections
     WorkPreserving,
-    /// Create issues for manual intervention but continue autonomously  
+    /// Create issues for manual intervention but continue autonomously
     EscalateAndContinue,
     /// Require manual intervention for complex scenarios
     RequireManualIntervention,
@@ -56,7 +56,7 @@ pub enum CorrectionStrategy {
 pub struct ExpectedSystemState {
     /// Expected issue assignments and states
     pub issues: HashMap<u64, ExpectedIssueState>,
-    /// Expected branch states  
+    /// Expected branch states
     pub branches: HashMap<String, ExpectedBranchState>,
     /// Expected PR states
     pub pull_requests: HashMap<u64, ExpectedPRState>,
@@ -86,7 +86,7 @@ pub struct ExpectedBranchState {
     pub last_push: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]  
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExpectedPRState {
     pub pr_id: u64,
     pub title: String,
@@ -130,71 +130,71 @@ pub enum ReviewState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum StateDrift {
     /// Issue state drifts
-    IssueUnexpectedlyAssigned { 
-        issue_id: u64, 
+    IssueUnexpectedlyAssigned {
+        issue_id: u64,
         expected_assignee: Option<String>,
         actual_assignee: String,
         severity: DriftSeverity,
     },
-    IssueUnexpectedlyClosed { 
-        issue_id: u64, 
+    IssueUnexpectedlyClosed {
+        issue_id: u64,
         closer: String,
         closed_at: DateTime<Utc>,
         severity: DriftSeverity,
     },
-    LabelsChanged { 
-        issue_id: u64, 
-        expected: Vec<String>, 
+    LabelsChanged {
+        issue_id: u64,
+        expected: Vec<String>,
         actual: Vec<String>,
         severity: DriftSeverity,
     },
-    
-    /// Branch state drifts  
-    BranchDeleted { 
+
+    /// Branch state drifts
+    BranchDeleted {
         branch_name: String,
         severity: DriftSeverity,
     },
-    BranchDiverged { 
-        branch_name: String, 
+    BranchDiverged {
+        branch_name: String,
         commits_behind: u32,
         commits_ahead: u32,
         severity: DriftSeverity,
     },
-    UnexpectedBranch { 
-        branch_name: String, 
+    UnexpectedBranch {
+        branch_name: String,
         creator: String,
         created_at: DateTime<Utc>,
         severity: DriftSeverity,
     },
-    
+
     /// PR state drifts
-    PRUnexpectedlyMerged { 
-        pr_id: u64, 
+    PRUnexpectedlyMerged {
+        pr_id: u64,
         merger: String,
         merged_at: DateTime<Utc>,
         severity: DriftSeverity,
     },
-    PRUnexpectedlyClosed { 
-        pr_id: u64, 
+    PRUnexpectedlyClosed {
+        pr_id: u64,
         closer: String,
         closed_at: DateTime<Utc>,
         severity: DriftSeverity,
     },
-    ReviewStateChanged { 
-        pr_id: u64, 
+    ReviewStateChanged {
+        pr_id: u64,
         expected_state: ReviewState,
         new_state: ReviewState,
         reviewer: String,
         severity: DriftSeverity,
     },
-    
+
     /// Workspace drifts
-    WorkspaceFileChanges { 
+    WorkspaceFileChanges {
         modified_files: Vec<PathBuf>,
         severity: DriftSeverity,
     },
-    GitStateInconsistent { 
-        expected_head: String, 
+    GitStateInconsistent {
+        expected_head: String,
         actual_head: String,
         severity: DriftSeverity,
     },
@@ -229,41 +229,41 @@ pub enum DriftSeverity {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CorrectionAction {
     /// Safe corrections (no work loss)
-    UpdateLocalState { 
+    UpdateLocalState {
         new_state: SystemStateField,
         reason: String,
     },
-    SynchronizeWithGitHub { 
+    SynchronizeWithGitHub {
         fields: Vec<StateField>,
         backup_created: bool,
     },
-    RefreshCachedData { 
-        cache_keys: Vec<String> 
+    RefreshCachedData {
+        cache_keys: Vec<String>,
     },
-    
+
     /// Work-preserving corrections
-    PreserveWorkAndResync { 
+    PreserveWorkAndResync {
         backup_location: String,
         sync_strategy: SyncStrategy,
     },
-    CreateRecoveryBranch { 
+    CreateRecoveryBranch {
         original_work: WorkSnapshot,
         recovery_branch: String,
     },
-    
+
     /// Escalation with preservation
-    DocumentDriftAndContinue { 
+    DocumentDriftAndContinue {
         drift_report: DriftReport,
         continue_autonomously: bool,
     },
-    CreateDriftIssue { 
+    CreateDriftIssue {
         affected_work: Option<WorkContext>,
         issue_number: u64,
     },
-    
+
     /// Terminal (rare)
-    RequireManualIntervention { 
-        reason: String, 
+    RequireManualIntervention {
+        reason: String,
         preserved_state: StateSnapshot,
     },
 }
@@ -339,19 +339,19 @@ pub struct AgentContext {
 pub enum StateDriftError {
     #[error("GitHub API error: {0}")]
     GitHubError(#[from] GitHubError),
-    
+
     #[error("State validation failed: {message}")]
     ValidationFailed { message: String },
-    
+
     #[error("Correction strategy failed: {strategy:?}, reason: {reason}")]
-    CorrectionFailed { 
+    CorrectionFailed {
         strategy: CorrectionStrategy,
-        reason: String 
+        reason: String,
     },
-    
+
     #[error("Critical drift detected requiring manual intervention: {drift_type:?}")]
     CriticalDriftDetected { drift_type: StateDriftType },
-    
+
     #[error("Workspace inconsistency: {details}")]
     WorkspaceInconsistent { details: String },
 }
@@ -359,8 +359,8 @@ pub enum StateDriftError {
 impl Default for DriftThresholds {
     fn default() -> Self {
         Self {
-            max_validation_interval_active: 5,  // 5 minutes during active work
-            max_validation_interval_idle: 30,   // 30 minutes during idle
+            max_validation_interval_active: 5, // 5 minutes during active work
+            max_validation_interval_idle: 30,  // 30 minutes during idle
             max_commits_behind: 10,
             critical_drift_types: vec![
                 StateDriftType::IssueUnexpectedlyClosed,
@@ -374,10 +374,7 @@ impl Default for DriftThresholds {
 
 impl StateDriftDetector {
     /// Create new state drift detector
-    pub fn new(
-        github_client: GitHubClient,
-        agent_id: String,
-    ) -> Self {
+    pub fn new(github_client: GitHubClient, agent_id: String) -> Self {
         Self {
             validation_interval: Duration::minutes(5),
             drift_thresholds: DriftThresholds::default(),
@@ -425,8 +422,8 @@ impl StateDriftDetector {
 
     /// Update expected state from current workflow state
     pub async fn update_expected_state(
-        &mut self, 
-        workflow_state: &AutonomousWorkflowState
+        &mut self,
+        workflow_state: &AutonomousWorkflowState,
     ) -> Result<(), StateDriftError> {
         debug!(
             agent_id = %self.agent_id,
@@ -434,7 +431,11 @@ impl StateDriftDetector {
         );
 
         match workflow_state {
-            AutonomousWorkflowState::Assigned { issue, agent, workspace: _ } => {
+            AutonomousWorkflowState::Assigned {
+                issue,
+                agent,
+                workspace: _,
+            } => {
                 self.expected_state.issues.insert(
                     issue.number,
                     ExpectedIssueState {
@@ -444,10 +445,10 @@ impl StateDriftDetector {
                         labels: issue.labels.clone(),
                         state: IssueState::Open,
                         last_modified: Utc::now(),
-                    }
+                    },
                 );
             }
-            AutonomousWorkflowState::ReadyForReview {  pr, .. } => {
+            AutonomousWorkflowState::ReadyForReview { pr, .. } => {
                 self.expected_state.pull_requests.insert(
                     pr.number,
                     ExpectedPRState {
@@ -458,7 +459,7 @@ impl StateDriftDetector {
                         base_branch: "main".to_string(),
                         review_state: ReviewState::Pending,
                         mergeable: None,
-                    }
+                    },
                 );
             }
             // Add more state mappings as needed
@@ -473,7 +474,7 @@ impl StateDriftDetector {
     pub fn needs_validation(&self, is_active: bool) -> bool {
         let now = Utc::now();
         let time_since_last = now - self.last_validation;
-        
+
         let threshold_minutes = if is_active {
             self.drift_thresholds.max_validation_interval_active
         } else {
@@ -495,7 +496,7 @@ impl StateDriftDetector {
         // Validate issue states
         detected_drifts.extend(self.validate_issue_states().await?);
 
-        // Validate branch states  
+        // Validate branch states
         detected_drifts.extend(self.validate_branch_states().await?);
 
         // Validate PR states
@@ -524,13 +525,12 @@ impl StateDriftDetector {
             match self.github_client.issues.fetch_issue(*issue_id).await {
                 Ok(actual_issue) => {
                     // Check assignment drift
-                    let actual_assignee = actual_issue.assignee
-                        .as_ref()
-                        .map(|a| a.login.clone());
-                    
+                    let actual_assignee = actual_issue.assignee.as_ref().map(|a| a.login.clone());
+
                     if expected.assignee != actual_assignee {
-                        let severity = if actual_assignee.is_some() 
-                            && actual_assignee.as_ref() != Some(&self.agent_id) {
+                        let severity = if actual_assignee.is_some()
+                            && actual_assignee.as_ref() != Some(&self.agent_id)
+                        {
                             DriftSeverity::Critical
                         } else {
                             DriftSeverity::Moderate
@@ -545,16 +545,18 @@ impl StateDriftDetector {
                     }
 
                     // Check state drift (open/closed)
-                    let actual_state = if matches!(actual_issue.state, octocrab::models::IssueState::Closed) {
-                        IssueState::Closed
-                    } else {
-                        IssueState::Open
-                    };
+                    let actual_state =
+                        if matches!(actual_issue.state, octocrab::models::IssueState::Closed) {
+                            IssueState::Closed
+                        } else {
+                            IssueState::Open
+                        };
 
                     if expected.state != actual_state && actual_state == IssueState::Closed {
                         drifts.push(StateDrift::IssueUnexpectedlyClosed {
                             issue_id: *issue_id,
-                            closer: actual_issue.closed_by
+                            closer: actual_issue
+                                .closed_by
                                 .as_ref()
                                 .map(|u| u.login.clone())
                                 .unwrap_or("unknown".to_string()),
@@ -564,14 +566,13 @@ impl StateDriftDetector {
                     }
 
                     // Check label drift
-                    let actual_labels: Vec<String> = actual_issue.labels
-                        .iter()
-                        .map(|l| l.name.clone())
-                        .collect();
-                    
+                    let actual_labels: Vec<String> =
+                        actual_issue.labels.iter().map(|l| l.name.clone()).collect();
+
                     if expected.labels != actual_labels {
-                        let severity = if actual_labels.contains(&self.agent_id) 
-                            != expected.labels.contains(&self.agent_id) {
+                        let severity = if actual_labels.contains(&self.agent_id)
+                            != expected.labels.contains(&self.agent_id)
+                        {
                             DriftSeverity::Moderate
                         } else {
                             DriftSeverity::Minor
@@ -599,12 +600,17 @@ impl StateDriftDetector {
         Ok(drifts)
     }
 
-    /// Validate branch states against expectations  
+    /// Validate branch states against expectations
     async fn validate_branch_states(&self) -> Result<Vec<StateDrift>, StateDriftError> {
         let mut drifts = Vec::new();
 
         for (branch_name, expected) in &self.expected_state.branches {
-            match self.github_client.branches.get_branch_info(branch_name).await {
+            match self
+                .github_client
+                .branches
+                .get_branch_info(branch_name)
+                .await
+            {
                 Ok(actual_branch) => {
                     // Check head commit drift
                     let actual_head = actual_branch.sha.clone();
@@ -614,7 +620,7 @@ impl StateDriftDetector {
                         drifts.push(StateDrift::BranchDiverged {
                             branch_name: branch_name.clone(),
                             commits_behind: 0, // Would be calculated
-                            commits_ahead: 0,  // Would be calculated  
+                            commits_ahead: 0,  // Would be calculated
                             severity: DriftSeverity::Moderate,
                         });
                     }
@@ -699,7 +705,7 @@ impl StateDriftDetector {
 
         // Check git status for uncommitted changes
         if let Ok(output) = tokio::process::Command::new("git")
-            .args(&["status", "--porcelain"])
+            .args(["status", "--porcelain"])
             .output()
             .await
         {
@@ -707,7 +713,9 @@ impl StateDriftDetector {
             if has_changes != self.expected_state.workspace.uncommitted_changes {
                 let modified_files = String::from_utf8_lossy(&output.stdout)
                     .lines()
-                    .map(|line| PathBuf::from(line.trim_start_matches(|c: char| !c.is_whitespace())))
+                    .map(|line| {
+                        PathBuf::from(line.trim_start_matches(|c: char| !c.is_whitespace()))
+                    })
                     .collect();
 
                 drifts.push(StateDrift::WorkspaceFileChanges {
@@ -719,13 +727,14 @@ impl StateDriftDetector {
 
         // Check current HEAD
         if let Ok(output) = tokio::process::Command::new("git")
-            .args(&["rev-parse", "HEAD"])
+            .args(["rev-parse", "HEAD"])
             .output()
             .await
         {
             let actual_head = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if actual_head != self.expected_state.workspace.head_commit 
-                && !self.expected_state.workspace.head_commit.is_empty() {
+            if actual_head != self.expected_state.workspace.head_commit
+                && !self.expected_state.workspace.head_commit.is_empty()
+            {
                 drifts.push(StateDrift::GitStateInconsistent {
                     expected_head: self.expected_state.workspace.head_commit.clone(),
                     actual_head,
@@ -738,12 +747,15 @@ impl StateDriftDetector {
     }
 
     /// Execute automatic correction for detected drifts
-    pub async fn correct_drifts(&mut self, drifts: Vec<StateDrift>) -> Result<Vec<CorrectionAction>, StateDriftError> {
+    pub async fn correct_drifts(
+        &mut self,
+        drifts: Vec<StateDrift>,
+    ) -> Result<Vec<CorrectionAction>, StateDriftError> {
         let mut corrections = Vec::new();
 
         for drift in drifts {
             let severity = drift.get_severity();
-            
+
             info!(
                 agent_id = %self.agent_id,
                 drift_type = ?drift.get_type(),
@@ -759,23 +771,35 @@ impl StateDriftDetector {
     }
 
     /// Correct a single detected drift
-    async fn correct_single_drift(&mut self, drift: StateDrift) -> Result<CorrectionAction, StateDriftError> {
+    async fn correct_single_drift(
+        &mut self,
+        drift: StateDrift,
+    ) -> Result<CorrectionAction, StateDriftError> {
         match drift {
-            StateDrift::IssueUnexpectedlyAssigned { issue_id, ref actual_assignee, severity, .. } => {
+            StateDrift::IssueUnexpectedlyAssigned {
+                issue_id,
+                ref actual_assignee,
+                severity,
+                ..
+            } => {
                 if severity == DriftSeverity::Critical && actual_assignee != &self.agent_id {
                     // Another agent/person took our issue - escalate but preserve work
                     let work_context = WorkContext {
                         issue_number: issue_id,
                         branch_name: format!("{}/{}", self.agent_id, issue_id),
-                        commits: vec![], // Would be populated from git
+                        commits: vec![],        // Would be populated from git
                         files_modified: vec![], // Would be populated from git status
                     };
 
-                    let issue_number = self.create_drift_issue(
-                        &format!("Issue #{} unexpectedly reassigned to {}", issue_id, actual_assignee),
-                        &drift,
-                        Some(work_context.clone())
-                    ).await?;
+                    let issue_number = self
+                        .create_drift_issue(
+                            &format!(
+                                "Issue #{issue_id} unexpectedly reassigned to {actual_assignee}"
+                            ),
+                            &drift,
+                            Some(work_context.clone()),
+                        )
+                        .await?;
 
                     Ok(CorrectionAction::CreateDriftIssue {
                         affected_work: Some(work_context),
@@ -790,19 +814,23 @@ impl StateDriftDetector {
 
                     Ok(CorrectionAction::UpdateLocalState {
                         new_state: SystemStateField::Issue(
-                            self.expected_state.issues[&issue_id].clone()
+                            self.expected_state.issues[&issue_id].clone(),
                         ),
-                        reason: format!("Issue assigned to {}", actual_assignee),
+                        reason: format!("Issue assigned to {actual_assignee}"),
                     })
                 }
             }
 
-            StateDrift::IssueUnexpectedlyClosed { issue_id, closer, .. } => {
+            StateDrift::IssueUnexpectedlyClosed {
+                issue_id, closer, ..
+            } => {
                 // Critical: Issue was closed while we were working on it
                 let preserved_state = self.create_state_snapshot().await;
-                
+
                 Ok(CorrectionAction::RequireManualIntervention {
-                    reason: format!("Issue #{} was closed by {} while agent was working", issue_id, closer),
+                    reason: format!(
+                        "Issue #{issue_id} was closed by {closer} while agent was working"
+                    ),
                     preserved_state,
                 })
             }
@@ -810,12 +838,14 @@ impl StateDriftDetector {
             StateDrift::BranchDeleted { branch_name, .. } => {
                 // Critical: Our work branch was deleted
                 Ok(CorrectionAction::RequireManualIntervention {
-                    reason: format!("Work branch '{}' was deleted", branch_name),
+                    reason: format!("Work branch '{branch_name}' was deleted"),
                     preserved_state: self.create_state_snapshot().await,
                 })
             }
 
-            StateDrift::LabelsChanged { issue_id, actual, .. } => {
+            StateDrift::LabelsChanged {
+                issue_id, actual, ..
+            } => {
                 // Update local expectations to match GitHub
                 if let Some(expected_issue) = self.expected_state.issues.get_mut(&issue_id) {
                     expected_issue.labels = actual.clone();
@@ -836,7 +866,7 @@ impl StateDriftDetector {
                         detected_at: Utc::now(),
                         drift_type: StateDriftType::WorkspaceFileChanges,
                         severity: DriftSeverity::Minor,
-                        description: format!("Workspace files changed: {:?}", modified_files),
+                        description: format!("Workspace files changed: {modified_files:?}"),
                         correction_taken: Some("DocumentDriftAndContinue".to_string()),
                         resolution_time: None,
                     },
@@ -845,20 +875,18 @@ impl StateDriftDetector {
             }
 
             // Handle other drift types...
-            _ => {
-                Ok(CorrectionAction::DocumentDriftAndContinue {
-                    drift_report: DriftReport {
-                        drift_id: uuid::Uuid::new_v4().to_string(),
-                        detected_at: Utc::now(),
-                        drift_type: drift.get_type(),
-                        severity: drift.get_severity(),
-                        description: format!("Unhandled drift: {:?}", drift),
-                        correction_taken: Some("DocumentDriftAndContinue".to_string()),
-                        resolution_time: None,
-                    },
-                    continue_autonomously: true,
-                })
-            }
+            _ => Ok(CorrectionAction::DocumentDriftAndContinue {
+                drift_report: DriftReport {
+                    drift_id: uuid::Uuid::new_v4().to_string(),
+                    detected_at: Utc::now(),
+                    drift_type: drift.get_type(),
+                    severity: drift.get_severity(),
+                    description: format!("Unhandled drift: {drift:?}"),
+                    correction_taken: Some("DocumentDriftAndContinue".to_string()),
+                    resolution_time: None,
+                },
+                continue_autonomously: true,
+            }),
         }
     }
 
@@ -884,8 +912,10 @@ impl StateDriftDetector {
             Utc::now(),
             drift,
             affected_work
-                .map(|w| format!("### Affected Work\n- Issue: #{}\n- Branch: {}\n- Files: {:?}", 
-                               w.issue_number, w.branch_name, w.files_modified))
+                .map(|w| format!(
+                    "### Affected Work\n- Issue: #{}\n- Branch: {}\n- Files: {:?}",
+                    w.issue_number, w.branch_name, w.files_modified
+                ))
                 .unwrap_or_default()
         );
 
@@ -895,8 +925,12 @@ impl StateDriftDetector {
             format!("severity-{:?}", drift.get_severity()).to_lowercase(),
         ];
 
-        let created_issue = self.github_client.issues.create_issue(title, &body, labels).await?;
-        
+        let created_issue = self
+            .github_client
+            .issues
+            .create_issue(title, &body, labels)
+            .await?;
+
         info!(
             agent_id = %self.agent_id,
             issue_number = created_issue.number,
@@ -915,7 +949,7 @@ impl StateDriftDetector {
             agent_context: AgentContext {
                 agent_id: self.agent_id.clone(),
                 current_workflow_state: None, // Would be serialized from actual state
-                active_operations: vec![], // Would be populated from agent state
+                active_operations: vec![],    // Would be populated from agent state
             },
         }
     }
@@ -932,7 +966,9 @@ impl StateDriftDetector {
 
     /// Check if there are any critical drifts that require immediate attention
     pub fn has_critical_drifts(&self) -> bool {
-        self.detected_drifts.iter().any(|d| d.get_severity() == DriftSeverity::Critical)
+        self.detected_drifts
+            .iter()
+            .any(|d| d.get_severity() == DriftSeverity::Critical)
     }
 
     /// Generate drift detection report
@@ -940,7 +976,9 @@ impl StateDriftDetector {
         DriftDetectionReport {
             agent_id: self.agent_id.clone(),
             total_drifts_detected: self.detected_drifts.len(),
-            critical_drifts: self.detected_drifts.iter()
+            critical_drifts: self
+                .detected_drifts
+                .iter()
                 .filter(|d| d.get_severity() == DriftSeverity::Critical)
                 .cloned()
                 .collect(),
@@ -978,7 +1016,9 @@ pub enum ValidationHealth {
 impl StateDrift {
     pub fn get_type(&self) -> StateDriftType {
         match self {
-            StateDrift::IssueUnexpectedlyAssigned { .. } => StateDriftType::IssueUnexpectedlyAssigned,
+            StateDrift::IssueUnexpectedlyAssigned { .. } => {
+                StateDriftType::IssueUnexpectedlyAssigned
+            }
             StateDrift::IssueUnexpectedlyClosed { .. } => StateDriftType::IssueUnexpectedlyClosed,
             StateDrift::LabelsChanged { .. } => StateDriftType::LabelsChanged,
             StateDrift::BranchDeleted { .. } => StateDriftType::BranchDeleted,
@@ -994,17 +1034,17 @@ impl StateDrift {
 
     pub fn get_severity(&self) -> DriftSeverity {
         match self {
-            StateDrift::IssueUnexpectedlyAssigned { severity, .. } |
-            StateDrift::IssueUnexpectedlyClosed { severity, .. } |
-            StateDrift::LabelsChanged { severity, .. } |
-            StateDrift::BranchDeleted { severity, .. } |
-            StateDrift::BranchDiverged { severity, .. } |
-            StateDrift::UnexpectedBranch { severity, .. } |
-            StateDrift::PRUnexpectedlyMerged { severity, .. } |
-            StateDrift::PRUnexpectedlyClosed { severity, .. } |
-            StateDrift::ReviewStateChanged { severity, .. } |
-            StateDrift::WorkspaceFileChanges { severity, .. } |
-            StateDrift::GitStateInconsistent { severity, .. } => *severity,
+            StateDrift::IssueUnexpectedlyAssigned { severity, .. }
+            | StateDrift::IssueUnexpectedlyClosed { severity, .. }
+            | StateDrift::LabelsChanged { severity, .. }
+            | StateDrift::BranchDeleted { severity, .. }
+            | StateDrift::BranchDiverged { severity, .. }
+            | StateDrift::UnexpectedBranch { severity, .. }
+            | StateDrift::PRUnexpectedlyMerged { severity, .. }
+            | StateDrift::PRUnexpectedlyClosed { severity, .. }
+            | StateDrift::ReviewStateChanged { severity, .. }
+            | StateDrift::WorkspaceFileChanges { severity, .. }
+            | StateDrift::GitStateInconsistent { severity, .. } => *severity,
         }
     }
 }
@@ -1017,7 +1057,7 @@ mod tests {
     async fn test_drift_detector_creation() {
         let github_client = GitHubClient::new().unwrap();
         let detector = StateDriftDetector::new(github_client, "test-agent".to_string());
-        
+
         assert_eq!(detector.agent_id, "test-agent");
         assert!(!detector.has_critical_drifts());
     }
@@ -1026,11 +1066,11 @@ mod tests {
     async fn test_needs_validation_timing() {
         let github_client = GitHubClient::new().unwrap();
         let mut detector = StateDriftDetector::new(github_client, "test-agent".to_string());
-        
+
         // Should need validation initially (last_validation is 1 hour ago)
         assert!(detector.needs_validation(true));
         assert!(detector.needs_validation(false));
-        
+
         // After updating last_validation to now
         detector.last_validation = Utc::now();
         assert!(!detector.needs_validation(true));
@@ -1047,6 +1087,9 @@ mod tests {
         };
 
         assert_eq!(critical_drift.get_severity(), DriftSeverity::Critical);
-        assert_eq!(critical_drift.get_type(), StateDriftType::IssueUnexpectedlyClosed);
+        assert_eq!(
+            critical_drift.get_type(),
+            StateDriftType::IssueUnexpectedlyClosed
+        );
     }
 }

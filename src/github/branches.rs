@@ -1,5 +1,5 @@
-use octocrab::Octocrab;
 use super::errors::GitHubError;
+use octocrab::Octocrab;
 
 /// Handler for GitHub branch operations
 #[derive(Debug, Clone)]
@@ -19,29 +19,33 @@ impl BranchHandler {
     }
 
     /// Create a new branch
-    pub async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError> {
-        println!("🌿 Creating branch '{}' from '{}'", branch_name, from_branch);
-        
+    pub async fn create_branch(
+        &self,
+        branch_name: &str,
+        from_branch: &str,
+    ) -> Result<(), GitHubError> {
+        println!("🌿 Creating branch '{branch_name}' from '{from_branch}'");
+
         // Use the git refs API to create the branch
         // This is a simplified implementation - for now we'll return success
         // to indicate the branch creation was attempted
-        
+
         // TODO: Implement proper octocrab branch creation once we resolve the API details
         // The current octocrab version may have different API structure than expected
-        
+
         match std::process::Command::new("git")
-            .args(&["push", "origin", &format!("{}:{}", from_branch, branch_name)])
+            .args(["push", "origin", &format!("{from_branch}:{branch_name}")])
             .output()
         {
             Ok(output) if output.status.success() => {
-                println!("✅ Branch '{}' created successfully", branch_name);
+                println!("✅ Branch '{branch_name}' created successfully");
                 Ok(())
-            },
+            }
             Ok(_) => {
                 println!("⚠️  Branch creation via git push failed");
                 println!("   📝 Note: Branch may already exist or need manual creation");
                 Ok(()) // Don't fail the whole operation
-            },
+            }
             Err(_) => {
                 println!("⚠️  Git command not available for branch creation");
                 println!("   📝 Note: Branch needs to be created manually");
@@ -52,10 +56,10 @@ impl BranchHandler {
 
     /// Delete a branch
     pub async fn delete_branch(&self, branch_name: &str) -> Result<(), GitHubError> {
-        println!("🗑️  Would delete branch '{}'", branch_name);
-        
+        println!("🗑️  Would delete branch '{branch_name}'");
+
         // TODO: Implement real branch deletion
-        
+
         Ok(())
     }
 
@@ -79,16 +83,18 @@ impl BranchHandler {
 
     /// Check if a branch exists
     pub async fn branch_exists(&self, branch_name: &str) -> Result<bool, GitHubError> {
-        match self.octocrab
+        match self
+            .octocrab
             .repos(&self.owner, &self.repo)
-            .get_ref(&octocrab::params::repos::Reference::Branch(branch_name.to_string()))
+            .get_ref(&octocrab::params::repos::Reference::Branch(
+                branch_name.to_string(),
+            ))
             .await
         {
             Ok(_) => Ok(true),
-            Err(octocrab::Error::GitHub { 
-                source, 
-                .. 
-            }) if source.status_code.as_u16() == 404 => Ok(false),
+            Err(octocrab::Error::GitHub { source, .. }) if source.status_code.as_u16() == 404 => {
+                Ok(false)
+            }
             Err(e) => Err(GitHubError::ApiError(e)),
         }
     }
@@ -101,7 +107,11 @@ impl BranchHandler {
     }
 
     /// Compare two branches
-    pub async fn compare_branches(&self, base: &str, head: &str) -> Result<BranchComparison, GitHubError> {
+    pub async fn compare_branches(
+        &self,
+        base: &str,
+        head: &str,
+    ) -> Result<BranchComparison, GitHubError> {
         // TODO: Implement branch comparison
         // For now, return placeholder data
         Ok(BranchComparison {

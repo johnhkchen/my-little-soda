@@ -61,14 +61,14 @@ scenario! {
 fn test_magic_coordination_workflow() {
     // This test would use the beautiful DSL from white_magic.md
     // For now, it's marked as ignored because the DSL doesn't exist
-    
+
     // The magic we're building toward:
     // 1. GitHub as single source of truth
-    // 2. Atomic coordination operations  
+    // 2. Atomic coordination operations
     // 3. Automatic work preservation
     // 4. Type-safe state transitions
     // 5. Observable by design
-    
+
     todo!("Implement white magic DSL macros from spec")
 }
 
@@ -78,24 +78,19 @@ fn test_magic_coordination_workflow() {
 fn test_my_little_soda_cli_basic_routing() {
     // This is a real test that should fail right now
     // It represents the first step toward our magical coordination system
-    
+
     let mut cmd = assert_cmd::Command::cargo_bin("my-little-soda").unwrap();
-    
-    let output = cmd
-        .arg("route")
-        .arg("--agents")
-        .arg("2")
-        .assert()
-        .success();
-    
+
+    let output = cmd.arg("route").arg("--agents").arg("2").assert().success();
+
     // For now, we just want the CLI to work and show it's thinking about routing
     let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
-    
+
     // This should fail because we don't actually implement routing yet
     assert!(stdout.contains("Routing 2 tickets to agents"));
     assert!(stdout.contains("Generated ticket #1:"));
     assert!(stdout.contains("Generated ticket #2:"));
-    
+
     // The CLI should immediately create two distinct tickets to work on:
     // 1. Make this test pass (implement basic routing output)
     // 2. Create a second different ticket (show we can generate distinct work)

@@ -3,13 +3,13 @@
 //! This module provides comprehensive reporting of agent resource usage patterns
 //! and implements alerting when resource limits are approached or exceeded.
 
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use super::process_manager::{AgentProcess, ResourceUsage, ResourceSummary};
+use super::process_manager::{AgentProcess, ResourceSummary, ResourceUsage};
 
 /// Alert severity levels
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,7 +112,7 @@ impl ResourceHistory {
         if self.samples.len() >= self.max_samples {
             self.samples.pop_front();
         }
-        
+
         self.samples.push_back(ResourceTrend {
             timestamp: usage.last_updated,
             memory_mb: usage.memory_mb,
@@ -201,7 +201,7 @@ impl ResourceMonitor {
         // Monitor individual processes
         for process in processes {
             self.update_resource_history(&process.process_id, &process.resource_usage);
-            
+
             if let Some(alerts) = self.check_process_alerts(process) {
                 new_alerts.extend(alerts);
             }
@@ -221,10 +221,13 @@ impl ResourceMonitor {
 
     /// Update resource usage history for a process
     fn update_resource_history(&mut self, process_id: &str, usage: &ResourceUsage) {
-        let history = self.resource_histories
+        let history = self
+            .resource_histories
             .entry(process_id.to_string())
-            .or_insert_with(|| ResourceHistory::new(process_id.to_string(), self.max_history_samples));
-        
+            .or_insert_with(|| {
+                ResourceHistory::new(process_id.to_string(), self.max_history_samples)
+            });
+
         history.add_sample(usage);
     }
 
@@ -232,7 +235,7 @@ impl ResourceMonitor {
     fn check_process_alerts(&mut self, process: &AgentProcess) -> Option<Vec<Alert>> {
         let mut alerts = Vec::new();
         let process_id = &process.process_id;
-        
+
         // Skip alerting if in cooldown period
         if let Some(&last_alert) = self.last_alert_times.get(process_id) {
             if last_alert.elapsed() < self.alert_cooldown {
@@ -241,8 +244,9 @@ impl ResourceMonitor {
         }
 
         // Memory alerts
-        let memory_usage_percent = (process.resource_usage.memory_mb / process.limits.max_memory_mb as f64 * 100.0) as f32;
-        
+        let memory_usage_percent =
+            (process.resource_usage.memory_mb / process.limits.max_memory_mb as f64 * 100.0) as f32;
+
         if memory_usage_percent >= self.alert_thresholds.memory_critical_percent {
             let alert = self.create_alert(
                 AlertSeverity::Critical,
@@ -250,7 +254,8 @@ impl ResourceMonitor {
                     process_id: process_id.clone(),
                     current_mb: process.resource_usage.memory_mb,
                     limit_mb: process.limits.max_memory_mb,
-                    excess_mb: process.resource_usage.memory_mb - process.limits.max_memory_mb as f64,
+                    excess_mb: process.resource_usage.memory_mb
+                        - process.limits.max_memory_mb as f64,
                 },
                 format!(
                     "Process {} exceeded memory limit: {:.1}MB > {}MB ({:.1}%)",
@@ -282,8 +287,9 @@ impl ResourceMonitor {
         }
 
         // CPU alerts
-        let cpu_usage_percent = (process.resource_usage.cpu_percent / process.limits.max_cpu_percent * 100.0) as f32;
-        
+        let cpu_usage_percent =
+            (process.resource_usage.cpu_percent / process.limits.max_cpu_percent * 100.0) as f32;
+
         if cpu_usage_percent >= self.alert_thresholds.cpu_critical_percent {
             let alert = self.create_alert(
                 AlertSeverity::Critical,
@@ -291,7 +297,8 @@ impl ResourceMonitor {
                     process_id: process_id.clone(),
                     current_percent: process.resource_usage.cpu_percent,
                     limit_percent: process.limits.max_cpu_percent,
-                    excess_percent: process.resource_usage.cpu_percent - process.limits.max_cpu_percent,
+                    excess_percent: process.resource_usage.cpu_percent
+                        - process.limits.max_cpu_percent,
                 },
                 format!(
                     "Process {} exceeded CPU limit: {:.1}% > {:.1}% ({:.1}% of limit)",
@@ -323,8 +330,10 @@ impl ResourceMonitor {
         }
 
         // File descriptor alerts
-        let fd_usage_percent = (process.resource_usage.file_descriptors as f64 / process.limits.max_file_descriptors as f64 * 100.0) as f32;
-        
+        let fd_usage_percent = (process.resource_usage.file_descriptors as f64
+            / process.limits.max_file_descriptors as f64
+            * 100.0) as f32;
+
         if fd_usage_percent >= self.alert_thresholds.fd_critical_percent {
             let alert = self.create_alert(
                 AlertSeverity::Warning,
@@ -346,7 +355,7 @@ impl ResourceMonitor {
         }
 
         // Process timeout alerts
-        let runtime_minutes = (process.started_at.elapsed().as_secs() / 60) as u64;
+        let runtime_minutes = process.started_at.elapsed().as_secs() / 60;
         if runtime_minutes >= process.limits.timeout_minutes {
             let alert = self.create_alert(
                 AlertSeverity::Critical,
@@ -357,16 +366,14 @@ impl ResourceMonitor {
                 },
                 format!(
                     "Process {} exceeded timeout: {}min > {}min",
-                    process_id,
-                    runtime_minutes,
-                    process.limits.timeout_minutes
+                    process_id, runtime_minutes, process.limits.timeout_minutes
                 ),
             );
             alerts.push(alert);
         }
 
         // Process unresponsive alerts
-        let inactivity_minutes = (process.last_activity.elapsed().as_secs() / 60) as u64;
+        let inactivity_minutes = process.last_activity.elapsed().as_secs() / 60;
         if inactivity_minutes >= self.alert_thresholds.unresponsive_minutes {
             let alert = self.create_alert(
                 AlertSeverity::Warning,
@@ -375,16 +382,15 @@ impl ResourceMonitor {
                     last_activity_minutes: inactivity_minutes,
                 },
                 format!(
-                    "Process {} appears unresponsive: no activity for {}min",
-                    process_id,
-                    inactivity_minutes
+                    "Process {process_id} appears unresponsive: no activity for {inactivity_minutes}min"
                 ),
             );
             alerts.push(alert);
         }
 
         if !alerts.is_empty() {
-            self.last_alert_times.insert(process_id.clone(), Instant::now());
+            self.last_alert_times
+                .insert(process_id.clone(), Instant::now());
             Some(alerts)
         } else {
             None
@@ -393,10 +399,10 @@ impl ResourceMonitor {
 
     /// Check for system-wide resource alerts
     fn check_system_alerts(&self, summary: &ResourceSummary) -> Option<Alert> {
-        if summary.total_memory_mb > self.alert_thresholds.system_memory_limit_mb ||
-           summary.total_cpu_percent > self.alert_thresholds.system_cpu_limit_percent ||
-           summary.active_process_count >= summary.max_concurrent_limit {
-            
+        if summary.total_memory_mb > self.alert_thresholds.system_memory_limit_mb
+            || summary.total_cpu_percent > self.alert_thresholds.system_cpu_limit_percent
+            || summary.active_process_count >= summary.max_concurrent_limit
+        {
             Some(self.create_alert(
                 AlertSeverity::Critical,
                 ResourceAlert::SystemResourceExhaustion {
@@ -419,9 +425,14 @@ impl ResourceMonitor {
     }
 
     /// Create new alert with unique ID
-    fn create_alert(&self, severity: AlertSeverity, alert_type: ResourceAlert, message: String) -> Alert {
+    fn create_alert(
+        &self,
+        severity: AlertSeverity,
+        alert_type: ResourceAlert,
+        message: String,
+    ) -> Alert {
         let alert_id = format!("{:?}_{}", alert_type, Instant::now().elapsed().as_nanos());
-        
+
         Alert {
             id: alert_id,
             severity,
@@ -435,16 +446,31 @@ impl ResourceMonitor {
 
     /// Calculate system resource summary
     fn calculate_system_summary(&self, processes: &[AgentProcess]) -> ResourceSummary {
-        let active_processes: Vec<_> = processes.iter()
-            .filter(|p| matches!(p.status, super::process_manager::ProcessStatus::Running { .. } | 
-                                           super::process_manager::ProcessStatus::Working { .. }))
+        let active_processes: Vec<_> = processes
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.status,
+                    super::process_manager::ProcessStatus::Running { .. }
+                        | super::process_manager::ProcessStatus::Working { .. }
+                )
+            })
             .collect();
 
         ResourceSummary {
             active_process_count: active_processes.len(),
-            total_memory_mb: active_processes.iter().map(|p| p.resource_usage.memory_mb).sum(),
-            total_cpu_percent: active_processes.iter().map(|p| p.resource_usage.cpu_percent).sum(),
-            total_file_descriptors: active_processes.iter().map(|p| p.resource_usage.file_descriptors).sum(),
+            total_memory_mb: active_processes
+                .iter()
+                .map(|p| p.resource_usage.memory_mb)
+                .sum(),
+            total_cpu_percent: active_processes
+                .iter()
+                .map(|p| p.resource_usage.cpu_percent)
+                .sum(),
+            total_file_descriptors: active_processes
+                .iter()
+                .map(|p| p.resource_usage.file_descriptors)
+                .sum(),
             max_concurrent_limit: 5, // This should come from config
         }
     }
@@ -454,23 +480,27 @@ impl ResourceMonitor {
         // Remove alerts for processes that no longer exist or are completed
         // This is a simplified implementation
         let cutoff = Instant::now() - Duration::from_secs(3600); // 1 hour
-        
-        self.active_alerts.retain(|_, alert| {
-            !alert.resolved && alert.triggered_at > cutoff
-        });
+
+        self.active_alerts
+            .retain(|_, alert| !alert.resolved && alert.triggered_at > cutoff);
     }
 
     /// Get resource usage report
     pub fn generate_usage_report(&self, processes: &[AgentProcess]) -> ResourceUsageReport {
         let summary = self.calculate_system_summary(processes);
         let active_alert_count = self.active_alerts.len();
-        
-        let process_reports: Vec<ProcessResourceReport> = processes.iter()
+
+        let process_reports: Vec<ProcessResourceReport> = processes
+            .iter()
             .map(|process| {
                 let history = self.resource_histories.get(&process.process_id);
-                let memory_trend = history.map(|h| h.get_memory_trend(Duration::from_secs(3600))).unwrap_or_default();
-                let cpu_trend = history.map(|h| h.get_cpu_trend(Duration::from_secs(3600))).unwrap_or_default();
-                
+                let memory_trend = history
+                    .map(|h| h.get_memory_trend(Duration::from_secs(3600)))
+                    .unwrap_or_default();
+                let cpu_trend = history
+                    .map(|h| h.get_cpu_trend(Duration::from_secs(3600)))
+                    .unwrap_or_default();
+
                 ProcessResourceReport {
                     process_id: process.process_id.clone(),
                     agent_id: process.agent_id.clone(),

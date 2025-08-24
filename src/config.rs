@@ -1,5 +1,5 @@
 use anyhow::Result;
-use config::{Config, File, Environment};
+use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -216,7 +216,7 @@ impl MyLittleSodaConfig {
         if Path::new("my-little-soda.toml").exists() {
             builder = builder.add_source(File::with_name("my-little-soda"));
         }
-        
+
         if Path::new(".my-little-soda-rc").exists() {
             builder = builder.add_source(File::with_name(".my-little-soda-rc"));
         }
@@ -225,11 +225,11 @@ impl MyLittleSodaConfig {
         builder = builder.add_source(
             Environment::with_prefix("MY_LITTLE_SODA")
                 .separator("_")
-                .try_parsing(true)
+                .try_parsing(true),
         );
 
         let config = builder.build()?;
-        
+
         // Deserialize into our config struct
         let mut my_little_soda_config: MyLittleSodaConfig = config.try_deserialize()?;
 
@@ -264,7 +264,7 @@ impl MyLittleSodaConfig {
 }
 
 /// Global configuration instance
-static CONFIG: std::sync::LazyLock<Result<MyLittleSodaConfig, anyhow::Error>> = 
+static CONFIG: std::sync::LazyLock<Result<MyLittleSodaConfig, anyhow::Error>> =
     std::sync::LazyLock::new(|| {
         // Load .env file first
         let _ = MyLittleSodaConfig::load_env_file();
@@ -273,7 +273,9 @@ static CONFIG: std::sync::LazyLock<Result<MyLittleSodaConfig, anyhow::Error>> =
 
 /// Get the global configuration
 pub fn config() -> Result<&'static MyLittleSodaConfig> {
-    CONFIG.as_ref().map_err(|e| anyhow::anyhow!("Failed to load configuration: {}", e))
+    CONFIG
+        .as_ref()
+        .map_err(|e| anyhow::anyhow!("Failed to load configuration: {}", e))
 }
 
 /// Initialize configuration (called at startup)

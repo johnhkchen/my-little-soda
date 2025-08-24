@@ -4,7 +4,7 @@
 use std::time::Duration;
 // Note: Custom retry implementation - tokio_retry imports removed as unused
 use crate::github::GitHubError;
-use tracing::{warn, debug, error};
+use tracing::{debug, error, warn};
 
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
@@ -47,7 +47,7 @@ impl GitHubRetryHandler {
         E: Into<GitHubError> + std::fmt::Debug,
     {
         let mut last_error = None;
-        
+
         for attempt in 0..self.config.max_attempts {
             match operation() {
                 Ok(result) => {
@@ -56,26 +56,31 @@ impl GitHubRetryHandler {
                 }
                 Err(error) => {
                     let github_error: GitHubError = error.into();
-                    
+
                     if !self.should_retry(&github_error) {
                         error!("Operation failed (non-retryable): {:?}", github_error);
                         return Err(github_error);
                     }
-                    
-                    warn!("Operation failed (attempt {}/{}): {:?}", attempt + 1, self.config.max_attempts, github_error);
+
+                    warn!(
+                        "Operation failed (attempt {}/{}): {:?}",
+                        attempt + 1,
+                        self.config.max_attempts,
+                        github_error
+                    );
                     last_error = Some(github_error);
-                    
+
                     if attempt < self.config.max_attempts - 1 {
                         let delay = std::cmp::min(
                             self.config.base_delay * (2_u32.pow(attempt)),
-                            self.config.max_delay
+                            self.config.max_delay,
                         );
                         tokio::time::sleep(delay).await;
                     }
                 }
             }
         }
-        
+
         Err(last_error.unwrap_or_else(|| GitHubError::NetworkError("Retry exhausted".to_string())))
     }
 
@@ -85,24 +90,27 @@ impl GitHubRetryHandler {
             GitHubError::ApiError(octocrab_error) => {
                 // Check for rate limiting, temporary failures, etc.
                 // Note: This is simplified - in production we'd parse the specific error codes
-                let error_string = format!("{:?}", octocrab_error);
-                
+                let error_string = format!("{octocrab_error:?}");
+
                 // Rate limiting (403 with rate limit headers)
                 if error_string.contains("rate") || error_string.contains("limit") {
                     return true;
                 }
-                
+
                 // Server errors (5xx)
-                if error_string.contains("500") || error_string.contains("502") || 
-                   error_string.contains("503") || error_string.contains("504") {
+                if error_string.contains("500")
+                    || error_string.contains("502")
+                    || error_string.contains("503")
+                    || error_string.contains("504")
+                {
                     return true;
                 }
-                
+
                 // Temporary network issues
                 if error_string.contains("timeout") || error_string.contains("connection") {
                     return true;
                 }
-                
+
                 false
             }
             GitHubError::IoError(_) => true, // Network issues are retryable
@@ -136,17 +144,19 @@ mod tests {
         let attempt_count = Arc::new(AtomicU32::new(0));
         let attempt_count_clone = attempt_count.clone();
 
-        let result = retry_handler.execute_with_retry(move || {
-            let count = attempt_count_clone.fetch_add(1, Ordering::SeqCst);
-            if count < 2 {
-                Err(GitHubError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionRefused,
-                    "test error"
-                )))
-            } else {
-                Ok("success")
-            }
-        }).await;
+        let result = retry_handler
+            .execute_with_retry(move || {
+                let count = attempt_count_clone.fetch_add(1, Ordering::SeqCst);
+                if count < 2 {
+                    Err(GitHubError::IoError(std::io::Error::new(
+                        std::io::ErrorKind::ConnectionRefused,
+                        "test error",
+                    )))
+                } else {
+                    Ok("success")
+                }
+            })
+            .await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
@@ -157,9 +167,9 @@ mod tests {
     async fn test_non_retryable_error() {
         let retry_handler = GitHubRetryHandler::default();
 
-        let result: Result<(), _> = retry_handler.execute_with_retry(|| {
-            Err(GitHubError::TokenNotFound("test".to_string()))
-        }).await;
+        let result: Result<(), _> = retry_handler
+            .execute_with_retry(|| Err(GitHubError::TokenNotFound("test".to_string())))
+            .await;
 
         assert!(result.is_err());
         // Should fail immediately without retries

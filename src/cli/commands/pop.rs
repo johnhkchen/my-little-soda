@@ -1,8 +1,8 @@
-use anyhow::Result;
 use crate::cli::commands::with_agent_router;
 use crate::train_schedule::TrainSchedule;
-use std::process::Command;
+use anyhow::Result;
 use std::error::Error;
+use std::process::Command;
 
 pub struct PopCommand {
     pub mine_only: bool,
@@ -22,7 +22,7 @@ impl PopCommand {
             verbose: false,
         }
     }
-    
+
     pub fn with_verbose(mut self, verbose: bool) -> Self {
         self.verbose = verbose;
         self
@@ -41,7 +41,7 @@ impl PopCommand {
             println!();
             return bundle_all_branches(self.auto_approve).await;
         }
-        
+
         // Check if we're already on a work branch
         if let Some(current_branch) = get_current_git_branch() {
             if let Some((agent_id, branch_suffix)) = current_branch.split_once('/') {
@@ -52,18 +52,20 @@ impl PopCommand {
                     } else {
                         branch_suffix
                     };
-                    
+
                     if let Ok(issue_number) = issue_number_str.parse::<u64>() {
                         println!("⚠️  You're already working on something!");
                         println!();
-                        println!("🌿 Current branch: {}", current_branch);
-                        println!("📋 Working on: Issue #{}", issue_number);
+                        println!("🌿 Current branch: {current_branch}");
+                        println!("📋 Working on: Issue #{issue_number}");
                         println!();
                         println!("💡 Suggested actions:");
                         println!("   → Check progress: clambake status");
                         println!("   → Complete work: clambake land");
                         println!("   → Switch to main: git checkout main");
-                        println!("   → Force new task: my-little-soda pop --force (not yet implemented)");
+                        println!(
+                            "   → Force new task: my-little-soda pop --force (not yet implemented)"
+                        );
                         println!();
                         println!("🎯 To work on multiple issues, complete current work first or switch branches.");
                         return Ok(());
@@ -71,14 +73,14 @@ impl PopCommand {
                 }
             }
         }
-        
+
         if self.mine_only {
             println!("🎯 Popping next task assigned to you...");
         } else {
             println!("🎯 Popping next available task...");
         }
         println!();
-        
+
         with_agent_router(|router| async move {
             if self.verbose {
                 println!("🔍 VERBOSE MODE: Enhanced diagnostic logging enabled");
@@ -86,10 +88,10 @@ impl PopCommand {
                 println!("   → ci_mode: {}", self.ci_mode);
                 println!("   → GitHub client: Checking connection...");
             }
-            
+
             print!("📋 Searching for available tasks... ");
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
-            
+
             if self.verbose {
                 println!();
                 println!("🔍 VERBOSE: Making GitHub API call to fetch issues...");
@@ -97,13 +99,13 @@ impl PopCommand {
                 println!("   → Filter: route:ready labels");
                 println!("   → Operation: {}", if self.mine_only { "pop_task_assigned_to_me" } else { "pop_any_available_task" });
             }
-            
+
             let result = if self.mine_only {
                 router.pop_task_assigned_to_me().await
             } else {
                 router.pop_any_available_task().await
             };
-            
+
             match result {
                 Ok(Some(task)) => {
                     println!("✅");
@@ -143,19 +145,19 @@ impl PopCommand {
                         println!();
                         println!("🔍 VERBOSE ERROR DETAILS:");
                         println!("   → Error type: {:?}", std::any::type_name_of_val(&e));
-                        println!("   → Full error: {:#?}", e);
+                        println!("   → Full error: {e:#?}");
                         println!("   → Error chain:");
                         let mut source = e.source();
                         let mut depth = 1;
                         while let Some(err) = source {
-                            println!("     {}. {}", depth, err);
+                            println!("     {depth}. {err}");
                             source = err.source();
                             depth += 1;
                         }
                         println!();
                     }
-                    
-                    println!("{}", e);
+
+                    println!("{e}");
                     println!();
                     println!("🎯 TASK-SPECIFIC HELP:");
                     println!("   → Check for available: gh issue list --label 'route:ready'");
@@ -163,7 +165,7 @@ impl PopCommand {
                         println!("   → Check assigned to you: gh issue list --assignee @me --label 'route:ready'");
                     }
                     println!("   → Create new task: gh issue create --title 'Your task' --label 'route:ready'");
-                    
+
                     if self.verbose {
                         println!();
                         println!("🔍 VERBOSE TROUBLESHOOTING:");
@@ -171,7 +173,7 @@ impl PopCommand {
                         println!("   → Check GitHub token: ls -la .my-little-soda/credentials/");
                         println!("   → Test API directly: curl -H 'Authorization: token YOUR_TOKEN' https://api.github.com/user");
                     }
-                    
+
                     Err(e.into())
                 }
             }
@@ -186,7 +188,7 @@ impl PopCommand {
 
 fn get_current_git_branch() -> Option<String> {
     Command::new("git")
-        .args(&["branch", "--show-current"])
+        .args(["branch", "--show-current"])
         .output()
         .ok()
         .and_then(|output| {
@@ -207,26 +209,31 @@ fn get_current_git_branch() -> Option<String> {
 async fn bundle_all_branches(auto_approve: bool) -> Result<()> {
     print!("🔍 Scanning for completed agent work... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
-    
+
     // Get all queued branches (overdue and on-schedule) for emergency bundling
     match TrainSchedule::get_queued_branches().await {
         Ok(all_queued_branches) => {
             println!("✅");
-            
+
             if all_queued_branches.is_empty() {
                 println!();
                 println!("📦 No completed work found");
-                println!("   💡 All work is either in progress or no issues have route:review labels");
+                println!(
+                    "   💡 All work is either in progress or no issues have route:review labels"
+                );
                 return Ok(());
             }
-            
+
             println!();
             println!("🚂 EARLY TRAIN DEPARTURE - Emergency bundling all completed work");
-            println!("🔍 Found {} branches with completed work:", all_queued_branches.len());
+            println!(
+                "🔍 Found {} branches with completed work:",
+                all_queued_branches.len()
+            );
             for branch in &all_queued_branches {
                 println!("  • {} - {}", branch.branch_name, branch.description);
             }
-            
+
             println!();
             println!("📋 EMERGENCY BUNDLE PROCESSING PROTOCOL:");
             println!("For each branch, agent will:");
@@ -243,75 +250,84 @@ async fn bundle_all_branches(auto_approve: bool) -> Result<()> {
             println!("- Agent can abort at any step with Ctrl+C");
             println!("- All operations logged for audit");
             println!();
-            
+
             if !auto_approve {
                 print!("Proceed with emergency bundling of all completed work? [y/N]: ");
                 std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                
+
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
                 let input = input.trim().to_lowercase();
-                
+
                 if input != "y" && input != "yes" {
                     println!("❌ Operation cancelled by user");
                     return Ok(());
                 }
             }
-            
-            return process_overdue_branches_interactively(all_queued_branches).await;
+
+            process_overdue_branches_interactively(all_queued_branches).await
         }
         Err(e) => {
-            println!("❌ Could not scan for overdue branches: {:?}", e);
-            return Err(anyhow::anyhow!("Failed to scan overdue branches"));
+            println!("❌ Could not scan for overdue branches: {e:?}");
+            Err(anyhow::anyhow!("Failed to scan overdue branches"))
         }
     }
 }
 
-async fn process_overdue_branches_interactively(overdue_branches: Vec<crate::train_schedule::QueuedBranch>) -> Result<()> {
-    use crate::git::{GitOperations, Git2Operations};
-    
+async fn process_overdue_branches_interactively(
+    overdue_branches: Vec<crate::train_schedule::QueuedBranch>,
+) -> Result<()> {
+    use crate::git::{Git2Operations, GitOperations};
+
     println!();
     println!("🚀 Starting interactive overdue branch processing...");
     println!("═══════════════════════════════════════════════════");
-    
+
     for (index, branch) in overdue_branches.iter().enumerate() {
         println!();
-        println!("🌿 Processing {} ({}/{})...", branch.branch_name, index + 1, overdue_branches.len());
+        println!(
+            "🌿 Processing {} ({}/{})...",
+            branch.branch_name,
+            index + 1,
+            overdue_branches.len()
+        );
         println!("📋 {}", branch.description);
-        
+
         // Step 1: Switch to branch
         println!("Step 1: Switching to branch...");
         let git_ops = match Git2Operations::new(".") {
             Ok(ops) => ops,
             Err(e) => {
-                println!("❌ Failed to initialize git operations: {}", e);
+                println!("❌ Failed to initialize git operations: {e}");
                 continue;
             }
         };
-        
+
         match git_ops.checkout_branch(&branch.branch_name) {
             Ok(()) => {
                 println!("✅ Switched to branch {}", branch.branch_name);
             }
             Err(e) => {
-                println!("❌ Failed to switch to branch: {}", e);
+                println!("❌ Failed to switch to branch: {e}");
                 print!("Continue to next branch? [y/N]: ");
                 std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                
+
                 let mut input = String::new();
-                if std::io::stdin().read_line(&mut input).is_ok() && input.trim().to_lowercase() != "y" {
+                if std::io::stdin().read_line(&mut input).is_ok()
+                    && input.trim().to_lowercase() != "y"
+                {
                     println!("❌ Operation aborted");
                     return Ok(());
                 }
                 continue;
             }
         }
-        
+
         // Continue with the rest of the bundling process...
         // This is a complex function that would need more extraction
         // For now, just indicate the operation was started
         println!("⚠️  Branch processing not fully implemented in refactored version");
     }
-    
+
     Ok(())
 }

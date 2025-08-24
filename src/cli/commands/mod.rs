@@ -1,17 +1,17 @@
-use anyhow::Result;
 use crate::agents::AgentRouter;
+use anyhow::Result;
 
-pub mod pop;
-pub mod route;
-pub mod land;
-pub mod bundle;
-pub mod peek;
-pub mod status;
-pub mod init;
-pub mod reset;
-pub mod metrics;
 pub mod actions;
 pub mod agent;
+pub mod bundle;
+pub mod init;
+pub mod land;
+pub mod metrics;
+pub mod peek;
+pub mod pop;
+pub mod reset;
+pub mod route;
+pub mod status;
 
 pub trait Command {
     async fn execute(&self) -> Result<()>;
@@ -25,14 +25,14 @@ where
 {
     print!("🔄 Connecting to GitHub... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
-    
+
     match AgentRouter::new().await {
         Ok(router) => {
             println!("✅");
             f(router).await
         }
         Err(e) => {
-            println!("❌ Failed to initialize AgentRouter: {:?}", e);
+            println!("❌ Failed to initialize AgentRouter: {e:?}");
             Err(e.into())
         }
     }

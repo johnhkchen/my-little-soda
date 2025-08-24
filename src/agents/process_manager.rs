@@ -3,14 +3,14 @@
 //! This module implements production-grade resource management for Claude Code agent processes,
 //! including memory/CPU limits, health monitoring, and automatic cleanup.
 
+use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use anyhow::{Result, anyhow};
-use serde::{Deserialize, Serialize};
 use tokio::process::{Child, Command};
-use tracing::{info, warn, error, debug};
+use tracing::{debug, error, info, warn};
 
 /// Resource limits for agent processes
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,26 +156,30 @@ impl AgentProcessManager {
             let processes = Arc::clone(&self.processes);
             let system_processes = Arc::clone(&self.system_processes);
             let interval = Duration::from_secs(self.config.monitoring_interval_secs);
-            
+
             self.monitoring_handle = Some(tokio::spawn(async move {
                 Self::monitoring_task(processes, system_processes, interval).await;
             }));
-            
-            info!("Started resource monitoring task with {}s interval", 
-                  self.config.monitoring_interval_secs);
+
+            info!(
+                "Started resource monitoring task with {}s interval",
+                self.config.monitoring_interval_secs
+            );
         }
 
         if self.config.enable_automatic_cleanup {
             let processes = Arc::clone(&self.processes);
             let system_processes = Arc::clone(&self.system_processes);
             let interval = Duration::from_secs(self.config.cleanup_interval_secs);
-            
+
             self.cleanup_handle = Some(tokio::spawn(async move {
                 Self::cleanup_task(processes, system_processes, interval).await;
             }));
-            
-            info!("Started automatic cleanup task with {}s interval", 
-                  self.config.cleanup_interval_secs);
+
+            info!(
+                "Started automatic cleanup task with {}s interval",
+                self.config.cleanup_interval_secs
+            );
         }
     }
 
@@ -188,12 +192,20 @@ impl AgentProcessManager {
         limits: Option<ResourceLimits>,
     ) -> Result<String> {
         let mut processes = self.processes.lock().unwrap();
-        
+
         // Check concurrent agent limit
-        let active_count = processes.values()
-            .filter(|p| matches!(p.status, ProcessStatus::Starting | ProcessStatus::Running { .. } | ProcessStatus::Working { .. }))
+        let active_count = processes
+            .values()
+            .filter(|p| {
+                matches!(
+                    p.status,
+                    ProcessStatus::Starting
+                        | ProcessStatus::Running { .. }
+                        | ProcessStatus::Working { .. }
+                )
+            })
             .count();
-        
+
         if active_count >= self.config.max_concurrent_agents {
             return Err(anyhow!(
                 "Maximum concurrent agents ({}) exceeded. Currently running: {}",
@@ -202,9 +214,9 @@ impl AgentProcessManager {
             ));
         }
 
-        let process_id = format!("{}_{}", agent_id, issue_number);
+        let process_id = format!("{agent_id}_{issue_number}");
         let limits = limits.unwrap_or_else(|| self.config.default_limits.clone());
-        
+
         // Create process record
         let agent_process = AgentProcess {
             process_id: process_id.clone(),
@@ -218,7 +230,7 @@ impl AgentProcessManager {
             resource_usage: ResourceUsage::default(),
             limits: limits.clone(),
         };
-        
+
         processes.insert(process_id.clone(), agent_process);
         drop(processes);
 
@@ -246,7 +258,10 @@ impl AgentProcessManager {
                     .arg("--scope")
                     .arg("--user")
                     .arg(format!("--property=MemoryMax={}M", limits.max_memory_mb))
-                    .arg(format!("--property=CPUQuota={}%", limits.max_cpu_percent as u32))
+                    .arg(format!(
+                        "--property=CPUQuota={}%",
+                        limits.max_cpu_percent as u32
+                    ))
                     .arg(&self.config.claude_code_path)
                     .arg("--issue")
                     .arg(issue_number.to_string())
@@ -258,19 +273,22 @@ impl AgentProcessManager {
         match command.spawn() {
             Ok(child) => {
                 let system_pid = child.id();
-                
+
                 // Update process record with PID
                 let mut processes = self.processes.lock().unwrap();
                 if let Some(process) = processes.get_mut(&process_id) {
                     process.system_pid = system_pid;
-                    process.status = ProcessStatus::Running { 
-                        last_heartbeat: Instant::now() 
+                    process.status = ProcessStatus::Running {
+                        last_heartbeat: Instant::now(),
                     };
                 }
                 drop(processes);
 
                 // Store system process handle
-                self.system_processes.lock().unwrap().insert(process_id.clone(), child);
+                self.system_processes
+                    .lock()
+                    .unwrap()
+                    .insert(process_id.clone(), child);
 
                 info!(
                     agent_id = %agent_id,
@@ -288,14 +306,14 @@ impl AgentProcessManager {
             Err(e) => {
                 // Clean up failed process record
                 self.processes.lock().unwrap().remove(&process_id);
-                
+
                 error!(
                     agent_id = %agent_id,
                     issue_number = %issue_number,
                     error = %e,
                     "Failed to spawn agent process"
                 );
-                
+
                 Err(anyhow!("Failed to spawn agent process: {}", e))
             }
         }
@@ -308,9 +326,16 @@ impl AgentProcessManager {
 
     /// List all active agent processes
     pub fn list_active_processes(&self) -> Vec<AgentProcess> {
-        self.processes.lock().unwrap()
+        self.processes
+            .lock()
+            .unwrap()
             .values()
-            .filter(|p| !matches!(p.status, ProcessStatus::Completed { .. } | ProcessStatus::Failed { .. }))
+            .filter(|p| {
+                !matches!(
+                    p.status,
+                    ProcessStatus::Completed { .. } | ProcessStatus::Failed { .. }
+                )
+            })
             .cloned()
             .collect()
     }
@@ -318,19 +343,28 @@ impl AgentProcessManager {
     /// Get resource usage summary
     pub fn get_resource_summary(&self) -> ResourceSummary {
         let processes = self.processes.lock().unwrap();
-        let active_processes: Vec<_> = processes.values()
-            .filter(|p| matches!(p.status, ProcessStatus::Running { .. } | ProcessStatus::Working { .. }))
+        let active_processes: Vec<_> = processes
+            .values()
+            .filter(|p| {
+                matches!(
+                    p.status,
+                    ProcessStatus::Running { .. } | ProcessStatus::Working { .. }
+                )
+            })
             .collect();
 
-        let total_memory_mb = active_processes.iter()
+        let total_memory_mb = active_processes
+            .iter()
             .map(|p| p.resource_usage.memory_mb)
             .sum();
-        
-        let total_cpu_percent = active_processes.iter()
+
+        let total_cpu_percent = active_processes
+            .iter()
             .map(|p| p.resource_usage.cpu_percent)
             .sum();
-        
-        let total_file_descriptors = active_processes.iter()
+
+        let total_file_descriptors = active_processes
+            .iter()
             .map(|p| p.resource_usage.file_descriptors)
             .sum();
 
@@ -366,7 +400,7 @@ impl AgentProcessManager {
                             .arg(pid.to_string())
                             .output();
                     }
-                    
+
                     // For non-Unix systems or as fallback, we'll rely on the drop handler
                 }
             }
@@ -391,17 +425,23 @@ impl AgentProcessManager {
         interval: Duration,
     ) {
         let mut monitoring_interval = tokio::time::interval(interval);
-        
+
         loop {
             monitoring_interval.tick().await;
-            
+
             let process_ids: Vec<String> = {
                 let processes = processes.lock().unwrap();
                 processes.keys().cloned().collect()
             };
 
             for process_id in process_ids {
-                if let Err(e) = Self::monitor_single_process(Arc::clone(&processes), Arc::clone(&system_processes), &process_id).await {
+                if let Err(e) = Self::monitor_single_process(
+                    Arc::clone(&processes),
+                    Arc::clone(&system_processes),
+                    &process_id,
+                )
+                .await
+                {
                     debug!(
                         process_id = %process_id,
                         error = %e,
@@ -460,9 +500,12 @@ impl AgentProcessManager {
                             limit_mb = %limits.max_memory_mb,
                             "Process exceeds memory limit"
                         );
-                        
+
                         process.status = ProcessStatus::Failed {
-                            error: format!("Memory limit exceeded: {:.1}MB > {}MB", memory_mb, limits.max_memory_mb),
+                            error: format!(
+                                "Memory limit exceeded: {:.1}MB > {}MB",
+                                memory_mb, limits.max_memory_mb
+                            ),
                             failed_at: Instant::now(),
                         };
                     }
@@ -478,7 +521,9 @@ impl AgentProcessManager {
                     }
 
                     // Check timeout
-                    if process.started_at.elapsed() > Duration::from_secs(limits.timeout_minutes * 60) {
+                    if process.started_at.elapsed()
+                        > Duration::from_secs(limits.timeout_minutes * 60)
+                    {
                         warn!(
                             process_id = %process_id,
                             system_pid = %system_pid,
@@ -486,7 +531,7 @@ impl AgentProcessManager {
                             limit_minutes = %limits.timeout_minutes,
                             "Process exceeded timeout"
                         );
-                        
+
                         process.status = ProcessStatus::TimedOut {
                             duration: process.started_at.elapsed(),
                         };
@@ -505,31 +550,35 @@ impl AgentProcessManager {
         interval: Duration,
     ) {
         let mut cleanup_interval = tokio::time::interval(interval);
-        
+
         loop {
             cleanup_interval.tick().await;
-            
+
             let cleanup_candidates: Vec<String> = {
                 let processes = processes.lock().unwrap();
-                processes.iter()
+                processes
+                    .iter()
                     .filter_map(|(id, process)| {
                         match &process.status {
                             ProcessStatus::Completed { completed_at, .. } => {
-                                if completed_at.elapsed() > Duration::from_secs(300) { // 5 minutes
+                                if completed_at.elapsed() > Duration::from_secs(300) {
+                                    // 5 minutes
                                     Some(id.clone())
                                 } else {
                                     None
                                 }
                             }
                             ProcessStatus::Failed { failed_at, .. } => {
-                                if failed_at.elapsed() > Duration::from_secs(600) { // 10 minutes
+                                if failed_at.elapsed() > Duration::from_secs(600) {
+                                    // 10 minutes
                                     Some(id.clone())
                                 } else {
                                     None
                                 }
                             }
                             ProcessStatus::Terminated { terminated_at, .. } => {
-                                if terminated_at.elapsed() > Duration::from_secs(300) { // 5 minutes
+                                if terminated_at.elapsed() > Duration::from_secs(300) {
+                                    // 5 minutes
                                     Some(id.clone())
                                 } else {
                                     None
@@ -547,7 +596,7 @@ impl AgentProcessManager {
                     process_id = %process_id,
                     "Cleaning up completed/failed process"
                 );
-                
+
                 // Remove from tracking
                 processes.lock().unwrap().remove(&process_id);
                 system_processes.lock().unwrap().remove(&process_id);
@@ -558,10 +607,10 @@ impl AgentProcessManager {
     /// Get process memory usage in MB (Linux-specific)
     #[cfg(target_os = "linux")]
     fn get_process_memory_mb(pid: u32) -> Result<f64> {
-        let status_path = format!("/proc/{}/status", pid);
+        let status_path = format!("/proc/{pid}/status");
         let content = std::fs::read_to_string(&status_path)
             .map_err(|_| anyhow!("Process {} not found", pid))?;
-        
+
         for line in content.lines() {
             if line.starts_with("VmRSS:") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
@@ -571,7 +620,7 @@ impl AgentProcessManager {
                 }
             }
         }
-        
+
         Ok(0.0)
     }
 
@@ -580,10 +629,10 @@ impl AgentProcessManager {
     fn get_process_cpu_percent(pid: u32) -> Result<f64> {
         // This is a simplified implementation
         // In production, you'd want to track CPU over time intervals
-        let stat_path = format!("/proc/{}/stat", pid);
+        let stat_path = format!("/proc/{pid}/stat");
         let content = std::fs::read_to_string(&stat_path)
             .map_err(|_| anyhow!("Process {} not found", pid))?;
-        
+
         let parts: Vec<&str> = content.split_whitespace().collect();
         if parts.len() > 13 {
             let _utime: u64 = parts[13].parse().unwrap_or(0);
@@ -591,14 +640,14 @@ impl AgentProcessManager {
             // TODO: Calculate actual CPU percentage using time deltas
             return Ok(0.0); // Placeholder
         }
-        
+
         Ok(0.0)
     }
 
     /// Get process file descriptor count (Linux-specific)
     #[cfg(target_os = "linux")]
     fn get_process_file_descriptors(pid: u32) -> Result<u64> {
-        let fd_dir = format!("/proc/{}/fd", pid);
+        let fd_dir = format!("/proc/{pid}/fd");
         match std::fs::read_dir(&fd_dir) {
             Ok(entries) => Ok(entries.count() as u64),
             Err(_) => Ok(0), // Process may have exited
@@ -607,13 +656,19 @@ impl AgentProcessManager {
 
     // Stub implementations for non-Linux platforms
     #[cfg(not(target_os = "linux"))]
-    fn get_process_memory_mb(_pid: u32) -> Result<f64> { Ok(0.0) }
-    
+    fn get_process_memory_mb(_pid: u32) -> Result<f64> {
+        Ok(0.0)
+    }
+
     #[cfg(not(target_os = "linux"))]
-    fn get_process_cpu_percent(_pid: u32) -> Result<f64> { Ok(0.0) }
-    
+    fn get_process_cpu_percent(_pid: u32) -> Result<f64> {
+        Ok(0.0)
+    }
+
     #[cfg(not(target_os = "linux"))]
-    fn get_process_file_descriptors(_pid: u32) -> Result<u64> { Ok(0) }
+    fn get_process_file_descriptors(_pid: u32) -> Result<u64> {
+        Ok(0)
+    }
 }
 
 /// Resource usage summary

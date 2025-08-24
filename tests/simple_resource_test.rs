@@ -2,13 +2,13 @@
 //!
 //! Basic smoke test to verify the resource management system compiles and runs
 
+use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
-use anyhow::Result;
 
 use my_little_soda::agents::{
-    ProcessLifecycleManager, ProcessLifecycleConfig, ProcessManagerConfig,
-    ResourceLimits, AlertThresholds, LoggingEventHandler,
+    AlertThresholds, LoggingEventHandler, ProcessLifecycleConfig, ProcessLifecycleManager,
+    ProcessManagerConfig, ResourceLimits,
 };
 
 fn create_test_config() -> ProcessLifecycleConfig {
@@ -47,7 +47,10 @@ async fn test_basic_lifecycle_manager() -> Result<()> {
 
     // Get system status (should be empty initially)
     let status = lifecycle_manager.get_system_status();
-    assert_eq!(status.active_process_count, 0, "Should have no active processes initially");
+    assert_eq!(
+        status.active_process_count, 0,
+        "Should have no active processes initially"
+    );
 
     Ok(())
 }
@@ -67,13 +70,15 @@ async fn test_resource_limits() -> Result<()> {
     };
 
     // This should succeed
-    let process_id = lifecycle_manager.spawn_agent(
-        "test_agent",
-        123,
-        "test_branch".to_string(),
-        Some(custom_limits),
-        event_handler.clone(),
-    ).await?;
+    let process_id = lifecycle_manager
+        .spawn_agent(
+            "test_agent",
+            123,
+            "test_branch".to_string(),
+            Some(custom_limits),
+            event_handler.clone(),
+        )
+        .await?;
 
     // Verify process ID format
     assert!(process_id.contains("test_agent"));
@@ -82,7 +87,7 @@ async fn test_resource_limits() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test] 
+#[tokio::test]
 async fn test_system_status() -> Result<()> {
     let config = create_test_config();
     let mut lifecycle_manager = ProcessLifecycleManager::new(config).await?;
@@ -95,13 +100,15 @@ async fn test_system_status() -> Result<()> {
     assert_eq!(initial_status.active_process_count, 0);
 
     // Spawn an agent
-    let _process_id = lifecycle_manager.spawn_agent(
-        "status_test",
-        456,
-        "status_branch".to_string(),
-        None,
-        event_handler.clone(),
-    ).await?;
+    let _process_id = lifecycle_manager
+        .spawn_agent(
+            "status_test",
+            456,
+            "status_branch".to_string(),
+            None,
+            event_handler.clone(),
+        )
+        .await?;
 
     // Check status again
     let status = lifecycle_manager.get_system_status();
@@ -121,23 +128,27 @@ async fn test_concurrent_agent_limit() -> Result<()> {
 
     // Should be able to spawn up to the limit
     for i in 0..2 {
-        let _process_id = lifecycle_manager.spawn_agent(
-            &format!("agent{}", i),
-            100 + i as u64,
-            format!("branch{}", i),
-            None,
-            event_handler.clone(),
-        ).await?;
+        let _process_id = lifecycle_manager
+            .spawn_agent(
+                &format!("agent{}", i),
+                100 + i as u64,
+                format!("branch{}", i),
+                None,
+                event_handler.clone(),
+            )
+            .await?;
     }
 
     // Third spawn should fail
-    let result = lifecycle_manager.spawn_agent(
-        "agent_overflow",
-        999,
-        "overflow_branch".to_string(),
-        None,
-        event_handler.clone(),
-    ).await;
+    let result = lifecycle_manager
+        .spawn_agent(
+            "agent_overflow",
+            999,
+            "overflow_branch".to_string(),
+            None,
+            event_handler.clone(),
+        )
+        .await;
 
     assert!(result.is_err());
 

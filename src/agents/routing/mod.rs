@@ -1,9 +1,9 @@
 pub mod assignment;
-pub mod filters;
-pub mod decisions;
 pub mod coordination;
+pub mod decisions;
+pub mod filters;
 
 pub use assignment::*;
-pub use filters::*;
-pub use decisions::*;
 pub use coordination::*;
+pub use decisions::*;
+pub use filters::*;

@@ -1,5 +1,5 @@
-use octocrab::Octocrab;
 use super::errors::GitHubError;
+use octocrab::Octocrab;
 
 /// Handler for GitHub issue operations
 #[derive(Debug, Clone)]
@@ -24,46 +24,61 @@ impl IssueHandler {
     }
 
     /// Fetch issues with specific state
-    pub async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
-        let issues = self.octocrab
+    pub async fn fetch_issues_with_state(
+        &self,
+        state: Option<octocrab::params::State>,
+    ) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
+        let issues = self
+            .octocrab
             .issues(&self.owner, &self.repo)
             .list()
             .state(state.unwrap_or(octocrab::params::State::Open))
             .send()
             .await?;
-            
+
         Ok(issues.items)
     }
 
     /// Fetch a specific issue by number
-    pub async fn fetch_issue(&self, issue_number: u64) -> Result<octocrab::models::issues::Issue, GitHubError> {
-        let issue = self.octocrab
+    pub async fn fetch_issue(
+        &self,
+        issue_number: u64,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError> {
+        let issue = self
+            .octocrab
             .issues(&self.owner, &self.repo)
             .get(issue_number)
             .await?;
-            
+
         Ok(issue)
     }
 
     /// Assign an issue to a user
-    pub async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<octocrab::models::issues::Issue, GitHubError> {
+    pub async fn assign_issue(
+        &self,
+        issue_number: u64,
+        assignee: &str,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError> {
         // Simplified retry for MVP - focus on getting the core functionality working
         let mut attempts = 0;
         const MAX_ATTEMPTS: u32 = 3;
-        
+
         loop {
             attempts += 1;
-            
-            match self.octocrab
+
+            match self
+                .octocrab
                 .issues(&self.owner, &self.repo)
                 .update(issue_number)
                 .assignees(&[assignee.to_string()])
                 .send()
-                .await {
+                .await
+            {
                 Ok(issue) => return Ok(issue),
                 Err(e) if attempts < MAX_ATTEMPTS => {
                     tracing::warn!("GitHub API call failed (attempt {}): {:?}", attempts, e);
-                    tokio::time::sleep(std::time::Duration::from_millis(500 * attempts as u64)).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(500 * attempts as u64))
+                        .await;
                     continue;
                 }
                 Err(e) => return Err(GitHubError::from(e)),
@@ -72,7 +87,11 @@ impl IssueHandler {
     }
 
     /// Add a label to an issue
-    pub async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
+    pub async fn add_label_to_issue(
+        &self,
+        issue_number: u64,
+        label: &str,
+    ) -> Result<(), GitHubError> {
         self.octocrab
             .issues(&self.owner, &self.repo)
             .add_labels(issue_number, &[label.to_string()])
@@ -97,8 +116,14 @@ impl IssueHandler {
     }
 
     /// Create a new issue
-    pub async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError> {
-        let issue = self.octocrab
+    pub async fn create_issue(
+        &self,
+        title: &str,
+        body: &str,
+        labels: Vec<String>,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError> {
+        let issue = self
+            .octocrab
             .issues(&self.owner, &self.repo)
             .create(title)
             .body(body)
@@ -106,14 +131,18 @@ impl IssueHandler {
             .send()
             .await
             .map_err(GitHubError::ApiError)?;
-        
+
         println!("✅ Created issue #{}: {}", issue.number, title);
         Ok(issue)
     }
 
     /// Check if an issue has an open PR that references it
     /// Returns true if the issue has an open PR WITHOUT route:ready_to_merge label
-    pub async fn issue_has_blocking_pr(&self, issue_number: u64, open_prs: &[octocrab::models::pulls::PullRequest]) -> Result<bool, GitHubError> {
+    pub async fn issue_has_blocking_pr(
+        &self,
+        issue_number: u64,
+        open_prs: &[octocrab::models::pulls::PullRequest],
+    ) -> Result<bool, GitHubError> {
         use regex::Regex;
         use std::sync::OnceLock;
 
@@ -126,14 +155,14 @@ impl IssueHandler {
                 // Compile the regex patterns once and cache them
                 let patterns = [
                     r"(?i)fixes\s+#(\d+)",
-                    r"(?i)closes\s+#(\d+)", 
+                    r"(?i)closes\s+#(\d+)",
                     r"(?i)resolves\s+#(\d+)",
                     r"(?i)fix\s+#(\d+)",
                     r"(?i)close\s+#(\d+)",
                     r"(?i)resolve\s+#(\d+)",
                     r"#(\d+)", // Simple reference
                 ];
-                
+
                 patterns
                     .iter()
                     .filter_map(|pattern| Regex::new(pattern).ok())
@@ -145,7 +174,7 @@ impl IssueHandler {
         fn pr_references_issue(body: &str, issue_number: u64) -> bool {
             let patterns = get_issue_reference_patterns();
             let issue_str = issue_number.to_string();
-            
+
             for pattern in patterns {
                 if let Some(captures) = pattern.captures(body) {
                     if let Some(captured_number) = captures.get(1) {
@@ -157,16 +186,22 @@ impl IssueHandler {
             }
             false
         }
-        
+
         for pr in open_prs {
             // Check if this PR references the issue number using optimized regex patterns
             if let Some(body) = &pr.body {
                 if pr_references_issue(body, issue_number) {
                     // Check if this PR has route:ready_to_merge label
-                    let has_route_ready_to_merge = pr.labels.as_ref()
-                        .map(|labels| labels.iter().any(|label| label.name == "route:ready_to_merge"))
+                    let has_route_ready_to_merge = pr
+                        .labels
+                        .as_ref()
+                        .map(|labels| {
+                            labels
+                                .iter()
+                                .any(|label| label.name == "route:ready_to_merge")
+                        })
                         .unwrap_or(false);
-                    
+
                     // If PR references the issue but doesn't have route:ready_to_merge, it's blocking
                     if !has_route_ready_to_merge {
                         return Ok(true);
@@ -174,7 +209,7 @@ impl IssueHandler {
                 }
             }
         }
-        
+
         Ok(false)
     }
 }
