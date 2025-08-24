@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::agents::AgentCoordinator;
-use crate::github::{GitHubClient, GitHubActions, WorkflowStatus};
+use crate::github::{GitHubActions, GitHubClient, WorkflowStatus};
+use anyhow::Result;
 // info and warn imports removed - unused
 
 pub struct ActionsCommand {
@@ -76,7 +76,15 @@ impl ActionsCommand {
         print!("🎯 Triggering GitHub Actions bundling workflow... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        match coordinator.trigger_bundling_workflow_with_ci_mode(self.force, self.dry_run, self.verbose, self.ci_mode).await {
+        match coordinator
+            .trigger_bundling_workflow_with_ci_mode(
+                self.force,
+                self.dry_run,
+                self.verbose,
+                self.ci_mode,
+            )
+            .await
+        {
             Ok(_) => {
                 println!("✅");
                 println!();
@@ -85,11 +93,11 @@ impl ActionsCommand {
                 if !self.force {
                     println!("⏰ Workflow will respect train schedule unless forced");
                 }
-            },
+            }
             Err(e) => {
                 println!("❌");
                 println!();
-                println!("❌ Failed to trigger workflow: {}", e);
+                println!("❌ Failed to trigger workflow: {e}");
                 return Err(e.into());
             }
         }
@@ -107,7 +115,11 @@ impl ActionsCommand {
         print!("🔍 Fetching recent workflow runs... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        match client.actions.get_workflow_runs("clambake-bundling.yml", Some(5)).await {
+        match client
+            .actions
+            .get_workflow_runs("clambake-bundling.yml", Some(5))
+            .await
+        {
             Ok(runs) => {
                 println!("✅");
                 println!();
@@ -122,14 +134,12 @@ impl ActionsCommand {
 
                 for (i, run) in runs.iter().enumerate() {
                     let status_icon = match run.status {
-                        WorkflowStatus::Completed => {
-                            match run.conclusion.as_deref() {
-                                Some("success") => "✅",
-                                Some("failure") => "❌",
-                                Some("cancelled") => "🚫",
-                                Some("skipped") => "⏭️",
-                                _ => "❓",
-                            }
+                        WorkflowStatus::Completed => match run.conclusion.as_deref() {
+                            Some("success") => "✅",
+                            Some("failure") => "❌",
+                            Some("cancelled") => "🚫",
+                            Some("skipped") => "⏭️",
+                            _ => "❓",
                         },
                         WorkflowStatus::InProgress => "🔄",
                         WorkflowStatus::Queued => "⏳",
@@ -139,28 +149,36 @@ impl ActionsCommand {
                         WorkflowStatus::Unknown(_) => "❓",
                     };
 
-                    println!("{}. {} {} (ID: {})", 
-                             i + 1, 
-                             status_icon, 
-                             run.workflow_name,
-                             run.id);
-                    println!("   📅 Created: {}", run.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
-                    println!("   📅 Updated: {}", run.updated_at.format("%Y-%m-%d %H:%M:%S UTC"));
+                    println!(
+                        "{}. {} {} (ID: {})",
+                        i + 1,
+                        status_icon,
+                        run.workflow_name,
+                        run.id
+                    );
+                    println!(
+                        "   📅 Created: {}",
+                        run.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
+                    println!(
+                        "   📅 Updated: {}",
+                        run.updated_at.format("%Y-%m-%d %H:%M:%S UTC")
+                    );
                     println!("   🔗 URL: {}", run.html_url);
-                    
+
                     if let Some(conclusion) = &run.conclusion {
-                        println!("   🎯 Conclusion: {}", conclusion);
+                        println!("   🎯 Conclusion: {conclusion}");
                     }
-                    
+
                     println!();
                 }
 
                 println!("💡 Use --logs --run-id <ID> to view logs for a specific run");
-            },
+            }
             Err(e) => {
                 println!("❌");
                 println!();
-                println!("❌ Failed to fetch workflow runs: {}", e);
+                println!("❌ Failed to fetch workflow runs: {e}");
                 return Err(e.into());
             }
         }
@@ -192,20 +210,26 @@ impl ActionsCommand {
                 println!("   📛 Name: {}", run.workflow_name);
                 println!("   📊 Status: {:?}", run.status);
                 if let Some(conclusion) = &run.conclusion {
-                    println!("   🎯 Conclusion: {}", conclusion);
+                    println!("   🎯 Conclusion: {conclusion}");
                 }
-                println!("   📅 Created: {}", run.created_at.format("%Y-%m-%d %H:%M:%S UTC"));
-                println!("   📅 Updated: {}", run.updated_at.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "   📅 Created: {}",
+                    run.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+                );
+                println!(
+                    "   📅 Updated: {}",
+                    run.updated_at.format("%Y-%m-%d %H:%M:%S UTC")
+                );
                 println!("   🔗 URL: {}", run.html_url);
                 println!();
 
                 println!("💡 For detailed logs, visit the workflow URL above in your browser");
                 println!("🔧 GitHub API doesn't provide direct log access, but the web interface shows full logs");
-            },
+            }
             Err(e) => {
                 println!("❌");
                 println!();
-                println!("❌ Failed to fetch workflow run: {}", e);
+                println!("❌ Failed to fetch workflow run: {e}");
                 return Err(e.into());
             }
         }
@@ -233,7 +257,9 @@ impl ActionsCommand {
         println!("  clambake actions --logs --run-id 12345");
         println!();
         println!("💡 The bundling workflow runs automatically every 10 minutes");
-        println!("🔗 View workflows: https://github.com/{}/clambake/actions", 
-                 std::env::var("GITHUB_REPOSITORY_OWNER").unwrap_or_else(|_| "your-org".to_string()));
+        println!(
+            "🔗 View workflows: https://github.com/{}/clambake/actions",
+            std::env::var("GITHUB_REPOSITORY_OWNER").unwrap_or_else(|_| "your-org".to_string())
+        );
     }
 }

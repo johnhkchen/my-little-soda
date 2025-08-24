@@ -1,6 +1,6 @@
-use tracing::{info, warn};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
+use tracing::{info, warn};
 
 /// GitHub API usage metrics
 #[derive(Debug, Default)]
@@ -71,8 +71,8 @@ pub struct GitHubApiStats {
 }
 
 /// Global metrics instance
-static GITHUB_METRICS: std::sync::LazyLock<GitHubApiMetrics> = 
-    std::sync::LazyLock::new(|| GitHubApiMetrics::new());
+static GITHUB_METRICS: std::sync::LazyLock<GitHubApiMetrics> =
+    std::sync::LazyLock::new(GitHubApiMetrics::new);
 
 pub fn github_metrics() -> &'static GitHubApiMetrics {
     &GITHUB_METRICS

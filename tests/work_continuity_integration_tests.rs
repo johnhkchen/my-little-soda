@@ -7,21 +7,17 @@
 mod tests {
     use anyhow::Result;
     use tempfile::TempDir;
-    
+
     use std::path::PathBuf;
     use std::time::Duration;
-    
 
     use my_little_soda::{
-        GitHubClient,
         agent_lifecycle::AgentStateMachine,
         autonomous::{
+            CheckpointReason, PersistenceConfig, ResumeAction, WorkContinuityConfig,
             WorkContinuityManager,
-            WorkContinuityConfig,
-            PersistenceConfig,
-            ResumeAction,
-            CheckpointReason,
         },
+        GitHubClient,
     };
 
     fn create_test_configs(temp_dir: &TempDir) -> (WorkContinuityConfig, PersistenceConfig) {
@@ -53,7 +49,7 @@ mod tests {
     async fn test_work_continuity_basic_checkpoint_recovery() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let (continuity_config, persistence_config) = create_test_configs(&temp_dir);
-        
+
         // Create GitHub client (using environment token if available)
         let github_client = match GitHubClient::new() {
             Ok(client) => client,
@@ -77,18 +73,16 @@ mod tests {
 
             // Simulate agent work state
             let mut agent_state = AgentStateMachine::new(agent_id.to_string());
-            
+
             // Simulate assignment to issue (manually set state)
             agent_state.current_issue = Some(123);
             agent_state.current_branch = Some(format!("{}/123-test-issue", agent_id));
             agent_state.commits_ahead = 2;
 
             // Checkpoint the state
-            let checkpoint_id = continuity_manager.checkpoint_state(
-                &agent_state,
-                None,
-                CheckpointReason::UserRequested,
-            ).await?;
+            let checkpoint_id = continuity_manager
+                .checkpoint_state(&agent_state, None, CheckpointReason::UserRequested)
+                .await?;
 
             assert!(!checkpoint_id.is_empty());
             println!("Created checkpoint: {}", checkpoint_id);
@@ -104,9 +98,13 @@ mod tests {
 
             // Attempt recovery
             let resume_action = continuity_manager.recover_from_checkpoint(agent_id).await?;
-            
+
             match resume_action {
-                Some(ResumeAction::ContinueWork { issue, branch, last_progress }) => {
+                Some(ResumeAction::ContinueWork {
+                    issue,
+                    branch,
+                    last_progress,
+                }) => {
                     println!("Successfully recovered work:");
                     println!("  Issue: {}", issue.number);
                     println!("  Branch: {}", branch);
@@ -135,7 +133,7 @@ mod tests {
     async fn test_work_continuity_state_validation() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let (continuity_config, persistence_config) = create_test_configs(&temp_dir);
-        
+
         let github_client = match GitHubClient::new() {
             Ok(client) => client,
             Err(_) => {
@@ -145,11 +143,8 @@ mod tests {
         };
 
         let agent_id = "test-agent-002";
-        let mut continuity_manager = WorkContinuityManager::new(
-            continuity_config,
-            github_client,
-            persistence_config,
-        );
+        let mut continuity_manager =
+            WorkContinuityManager::new(continuity_config, github_client, persistence_config);
 
         continuity_manager.initialize(agent_id).await?;
 
@@ -166,10 +161,10 @@ mod tests {
     async fn test_work_continuity_old_state_handling() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let (mut continuity_config, persistence_config) = create_test_configs(&temp_dir);
-        
+
         // Set very short timeout for testing
         continuity_config.force_fresh_start_after_hours = 0; // Force immediate expiration
-        
+
         let github_client = match GitHubClient::new() {
             Ok(client) => client,
             Err(_) => {
@@ -191,11 +186,9 @@ mod tests {
             continuity_manager.initialize(agent_id).await?;
 
             let agent_state = AgentStateMachine::new(agent_id.to_string());
-            let _checkpoint_id = continuity_manager.checkpoint_state(
-                &agent_state,
-                None,
-                CheckpointReason::PeriodicSave,
-            ).await?;
+            let _checkpoint_id = continuity_manager
+                .checkpoint_state(&agent_state, None, CheckpointReason::PeriodicSave)
+                .await?;
         }
 
         // Wait a moment to ensure timestamp difference
@@ -203,14 +196,11 @@ mod tests {
 
         // Phase 2: Try to recover with expired state
         {
-            let continuity_manager = WorkContinuityManager::new(
-                continuity_config,
-                github_client,
-                persistence_config,
-            );
+            let continuity_manager =
+                WorkContinuityManager::new(continuity_config, github_client, persistence_config);
 
             let resume_action = continuity_manager.recover_from_checkpoint(agent_id).await?;
-            
+
             match resume_action {
                 Some(ResumeAction::StartFresh { reason }) => {
                     println!("Correctly determined fresh start needed: {}", reason);
@@ -230,10 +220,10 @@ mod tests {
     async fn test_work_continuity_disabled() -> Result<()> {
         let temp_dir = TempDir::new()?;
         let (mut continuity_config, persistence_config) = create_test_configs(&temp_dir);
-        
+
         // Disable continuity
         continuity_config.enable_continuity = false;
-        
+
         let github_client = match GitHubClient::new() {
             Ok(client) => client,
             Err(_) => {
@@ -243,23 +233,18 @@ mod tests {
         };
 
         let agent_id = "test-agent-004";
-        let mut continuity_manager = WorkContinuityManager::new(
-            continuity_config,
-            github_client,
-            persistence_config,
-        );
+        let mut continuity_manager =
+            WorkContinuityManager::new(continuity_config, github_client, persistence_config);
 
         // Initialization should succeed but do nothing
         continuity_manager.initialize(agent_id).await?;
 
         // Checkpoint should return disabled indicator
         let agent_state = AgentStateMachine::new(agent_id.to_string());
-        let checkpoint_id = continuity_manager.checkpoint_state(
-            &agent_state,
-            None,
-            CheckpointReason::UserRequested,
-        ).await?;
-        
+        let checkpoint_id = continuity_manager
+            .checkpoint_state(&agent_state, None, CheckpointReason::UserRequested)
+            .await?;
+
         assert_eq!(checkpoint_id, "continuity_disabled");
 
         // Recovery should return None
@@ -274,11 +259,11 @@ mod tests {
         // Test with invalid directory permissions (if possible on the system)
         let temp_dir = TempDir::new()?;
         let (mut continuity_config, mut persistence_config) = create_test_configs(&temp_dir);
-        
+
         // Set invalid paths
         continuity_config.state_file_path = PathBuf::from("/invalid/nonexistent/path/state.json");
         persistence_config.persistence_directory = PathBuf::from("/invalid/nonexistent/path");
-        
+
         let github_client = match GitHubClient::new() {
             Ok(client) => client,
             Err(_) => {
@@ -288,11 +273,8 @@ mod tests {
         };
 
         let agent_id = "test-agent-005";
-        let mut continuity_manager = WorkContinuityManager::new(
-            continuity_config,
-            github_client,
-            persistence_config,
-        );
+        let mut continuity_manager =
+            WorkContinuityManager::new(continuity_config, github_client, persistence_config);
 
         // Initialization should handle errors gracefully
         let init_result = continuity_manager.initialize(agent_id).await;

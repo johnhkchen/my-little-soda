@@ -1,9 +1,12 @@
-use anyhow::{Result, anyhow};
-use std::path::Path;
-use std::fs;
-use octocrab::Octocrab;
-use crate::config::{MyLittleSodaConfig, GitHubConfig, ObservabilityConfig, AgentConfig, DatabaseConfig, RateLimitConfig, BundleConfig, AgentProcessConfig, CIModeConfig, WorkContinuityConfig};
+use crate::config::{
+    AgentConfig, AgentProcessConfig, BundleConfig, CIModeConfig, DatabaseConfig, GitHubConfig,
+    MyLittleSodaConfig, ObservabilityConfig, RateLimitConfig, WorkContinuityConfig,
+};
 use crate::github::client::GitHubClient;
+use anyhow::{anyhow, Result};
+use octocrab::Octocrab;
+use std::fs;
+use std::path::Path;
 // GitHubError import removed - unused
 
 pub struct InitCommand {
@@ -45,11 +48,11 @@ impl InitCommand {
         }
         println!("====================================================");
         println!();
-        
+
         println!("⚙️  Configuration:");
         println!("   🤖 Agents: {}", self.agents);
         if let Some(template) = &self.template {
-            println!("   📋 Template: {}", template);
+            println!("   📋 Template: {template}");
         }
         println!("   🔄 Force: {}", self.force);
         println!("   🔍 Dry run: {}", self.dry_run);
@@ -57,7 +60,10 @@ impl InitCommand {
 
         // Validate input parameters
         if self.agents == 0 || self.agents > 12 {
-            return Err(anyhow!("Number of agents must be between 1 and 12, got: {}", self.agents));
+            return Err(anyhow!(
+                "Number of agents must be between 1 and 12, got: {}",
+                self.agents
+            ));
         }
 
         // Phase 1: Validation
@@ -66,7 +72,7 @@ impl InitCommand {
         self.validate_environment().await?;
         println!();
 
-        // Phase 2: Label Setup  
+        // Phase 2: Label Setup
         println!("Phase 2: Label Setup");
         println!("──────────────────");
         self.setup_labels().await?;
@@ -96,7 +102,7 @@ impl InitCommand {
         println!("   • my-little-soda pop      # Claim your first task");
         println!("   • clambake status   # Check system status");
         println!("   • gh issue create --title 'Your task' --label 'route:ready'");
-        
+
         Ok(())
     }
 
@@ -104,17 +110,25 @@ impl InitCommand {
         // Check GitHub CLI authentication
         print!("✅ Verifying GitHub CLI authentication... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
+
         if !self.dry_run {
             let output = tokio::process::Command::new("gh")
-                .args(&["auth", "status"])
+                .args(["auth", "status"])
                 .output()
                 .await
-                .map_err(|e| anyhow!("Failed to run 'gh auth status': {}. Make sure GitHub CLI is installed.", e))?;
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to run 'gh auth status': {}. Make sure GitHub CLI is installed.",
+                        e
+                    )
+                })?;
 
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(anyhow!("GitHub CLI not authenticated: {}. Run 'gh auth login' first.", stderr));
+                return Err(anyhow!(
+                    "GitHub CLI not authenticated: {}. Run 'gh auth login' first.",
+                    stderr
+                ));
             }
         }
         println!("✅");
@@ -122,22 +136,36 @@ impl InitCommand {
         // Check repository write permissions
         print!("✅ Checking repository write permissions... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
+
         if !self.dry_run {
             let github_client = GitHubClient::new()
                 .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
-            
+
             // Test permissions by trying to fetch repository info
             let octocrab = Octocrab::builder()
-                .personal_token(std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?)
+                .personal_token(
+                    std::env::var("GITHUB_TOKEN")
+                        .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
+                )
                 .build()?;
-            
-            let repo = octocrab.repos(github_client.owner(), github_client.repo())
+
+            let repo = octocrab
+                .repos(github_client.owner(), github_client.repo())
                 .get()
                 .await
-                .map_err(|e| anyhow!("Failed to access repository: {}. Check your GitHub token permissions.", e))?;
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to access repository: {}. Check your GitHub token permissions.",
+                        e
+                    )
+                })?;
 
-            if !repo.permissions.as_ref().map(|p| p.admin || p.push).unwrap_or(false) {
+            if !repo
+                .permissions
+                .as_ref()
+                .map(|p| p.admin || p.push)
+                .unwrap_or(false)
+            {
                 return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
             }
         }
@@ -146,10 +174,10 @@ impl InitCommand {
         // Ensure git repository is clean
         print!("✅ Checking git repository status... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
+
         if !self.dry_run {
             let output = tokio::process::Command::new("git")
-                .args(&["status", "--porcelain"])
+                .args(["status", "--porcelain"])
                 .output()
                 .await
                 .map_err(|e| anyhow!("Failed to check git status: {}", e))?;
@@ -158,7 +186,9 @@ impl InitCommand {
                 println!("⚠️");
                 println!("   Warning: Repository has uncommitted changes.");
                 if !self.force {
-                    return Err(anyhow!("Repository has uncommitted changes. Use --force to proceed anyway."));
+                    return Err(anyhow!(
+                        "Repository has uncommitted changes. Use --force to proceed anyway."
+                    ));
                 }
                 println!("   Proceeding due to --force flag.");
             } else {
@@ -173,32 +203,41 @@ impl InitCommand {
 
     async fn setup_labels(&self) -> Result<()> {
         let labels = self.get_required_labels();
-        
+
         if self.dry_run {
             println!("Would create {} labels:", labels.len());
             for label in &labels {
-                println!("  🏷️  {} (#{}) - {}", label.name, label.color, label.description);
+                println!(
+                    "  🏷️  {} (#{}) - {}",
+                    label.name, label.color, label.description
+                );
             }
             return Ok(());
         }
 
-        let github_client = GitHubClient::new()
-            .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
+        let github_client =
+            GitHubClient::new().map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
         let octocrab = Octocrab::builder()
-            .personal_token(std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?)
+            .personal_token(
+                std::env::var("GITHUB_TOKEN")
+                    .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
+            )
             .build()?;
 
         for label in &labels {
             print!("🏷️  Creating label '{}' ", label.name);
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
-            
-            match octocrab.issues(github_client.owner(), github_client.repo())
+
+            match octocrab
+                .issues(github_client.owner(), github_client.repo())
                 .create_label(&label.name, &label.color, &label.description)
-                .await 
+                .await
             {
                 Ok(_) => println!("✅"),
-                Err(octocrab::Error::GitHub { source, .. }) if source.message.contains("already_exists") => {
+                Err(octocrab::Error::GitHub { source, .. })
+                    if source.message.contains("already_exists") =>
+                {
                     println!("⚠️ (already exists)");
                 }
                 Err(e) => {
@@ -273,20 +312,24 @@ impl InitCommand {
             LabelSpec {
                 name: "code-quality".to_string(),
                 color: "d4c5f9".to_string(),
-                description: "Code quality improvements, refactoring, and technical debt reduction".to_string(),
+                description: "Code quality improvements, refactoring, and technical debt reduction"
+                    .to_string(),
             },
         ]
     }
 
     async fn generate_configuration(&self) -> Result<()> {
         let config_path = "clambake.toml";
-        
+
         if Path::new(config_path).exists() && !self.force {
-            return Err(anyhow!("Configuration file {} already exists. Use --force to overwrite.", config_path));
+            return Err(anyhow!(
+                "Configuration file {} already exists. Use --force to overwrite.",
+                config_path
+            ));
         }
 
         if self.dry_run {
-            println!("Would create configuration file: {}", config_path);
+            println!("Would create configuration file: {config_path}");
             println!("Would create directory: .clambake/");
             return Ok(());
         }
@@ -294,17 +337,18 @@ impl InitCommand {
         // Create .clambake directory
         print!("📁 Creating .clambake directory... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
-        fs::create_dir_all(".clambake/credentials").map_err(|e| anyhow!("Failed to create .clambake directory: {}", e))?;
+
+        fs::create_dir_all(".clambake/credentials")
+            .map_err(|e| anyhow!("Failed to create .clambake directory: {}", e))?;
         println!("✅");
 
         // Detect repository information
         let (owner, repo) = self.detect_repository_info().await?;
-        
+
         // Generate configuration
         print!("⚙️  Generating clambake.toml... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
+
         let config = MyLittleSodaConfig {
             github: GitHubConfig {
                 token: None, // Will be read from env var
@@ -352,7 +396,8 @@ impl InitCommand {
             }),
         };
 
-        config.save_to_file(config_path)
+        config
+            .save_to_file(config_path)
             .map_err(|e| anyhow!("Failed to save configuration: {}", e))?;
         println!("✅");
 
@@ -361,7 +406,7 @@ impl InitCommand {
 
     async fn detect_repository_info(&self) -> Result<(String, String)> {
         let output = tokio::process::Command::new("git")
-            .args(&["remote", "get-url", "origin"])
+            .args(["remote", "get-url", "origin"])
             .output()
             .await
             .map_err(|e| anyhow!("Failed to get git remote URL: {}", e))?;
@@ -371,15 +416,19 @@ impl InitCommand {
         }
 
         let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        
+
         // Parse GitHub URL (supports both SSH and HTTPS)
-        let (owner, repo) = if let Some(captures) = regex::Regex::new(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$")
-            .unwrap()
-            .captures(&remote_url) 
+        let (owner, repo) = if let Some(captures) =
+            regex::Regex::new(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$")
+                .unwrap()
+                .captures(&remote_url)
         {
             (captures[1].to_string(), captures[2].to_string())
         } else {
-            return Err(anyhow!("Could not parse GitHub repository from remote URL: {}", remote_url));
+            return Err(anyhow!(
+                "Could not parse GitHub repository from remote URL: {}",
+                remote_url
+            ));
         };
 
         Ok((owner, repo))
@@ -387,18 +436,21 @@ impl InitCommand {
 
     async fn setup_agents(&self) -> Result<()> {
         if self.dry_run {
-            println!("Would configure {} agents with capacity settings", self.agents);
+            println!(
+                "Would configure {} agents with capacity settings",
+                self.agents
+            );
             println!("Would create agent state tracking");
             return Ok(());
         }
 
         print!("🤖 Configuring agent capacity ({} agents)... ", self.agents);
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
+
         // Create agent working directories
         fs::create_dir_all(".clambake/agents")
             .map_err(|e| anyhow!("Failed to create agent directories: {}", e))?;
-        
+
         println!("✅");
 
         Ok(())
@@ -415,10 +467,10 @@ impl InitCommand {
         // Test GitHub API connectivity
         print!("✅ Testing GitHub API connectivity... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
-        let github_client = GitHubClient::new()
-            .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
-        
+
+        let github_client =
+            GitHubClient::new().map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
+
         // Try to fetch a few issues to test API access
         match github_client.fetch_issues().await {
             Ok(_) => println!("✅"),
@@ -428,7 +480,7 @@ impl InitCommand {
         // Verify configuration is loadable
         print!("✅ Verifying configuration is loadable... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
+
         let _config = crate::config::MyLittleSodaConfig::load()
             .map_err(|e| anyhow!("Generated configuration is invalid: {}", e))?;
         println!("✅");
@@ -436,7 +488,7 @@ impl InitCommand {
         // Basic routing test
         print!("✅ Running basic routing test... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
-        
+
         // This is a simple test - just verify we can create an agent router
         match crate::agents::AgentRouter::new().await {
             Ok(_) => println!("✅"),

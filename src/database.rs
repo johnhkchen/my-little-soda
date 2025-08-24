@@ -1,9 +1,9 @@
 #[cfg(feature = "database")]
-use sqlx::{SqlitePool, migrate::MigrateDatabase, Row};
-#[cfg(feature = "database")]
 use anyhow::Result;
 #[cfg(feature = "database")]
-use tracing::{info};
+use sqlx::{migrate::MigrateDatabase, Row, SqlitePool};
+#[cfg(feature = "database")]
+use tracing::info;
 
 #[cfg(feature = "database")]
 /// Database manager for persistent state storage
@@ -23,7 +23,7 @@ impl DatabaseManager {
 
         // Connect to database
         let pool = SqlitePool::connect(database_url).await?;
-        
+
         // Run migrations if enabled
         if auto_migrate {
             info!("Running database migrations...");
@@ -40,12 +40,17 @@ impl DatabaseManager {
     }
 
     /// Store agent coordination state
-    pub async fn store_agent_state(&self, agent_id: &str, issue_number: u64, state: &str) -> Result<()> {
+    pub async fn store_agent_state(
+        &self,
+        agent_id: &str,
+        issue_number: u64,
+        state: &str,
+    ) -> Result<()> {
         sqlx::query(
             r#"
             INSERT OR REPLACE INTO agent_states (agent_id, issue_number, state, updated_at)
             VALUES (?1, ?2, ?3, datetime('now'))
-            "#
+            "#,
         )
         .bind(agent_id)
         .bind(issue_number as i64)
@@ -61,11 +66,11 @@ impl DatabaseManager {
         let row = sqlx::query(
             r#"
             SELECT agent_id, issue_number, state, updated_at
-            FROM agent_states 
+            FROM agent_states
             WHERE agent_id = ?1
             ORDER BY updated_at DESC
             LIMIT 1
-            "#
+            "#,
         )
         .bind(agent_id)
         .fetch_optional(&self.pool)
@@ -76,7 +81,7 @@ impl DatabaseManager {
             let issue_number: i64 = row.get("issue_number");
             let state: String = row.get("state");
             let updated_at: String = row.get("updated_at");
-            
+
             Ok(Some(AgentState {
                 agent_id,
                 issue_number: issue_number as u64,
@@ -89,12 +94,17 @@ impl DatabaseManager {
     }
 
     /// Store bundle processing state
-    pub async fn store_bundle_state(&self, bundle_id: &str, state: &str, metadata: Option<&str>) -> Result<()> {
+    pub async fn store_bundle_state(
+        &self,
+        bundle_id: &str,
+        state: &str,
+        metadata: Option<&str>,
+    ) -> Result<()> {
         sqlx::query(
             r#"
             INSERT OR REPLACE INTO bundle_states (bundle_id, state, metadata, updated_at)
             VALUES (?1, ?2, ?3, datetime('now'))
-            "#
+            "#,
         )
         .bind(bundle_id)
         .bind(state)
@@ -110,10 +120,10 @@ impl DatabaseManager {
         let rows = sqlx::query(
             r#"
             SELECT bundle_id, state, metadata, updated_at
-            FROM bundle_states 
+            FROM bundle_states
             WHERE state != 'completed' AND state != 'failed'
             ORDER BY updated_at ASC
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -135,9 +145,9 @@ impl DatabaseManager {
     pub async fn cleanup_old_states(&self, days_to_keep: i64) -> Result<()> {
         let deleted_agents = sqlx::query(
             r#"
-            DELETE FROM agent_states 
+            DELETE FROM agent_states
             WHERE updated_at < datetime('now', '-' || ?1 || ' days')
-            "#
+            "#,
         )
         .bind(days_to_keep)
         .execute(&self.pool)
@@ -145,17 +155,17 @@ impl DatabaseManager {
 
         let deleted_bundles = sqlx::query(
             r#"
-            DELETE FROM bundle_states 
-            WHERE state IN ('completed', 'failed') 
+            DELETE FROM bundle_states
+            WHERE state IN ('completed', 'failed')
             AND updated_at < datetime('now', '-' || ?1 || ' days')
-            "#
+            "#,
         )
         .bind(days_to_keep)
         .execute(&self.pool)
         .await?;
 
         info!(
-            "Cleaned up {} old agent states and {} old bundle states", 
+            "Cleaned up {} old agent states and {} old bundle states",
             deleted_agents.rows_affected(),
             deleted_bundles.rows_affected()
         );
@@ -190,27 +200,28 @@ pub struct BundleState {
 }
 
 #[cfg(feature = "database")]
-static DB_MANAGER: std::sync::LazyLock<std::sync::Arc<tokio::sync::RwLock<Option<DatabaseManager>>>> = 
-    std::sync::LazyLock::new(|| std::sync::Arc::new(tokio::sync::RwLock::new(None)));
+static DB_MANAGER: std::sync::LazyLock<
+    std::sync::Arc<tokio::sync::RwLock<Option<DatabaseManager>>>,
+> = std::sync::LazyLock::new(|| std::sync::Arc::new(tokio::sync::RwLock::new(None)));
 
 #[cfg(feature = "database")]
 /// Initialize database manager
 pub async fn init_database() -> Result<()> {
     let config = crate::config::config()?;
-    
+
     if let Some(db_config) = &config.database {
         info!("Initializing database at {}", db_config.url);
-        
+
         let manager = DatabaseManager::new(&db_config.url, db_config.auto_migrate).await?;
-        
+
         let mut db_guard = DB_MANAGER.write().await;
         *db_guard = Some(manager);
-        
+
         info!("Database manager initialized successfully");
     } else {
         info!("Database not configured, skipping initialization");
     }
-    
+
     Ok(())
 }
 

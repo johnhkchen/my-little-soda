@@ -1,5 +1,5 @@
 //! Bundle management for Clambake
-//! 
+//!
 //! Implements deterministic bundling windows with proper Git operations and conflict handling.
 
 pub mod bundler;

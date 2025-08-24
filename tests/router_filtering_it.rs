@@ -15,7 +15,7 @@ fn make_issue(
         IssueState::Closed => "closed",
         _ => "open", // Default to open for any other states
     };
-    
+
     let assignee_json = if let Some(login) = assignee_login {
         serde_json::json!({
             "login": login,
@@ -25,12 +25,15 @@ fn make_issue(
         serde_json::Value::Null
     };
 
-    let labels_json: Vec<serde_json::Value> = labels.into_iter().map(|name| {
-        serde_json::json!({
-            "id": 1000,
-            "name": name
+    let labels_json: Vec<serde_json::Value> = labels
+        .into_iter()
+        .map(|name| {
+            serde_json::json!({
+                "id": 1000,
+                "name": name
+            })
         })
-    }).collect();
+        .collect();
 
     serde_json::from_value(serde_json::json!({
         "id": number,
@@ -69,16 +72,29 @@ fn route_ready_unassigned_is_candidate() {
     let has_route_ready = issue.labels.iter().any(|l| l.name == "route:ready");
     let has_agent_label = issue.labels.iter().any(|l| l.name.starts_with("agent"));
     let is_human_only = issue.labels.iter().any(|l| l.name == "route:human-only");
-    let is_routable = if has_route_ready { !has_agent_label } else { false };
+    let is_routable = if has_route_ready {
+        !has_agent_label
+    } else {
+        false
+    };
     assert!(is_open && is_routable && !is_human_only);
 }
 
 #[test]
 fn route_ready_with_agent_label_excluded() {
-    let issue = make_issue(101, IssueState::Open, vec!["route:ready", "agent:beta"], None);
+    let issue = make_issue(
+        101,
+        IssueState::Open,
+        vec!["route:ready", "agent:beta"],
+        None,
+    );
     let has_route_ready = issue.labels.iter().any(|l| l.name == "route:ready");
     let has_agent_label = issue.labels.iter().any(|l| l.name.starts_with("agent"));
-    let is_routable = if has_route_ready { !has_agent_label } else { false };
+    let is_routable = if has_route_ready {
+        !has_agent_label
+    } else {
+        false
+    };
     assert!(!is_routable);
 }
 
@@ -86,8 +102,11 @@ fn route_ready_with_agent_label_excluded() {
 fn route_ready_to_merge_always_routable_if_open() {
     let issue = make_issue(102, IssueState::Open, vec!["route:ready_to_merge"], None);
     let is_open = issue.state == IssueState::Open;
-    let has_route_ready_to_merge = issue.labels.iter().any(|l| l.name == "route:ready_to_merge");
-    let is_routable = if has_route_ready_to_merge { true } else { false };
+    let has_route_ready_to_merge = issue
+        .labels
+        .iter()
+        .any(|l| l.name == "route:ready_to_merge");
+    let is_routable = has_route_ready_to_merge;
     assert!(is_open && is_routable);
 }
 
@@ -100,10 +119,19 @@ fn closed_issue_never_routable() {
 
 #[test]
 fn human_only_excludes_unassigned_bots() {
-    let issue = make_issue(104, IssueState::Open, vec!["route:ready", "route:human-only"], None);
+    let issue = make_issue(
+        104,
+        IssueState::Open,
+        vec!["route:ready", "route:human-only"],
+        None,
+    );
     let is_human_only = issue.labels.iter().any(|l| l.name == "route:human-only");
     let has_route_ready = issue.labels.iter().any(|l| l.name == "route:ready");
     let has_agent_label = issue.labels.iter().any(|l| l.name.starts_with("agent"));
-    let is_routable = if has_route_ready { !has_agent_label } else { false };
+    let is_routable = if has_route_ready {
+        !has_agent_label
+    } else {
+        false
+    };
     assert!(!(is_routable && !is_human_only));
 }

@@ -24,7 +24,7 @@ impl Priority {
     /// Determine priority from GitHub issue labels
     pub fn from_labels(labels: &[impl AsRef<str>]) -> Self {
         let mut highest_priority = Priority::Normal;
-        
+
         for label in labels {
             let priority = match label.as_ref() {
                 "route:unblocker" => Priority::Unblocker,
@@ -35,12 +35,12 @@ impl Priority {
                 "route:priority-low" => Priority::Low,
                 _ => continue,
             };
-            
+
             if priority > highest_priority {
                 highest_priority = priority;
             }
         }
-        
+
         highest_priority
     }
 
@@ -61,7 +61,7 @@ impl fmt::Display for Priority {
             Priority::Low => "LOW",
             Priority::Normal => "NORMAL",
         };
-        write!(f, "{}", label)
+        write!(f, "{label}")
     }
 }
 
@@ -72,25 +72,49 @@ mod tests {
     #[test]
     fn test_priority_from_labels() {
         // Test unblocker (highest)
-        assert_eq!(Priority::from_labels(&["route:unblocker"]), Priority::Unblocker);
-        
+        assert_eq!(
+            Priority::from_labels(&["route:unblocker"]),
+            Priority::Unblocker
+        );
+
         // Test ready_to_merge (second highest)
-        assert_eq!(Priority::from_labels(&["route:ready_to_merge"]), Priority::MergeReady);
-        
+        assert_eq!(
+            Priority::from_labels(&["route:ready_to_merge"]),
+            Priority::MergeReady
+        );
+
         // Test standard priorities
-        assert_eq!(Priority::from_labels(&["route:priority-very-high"]), Priority::VeryHigh);
-        assert_eq!(Priority::from_labels(&["route:priority-high"]), Priority::High);
-        assert_eq!(Priority::from_labels(&["route:priority-medium"]), Priority::Medium);
-        assert_eq!(Priority::from_labels(&["route:priority-low"]), Priority::Low);
-        
+        assert_eq!(
+            Priority::from_labels(&["route:priority-very-high"]),
+            Priority::VeryHigh
+        );
+        assert_eq!(
+            Priority::from_labels(&["route:priority-high"]),
+            Priority::High
+        );
+        assert_eq!(
+            Priority::from_labels(&["route:priority-medium"]),
+            Priority::Medium
+        );
+        assert_eq!(
+            Priority::from_labels(&["route:priority-low"]),
+            Priority::Low
+        );
+
         // Test normal (no priority labels)
         assert_eq!(Priority::from_labels(&["route:ready"]), Priority::Normal);
         assert_eq!(Priority::from_labels(&[] as &[&str]), Priority::Normal);
-        
+
         // Test precedence (unblocker wins over very high)
-        assert_eq!(Priority::from_labels(&["route:priority-very-high", "route:unblocker"]), Priority::Unblocker);
+        assert_eq!(
+            Priority::from_labels(&["route:priority-very-high", "route:unblocker"]),
+            Priority::Unblocker
+        );
         // Test precedence (very high wins over high)
-        assert_eq!(Priority::from_labels(&["route:priority-high", "route:priority-very-high"]), Priority::VeryHigh);
+        assert_eq!(
+            Priority::from_labels(&["route:priority-high", "route:priority-very-high"]),
+            Priority::VeryHigh
+        );
     }
 
     #[test]

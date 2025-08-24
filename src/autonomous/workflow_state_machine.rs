@@ -1,83 +1,83 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use chrono::{DateTime, Utc};
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
-use crate::github::{GitHubClient, errors::GitHubError};
 use crate::agents::recovery::{AutomaticRecovery, ComprehensiveRecoveryReport};
+use crate::github::{errors::GitHubError, GitHubClient};
 
 /// Complete autonomous workflow state machine for unattended operation
 /// This covers every possible state and transition for true autonomous work
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutonomousWorkflowState {
     // Initial states
-    Unassigned { 
-        issue: Issue 
+    Unassigned {
+        issue: Issue,
     },
-    Assigned { 
-        issue: Issue, 
-        agent: AgentId, 
-        workspace: WorkspaceState 
+    Assigned {
+        issue: Issue,
+        agent: AgentId,
+        workspace: WorkspaceState,
     },
-    
-    // Work states  
-    InProgress { 
-        issue: Issue, 
-        agent: AgentId, 
-        progress: WorkProgress 
+
+    // Work states
+    InProgress {
+        issue: Issue,
+        agent: AgentId,
+        progress: WorkProgress,
     },
-    Blocked { 
-        issue: Issue, 
-        agent: AgentId, 
-        blocker: BlockerType 
+    Blocked {
+        issue: Issue,
+        agent: AgentId,
+        blocker: BlockerType,
     },
-    
+
     // Review states
-    ReadyForReview { 
-        issue: Issue, 
-        agent: AgentId, 
-        pr: PullRequest 
+    ReadyForReview {
+        issue: Issue,
+        agent: AgentId,
+        pr: PullRequest,
     },
-    UnderReview { 
-        issue: Issue, 
-        agent: AgentId, 
-        pr: PullRequest, 
-        feedback: Vec<ReviewFeedback> 
+    UnderReview {
+        issue: Issue,
+        agent: AgentId,
+        pr: PullRequest,
+        feedback: Vec<ReviewFeedback>,
     },
-    ChangesRequested { 
-        issue: Issue, 
-        agent: AgentId, 
-        pr: PullRequest, 
-        required_changes: Vec<Change> 
+    ChangesRequested {
+        issue: Issue,
+        agent: AgentId,
+        pr: PullRequest,
+        required_changes: Vec<Change>,
     },
-    
+
     // Integration states
-    Approved { 
-        issue: Issue, 
-        agent: AgentId, 
-        pr: PullRequest 
+    Approved {
+        issue: Issue,
+        agent: AgentId,
+        pr: PullRequest,
     },
-    MergeConflict { 
-        issue: Issue, 
-        agent: AgentId, 
-        pr: PullRequest, 
-        conflicts: Vec<ConflictInfo> 
+    MergeConflict {
+        issue: Issue,
+        agent: AgentId,
+        pr: PullRequest,
+        conflicts: Vec<ConflictInfo>,
     },
-    CIFailure { 
-        issue: Issue, 
-        agent: AgentId, 
-        pr: PullRequest, 
-        failures: Vec<CIFailure> 
+    CIFailure {
+        issue: Issue,
+        agent: AgentId,
+        pr: PullRequest,
+        failures: Vec<CIFailure>,
     },
-    
+
     // Terminal states
-    Merged { 
-        issue: Issue, 
-        work: CompletedWork 
+    Merged {
+        issue: Issue,
+        work: CompletedWork,
     },
-    Abandoned { 
-        issue: Issue, 
-        reason: AbandonmentReason 
+    Abandoned {
+        issue: Issue,
+        reason: AbandonmentReason,
     },
 }
 
@@ -85,32 +85,54 @@ pub enum AutonomousWorkflowState {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutonomousEvent {
     // Assignment events
-    AssignAgent { agent: AgentId, workspace_ready: bool },
+    AssignAgent {
+        agent: AgentId,
+        workspace_ready: bool,
+    },
     WorkspaceReady,
-    
+
     // Work events
     StartWork,
-    MakeProgress { commits: u32, files_changed: u32 },
-    EncounterBlocker { blocker: BlockerType },
+    MakeProgress {
+        commits: u32,
+        files_changed: u32,
+    },
+    EncounterBlocker {
+        blocker: BlockerType,
+    },
     ResolveBlocker,
     CompleteWork,
-    
-    // Review events  
-    SubmitForReview { pr: PullRequest },
-    ReviewReceived { feedback: Vec<ReviewFeedback> },
-    ChangesRequested { changes: Vec<Change> },
+
+    // Review events
+    SubmitForReview {
+        pr: PullRequest,
+    },
+    ReviewReceived {
+        feedback: Vec<ReviewFeedback>,
+    },
+    ChangesRequested {
+        changes: Vec<Change>,
+    },
     ApprovalReceived,
-    
+
     // Integration events
-    MergeConflictDetected { conflicts: Vec<ConflictInfo> },
-    CIFailureDetected { failures: Vec<CIFailure> },
+    MergeConflictDetected {
+        conflicts: Vec<ConflictInfo>,
+    },
+    CIFailureDetected {
+        failures: Vec<CIFailure>,
+    },
     ConflictsResolved,
     CIFixed,
-    MergeCompleted { merged_work: CompletedWork },
-    
+    MergeCompleted {
+        merged_work: CompletedWork,
+    },
+
     // Recovery events
     AutoRecover,
-    ForceAbandon { reason: AbandonmentReason },
+    ForceAbandon {
+        reason: AbandonmentReason,
+    },
     Reset,
 }
 
@@ -247,19 +269,19 @@ pub enum Priority {
 pub enum AutonomousWorkflowError {
     #[error("Invalid transition: {event:?} not allowed in current state")]
     InvalidTransition { event: AutonomousEvent },
-    
+
     #[error("GitHub API error: {0}")]
     GitHubError(#[from] GitHubError),
-    
+
     #[error("Workspace setup failed: {reason}")]
     WorkspaceError { reason: String },
-    
+
     #[error("Recovery failed: {reason}")]
     RecoveryError { reason: String },
-    
+
     #[error("Timeout exceeded: {max_hours}h")]
     TimeoutError { max_hours: u8 },
-    
+
     #[error("Critical blocker: {blocker:?}")]
     CriticalBlocker { blocker: BlockerType },
 }
@@ -306,29 +328,32 @@ impl AutonomousWorkflowMachine {
             ..Default::default()
         }
     }
-    
+
     pub fn with_github_client(mut self, client: GitHubClient) -> Self {
         self.github_client = Some(client);
         self
     }
-    
+
     pub fn with_agent_id(mut self, agent_id: String) -> Self {
         self.agent_id = Some(AgentId(agent_id));
         self
     }
-    
-    pub fn with_recovery_client(mut self, recovery: Box<dyn AutomaticRecovery + Send + Sync>) -> Self {
+
+    pub fn with_recovery_client(
+        mut self,
+        recovery: Box<dyn AutomaticRecovery + Send + Sync>,
+    ) -> Self {
         self.recovery_client = Some(recovery);
         self
     }
-    
+
     /// Record state transition for audit trail
     fn record_transition(
-        &mut self, 
-        from: Option<AutonomousWorkflowState>, 
-        to: AutonomousWorkflowState, 
+        &mut self,
+        from: Option<AutonomousWorkflowState>,
+        to: AutonomousWorkflowState,
         event: AutonomousEvent,
-        duration_ms: u64
+        duration_ms: u64,
     ) {
         let record = StateTransitionRecord {
             from_state: from,
@@ -337,7 +362,7 @@ impl AutonomousWorkflowMachine {
             timestamp: Utc::now(),
             duration_ms,
         };
-        
+
         info!(
             from_state = ?record.from_state,
             to_state = ?record.to_state,
@@ -345,11 +370,11 @@ impl AutonomousWorkflowMachine {
             duration_ms = %record.duration_ms,
             "Autonomous workflow state transition"
         );
-        
+
         self.state_history.push(record);
         self.current_state = Some(to);
     }
-    
+
     /// Check if maximum work time has been exceeded
     fn is_timeout_exceeded(&self) -> bool {
         if let Some(start_time) = self.start_time {
@@ -359,128 +384,158 @@ impl AutonomousWorkflowMachine {
             false
         }
     }
-    
+
     /// Attempt autonomous recovery from current state
-    pub async fn attempt_autonomous_recovery(&mut self) -> Result<ComprehensiveRecoveryReport, AutonomousWorkflowError> {
+    pub async fn attempt_autonomous_recovery(
+        &mut self,
+    ) -> Result<ComprehensiveRecoveryReport, AutonomousWorkflowError> {
         if let Some(recovery) = &self.recovery_client {
-            let report = recovery.recover_all_inconsistencies().await
-                .map_err(|e| AutonomousWorkflowError::RecoveryError { 
-                    reason: format!("Recovery failed: {:?}", e) 
-                })?;
-            
+            let report = recovery.recover_all_inconsistencies().await.map_err(|e| {
+                AutonomousWorkflowError::RecoveryError {
+                    reason: format!("Recovery failed: {e:?}"),
+                }
+            })?;
+
             info!(
                 recovery_rate = %report.recovery_rate,
                 recovered = %report.recovered.len(),
                 failed = %report.failed.len(),
                 "Autonomous recovery completed"
             );
-            
+
             Ok(report)
         } else {
-            Err(AutonomousWorkflowError::RecoveryError { 
-                reason: "No recovery client configured".to_string() 
+            Err(AutonomousWorkflowError::RecoveryError {
+                reason: "No recovery client configured".to_string(),
             })
         }
     }
-    
+
     /// Handle autonomous event - main state transition logic
-    pub async fn handle_event(&mut self, event: AutonomousEvent) -> Result<(), AutonomousWorkflowError> {
+    pub async fn handle_event(
+        &mut self,
+        event: AutonomousEvent,
+    ) -> Result<(), AutonomousWorkflowError> {
         let start_time = std::time::Instant::now();
         let from_state = self.current_state.clone();
-        
+
         // Check timeout before processing any event
         if self.is_timeout_exceeded() {
-            let timeout_event = AutonomousEvent::ForceAbandon { 
-                reason: AbandonmentReason::TimeoutExceeded { 
-                    max_hours: self.max_work_hours 
-                } 
+            let timeout_event = AutonomousEvent::ForceAbandon {
+                reason: AbandonmentReason::TimeoutExceeded {
+                    max_hours: self.max_work_hours,
+                },
             };
             return self.handle_timeout_abandonment(timeout_event).await;
         }
-        
+
         let new_state = match (&self.current_state, &event) {
             // Initial assignment transitions
-            (None, AutonomousEvent::AssignAgent { agent, workspace_ready }) => {
+            (
+                None,
+                AutonomousEvent::AssignAgent {
+                    agent,
+                    workspace_ready,
+                },
+            ) => {
                 self.agent_id = Some(agent.clone());
                 self.start_time = Some(Utc::now());
-                
+
                 if *workspace_ready {
-                    Some(AutonomousWorkflowState::Assigned { 
+                    Some(AutonomousWorkflowState::Assigned {
                         issue: self.create_placeholder_issue(),
                         agent: agent.clone(),
-                        workspace: self.create_workspace_state()
+                        workspace: self.create_workspace_state(),
                     })
                 } else {
-                    Some(AutonomousWorkflowState::Unassigned { 
-                        issue: self.create_placeholder_issue() 
+                    Some(AutonomousWorkflowState::Unassigned {
+                        issue: self.create_placeholder_issue(),
                     })
                 }
             }
-            
-            (Some(AutonomousWorkflowState::Unassigned { issue }), AutonomousEvent::WorkspaceReady) => {
+
+            (
+                Some(AutonomousWorkflowState::Unassigned { issue }),
+                AutonomousEvent::WorkspaceReady,
+            ) => {
                 if let Some(agent) = &self.agent_id {
-                    Some(AutonomousWorkflowState::Assigned { 
+                    Some(AutonomousWorkflowState::Assigned {
                         issue: issue.clone(),
                         agent: agent.clone(),
-                        workspace: self.create_workspace_state()
+                        workspace: self.create_workspace_state(),
                     })
                 } else {
-                    return Err(AutonomousWorkflowError::WorkspaceError { 
-                        reason: "No agent assigned".to_string() 
+                    return Err(AutonomousWorkflowError::WorkspaceError {
+                        reason: "No agent assigned".to_string(),
                     });
                 }
             }
-            
+
             // Work progression transitions
-            (Some(AutonomousWorkflowState::Assigned { issue, agent, .. }), AutonomousEvent::StartWork) => {
-                Some(AutonomousWorkflowState::InProgress { 
-                    issue: issue.clone(),
-                    agent: agent.clone(),
-                    progress: WorkProgress {
-                        commits_made: 0,
-                        files_changed: 0,
-                        tests_written: 0,
-                        elapsed_minutes: 0,
-                        completion_percentage: 0,
-                    }
-                })
-            }
-            
-            (Some(AutonomousWorkflowState::InProgress { issue, agent, progress }), 
-             AutonomousEvent::MakeProgress { commits, files_changed }) => {
+            (
+                Some(AutonomousWorkflowState::Assigned { issue, agent, .. }),
+                AutonomousEvent::StartWork,
+            ) => Some(AutonomousWorkflowState::InProgress {
+                issue: issue.clone(),
+                agent: agent.clone(),
+                progress: WorkProgress {
+                    commits_made: 0,
+                    files_changed: 0,
+                    tests_written: 0,
+                    elapsed_minutes: 0,
+                    completion_percentage: 0,
+                },
+            }),
+
+            (
+                Some(AutonomousWorkflowState::InProgress {
+                    issue,
+                    agent,
+                    progress,
+                }),
+                AutonomousEvent::MakeProgress {
+                    commits,
+                    files_changed,
+                },
+            ) => {
                 let mut updated_progress = progress.clone();
                 updated_progress.commits_made += commits;
                 updated_progress.files_changed += files_changed;
                 if let Some(start) = self.start_time {
-                    updated_progress.elapsed_minutes = Utc::now().signed_duration_since(start).num_minutes() as u32;
+                    updated_progress.elapsed_minutes =
+                        Utc::now().signed_duration_since(start).num_minutes() as u32;
                 }
-                
-                Some(AutonomousWorkflowState::InProgress { 
+
+                Some(AutonomousWorkflowState::InProgress {
                     issue: issue.clone(),
                     agent: agent.clone(),
-                    progress: updated_progress
+                    progress: updated_progress,
                 })
             }
-            
-            (Some(AutonomousWorkflowState::InProgress { issue, agent, .. }), 
-             AutonomousEvent::EncounterBlocker { blocker }) => {
+
+            (
+                Some(AutonomousWorkflowState::InProgress { issue, agent, .. }),
+                AutonomousEvent::EncounterBlocker { blocker },
+            ) => {
                 warn!(
                     blocker = ?blocker,
                     "Autonomous workflow encountered blocker"
                 );
-                
-                Some(AutonomousWorkflowState::Blocked { 
+
+                Some(AutonomousWorkflowState::Blocked {
                     issue: issue.clone(),
                     agent: agent.clone(),
-                    blocker: blocker.clone()
+                    blocker: blocker.clone(),
                 })
             }
-            
-            (Some(AutonomousWorkflowState::Blocked { issue, agent, .. }), 
-             AutonomousEvent::ResolveBlocker) => {
+
+            (
+                Some(AutonomousWorkflowState::Blocked { issue, agent, .. }),
+                AutonomousEvent::ResolveBlocker,
+            ) => {
                 info!("Autonomous workflow resolved blocker");
-                
-                Some(AutonomousWorkflowState::InProgress { 
+
+                Some(AutonomousWorkflowState::InProgress {
                     issue: issue.clone(),
                     agent: agent.clone(),
                     progress: WorkProgress {
@@ -489,15 +544,17 @@ impl AutonomousWorkflowMachine {
                         tests_written: 0,
                         elapsed_minutes: 0,
                         completion_percentage: 50, // Resume with some progress
-                    }
+                    },
                 })
             }
-            
-            (Some(AutonomousWorkflowState::InProgress { issue, agent, .. }), 
-             AutonomousEvent::CompleteWork) => {
+
+            (
+                Some(AutonomousWorkflowState::InProgress { issue, agent, .. }),
+                AutonomousEvent::CompleteWork,
+            ) => {
                 info!("Autonomous workflow completed work phase");
-                
-                Some(AutonomousWorkflowState::ReadyForReview { 
+
+                Some(AutonomousWorkflowState::ReadyForReview {
                     issue: issue.clone(),
                     agent: agent.clone(),
                     pr: PullRequest {
@@ -506,152 +563,172 @@ impl AutonomousWorkflowMachine {
                         branch: format!("{}/{}", agent.0, issue.number),
                         commits: 5,
                         files_changed: 3,
-                    }
+                    },
                 })
             }
-            
+
             // Review flow transitions
-            (Some(AutonomousWorkflowState::ReadyForReview { issue, agent, .. }), 
-             AutonomousEvent::SubmitForReview { pr }) => {
-                Some(AutonomousWorkflowState::UnderReview { 
-                    issue: issue.clone(),
-                    agent: agent.clone(),
-                    pr: pr.clone(),
-                    feedback: vec![]
-                })
-            }
-            
-            (Some(AutonomousWorkflowState::UnderReview { issue, agent, pr, .. }), 
-             AutonomousEvent::ReviewReceived { feedback }) => {
-                let has_required_changes = feedback.iter()
-                    .any(|f| !f.requested_changes.is_empty());
-                
+            (
+                Some(AutonomousWorkflowState::ReadyForReview { issue, agent, .. }),
+                AutonomousEvent::SubmitForReview { pr },
+            ) => Some(AutonomousWorkflowState::UnderReview {
+                issue: issue.clone(),
+                agent: agent.clone(),
+                pr: pr.clone(),
+                feedback: vec![],
+            }),
+
+            (
+                Some(AutonomousWorkflowState::UnderReview {
+                    issue, agent, pr, ..
+                }),
+                AutonomousEvent::ReviewReceived { feedback },
+            ) => {
+                let has_required_changes = feedback.iter().any(|f| !f.requested_changes.is_empty());
+
                 if has_required_changes {
-                    let all_changes: Vec<Change> = feedback.iter()
+                    let all_changes: Vec<Change> = feedback
+                        .iter()
                         .flat_map(|f| f.requested_changes.iter().cloned())
                         .collect();
-                        
-                    Some(AutonomousWorkflowState::ChangesRequested { 
+
+                    Some(AutonomousWorkflowState::ChangesRequested {
                         issue: issue.clone(),
                         agent: agent.clone(),
                         pr: pr.clone(),
-                        required_changes: all_changes
+                        required_changes: all_changes,
                     })
                 } else {
-                    Some(AutonomousWorkflowState::Approved { 
+                    Some(AutonomousWorkflowState::Approved {
                         issue: issue.clone(),
                         agent: agent.clone(),
-                        pr: pr.clone()
+                        pr: pr.clone(),
                     })
                 }
             }
-            
-            (Some(AutonomousWorkflowState::ChangesRequested { issue, agent, pr, .. }), 
-             AutonomousEvent::ApprovalReceived) => {
-                Some(AutonomousWorkflowState::Approved { 
-                    issue: issue.clone(),
-                    agent: agent.clone(),
-                    pr: pr.clone()
-                })
-            }
-            
+
+            (
+                Some(AutonomousWorkflowState::ChangesRequested {
+                    issue, agent, pr, ..
+                }),
+                AutonomousEvent::ApprovalReceived,
+            ) => Some(AutonomousWorkflowState::Approved {
+                issue: issue.clone(),
+                agent: agent.clone(),
+                pr: pr.clone(),
+            }),
+
             // Integration flow transitions
-            (Some(AutonomousWorkflowState::Approved { issue, agent, pr }), 
-             AutonomousEvent::MergeConflictDetected { conflicts }) => {
+            (
+                Some(AutonomousWorkflowState::Approved { issue, agent, pr }),
+                AutonomousEvent::MergeConflictDetected { conflicts },
+            ) => {
                 warn!(
                     conflicts_count = %conflicts.len(),
                     "Merge conflicts detected in autonomous workflow"
                 );
-                
-                Some(AutonomousWorkflowState::MergeConflict { 
+
+                Some(AutonomousWorkflowState::MergeConflict {
                     issue: issue.clone(),
                     agent: agent.clone(),
                     pr: pr.clone(),
-                    conflicts: conflicts.clone()
+                    conflicts: conflicts.clone(),
                 })
             }
-            
-            (Some(AutonomousWorkflowState::Approved { issue, agent, pr }), 
-             AutonomousEvent::CIFailureDetected { failures }) => {
+
+            (
+                Some(AutonomousWorkflowState::Approved { issue, agent, pr }),
+                AutonomousEvent::CIFailureDetected { failures },
+            ) => {
                 warn!(
                     failures_count = %failures.len(),
                     "CI failures detected in autonomous workflow"
                 );
-                
-                Some(AutonomousWorkflowState::CIFailure { 
+
+                Some(AutonomousWorkflowState::CIFailure {
                     issue: issue.clone(),
                     agent: agent.clone(),
                     pr: pr.clone(),
-                    failures: failures.clone()
+                    failures: failures.clone(),
                 })
             }
-            
-            (Some(AutonomousWorkflowState::MergeConflict { issue, agent, pr, .. }), 
-             AutonomousEvent::ConflictsResolved) => {
+
+            (
+                Some(AutonomousWorkflowState::MergeConflict {
+                    issue, agent, pr, ..
+                }),
+                AutonomousEvent::ConflictsResolved,
+            ) => {
                 info!("Merge conflicts resolved autonomously");
-                
-                Some(AutonomousWorkflowState::Approved { 
+
+                Some(AutonomousWorkflowState::Approved {
                     issue: issue.clone(),
                     agent: agent.clone(),
-                    pr: pr.clone()
+                    pr: pr.clone(),
                 })
             }
-            
-            (Some(AutonomousWorkflowState::CIFailure { issue, agent, pr, .. }), 
-             AutonomousEvent::CIFixed) => {
+
+            (
+                Some(AutonomousWorkflowState::CIFailure {
+                    issue, agent, pr, ..
+                }),
+                AutonomousEvent::CIFixed,
+            ) => {
                 info!("CI failures resolved autonomously");
-                
-                Some(AutonomousWorkflowState::Approved { 
+
+                Some(AutonomousWorkflowState::Approved {
                     issue: issue.clone(),
                     agent: agent.clone(),
-                    pr: pr.clone()
+                    pr: pr.clone(),
                 })
             }
-            
-            (Some(AutonomousWorkflowState::Approved { issue, .. }), 
-             AutonomousEvent::MergeCompleted { merged_work }) => {
+
+            (
+                Some(AutonomousWorkflowState::Approved { issue, .. }),
+                AutonomousEvent::MergeCompleted { merged_work },
+            ) => {
                 info!(
                     issue_number = %issue.number,
                     "Autonomous workflow completed successfully"
                 );
-                
-                Some(AutonomousWorkflowState::Merged { 
+
+                Some(AutonomousWorkflowState::Merged {
                     issue: issue.clone(),
-                    work: merged_work.clone()
+                    work: merged_work.clone(),
                 })
             }
-            
+
             // Recovery transitions
             (Some(_), AutonomousEvent::AutoRecover) => {
                 let _ = self.attempt_autonomous_recovery().await?;
                 // State remains the same after recovery attempt
                 self.current_state.clone()
             }
-            
+
             // Abandonment transitions
             (Some(state), AutonomousEvent::ForceAbandon { reason }) => {
                 let issue = self.extract_issue_from_state(state);
-                
+
                 error!(
                     reason = ?reason,
                     issue = ?issue.as_ref().map(|i| i.number),
                     "Autonomous workflow abandoned"
                 );
-                
-                Some(AutonomousWorkflowState::Abandoned { 
+
+                Some(AutonomousWorkflowState::Abandoned {
                     issue: issue.unwrap_or_else(|| self.create_placeholder_issue()),
-                    reason: reason.clone()
+                    reason: reason.clone(),
                 })
             }
-            
+
             // Reset transitions (terminal -> initial)
-            (Some(AutonomousWorkflowState::Merged { .. }), AutonomousEvent::Reset) |
-            (Some(AutonomousWorkflowState::Abandoned { .. }), AutonomousEvent::Reset) => {
+            (Some(AutonomousWorkflowState::Merged { .. }), AutonomousEvent::Reset)
+            | (Some(AutonomousWorkflowState::Abandoned { .. }), AutonomousEvent::Reset) => {
                 self.agent_id = None;
                 self.start_time = None;
                 None // Back to initial state
             }
-            
+
             // Invalid transitions
             (current_state, event) => {
                 error!(
@@ -659,58 +736,64 @@ impl AutonomousWorkflowMachine {
                     event = ?event,
                     "Invalid autonomous workflow transition"
                 );
-                
-                return Err(AutonomousWorkflowError::InvalidTransition { 
-                    event: event.clone() 
+
+                return Err(AutonomousWorkflowError::InvalidTransition {
+                    event: event.clone(),
                 });
             }
         };
-        
+
         let duration = start_time.elapsed().as_millis() as u64;
-        
+
         if let Some(new_state) = new_state {
             self.record_transition(from_state, new_state, event, duration);
         }
-        
+
         Ok(())
     }
-    
+
     /// Handle timeout abandonment specially
-    async fn handle_timeout_abandonment(&mut self, event: AutonomousEvent) -> Result<(), AutonomousWorkflowError> {
+    async fn handle_timeout_abandonment(
+        &mut self,
+        event: AutonomousEvent,
+    ) -> Result<(), AutonomousWorkflowError> {
         if let Some(current_state) = &self.current_state {
-            let issue = self.extract_issue_from_state(current_state)
+            let issue = self
+                .extract_issue_from_state(current_state)
                 .unwrap_or_else(|| self.create_placeholder_issue());
-            
+
             let reason = if let AutonomousEvent::ForceAbandon { reason } = event {
                 reason
             } else {
-                AbandonmentReason::TimeoutExceeded { max_hours: self.max_work_hours }
+                AbandonmentReason::TimeoutExceeded {
+                    max_hours: self.max_work_hours,
+                }
             };
-            
+
             self.current_state = Some(AutonomousWorkflowState::Abandoned { issue, reason });
         }
-        
+
         Ok(())
     }
-    
+
     /// Extract issue from any state that contains one
     fn extract_issue_from_state(&self, state: &AutonomousWorkflowState) -> Option<Issue> {
         match state {
-            AutonomousWorkflowState::Unassigned { issue } |
-            AutonomousWorkflowState::Assigned { issue, .. } |
-            AutonomousWorkflowState::InProgress { issue, .. } |
-            AutonomousWorkflowState::Blocked { issue, .. } |
-            AutonomousWorkflowState::ReadyForReview { issue, .. } |
-            AutonomousWorkflowState::UnderReview { issue, .. } |
-            AutonomousWorkflowState::ChangesRequested { issue, .. } |
-            AutonomousWorkflowState::Approved { issue, .. } |
-            AutonomousWorkflowState::MergeConflict { issue, .. } |
-            AutonomousWorkflowState::CIFailure { issue, .. } |
-            AutonomousWorkflowState::Merged { issue, .. } |
-            AutonomousWorkflowState::Abandoned { issue, .. } => Some(issue.clone())
+            AutonomousWorkflowState::Unassigned { issue }
+            | AutonomousWorkflowState::Assigned { issue, .. }
+            | AutonomousWorkflowState::InProgress { issue, .. }
+            | AutonomousWorkflowState::Blocked { issue, .. }
+            | AutonomousWorkflowState::ReadyForReview { issue, .. }
+            | AutonomousWorkflowState::UnderReview { issue, .. }
+            | AutonomousWorkflowState::ChangesRequested { issue, .. }
+            | AutonomousWorkflowState::Approved { issue, .. }
+            | AutonomousWorkflowState::MergeConflict { issue, .. }
+            | AutonomousWorkflowState::CIFailure { issue, .. }
+            | AutonomousWorkflowState::Merged { issue, .. }
+            | AutonomousWorkflowState::Abandoned { issue, .. } => Some(issue.clone()),
         }
     }
-    
+
     /// Create placeholder issue for error cases
     fn create_placeholder_issue(&self) -> Issue {
         Issue {
@@ -722,7 +805,7 @@ impl AutonomousWorkflowMachine {
             estimated_hours: None,
         }
     }
-    
+
     /// Create workspace state
     fn create_workspace_state(&self) -> WorkspaceState {
         WorkspaceState {
@@ -732,29 +815,29 @@ impl AutonomousWorkflowMachine {
             dependencies_installed: true,
         }
     }
-    
+
     /// Get current state for external inspection
     pub fn current_state(&self) -> Option<&AutonomousWorkflowState> {
         self.current_state.as_ref()
     }
-    
+
     /// Get full state transition history
     pub fn state_history(&self) -> &[StateTransitionRecord] {
         &self.state_history
     }
-    
+
     /// Check if workflow can continue autonomously
     pub fn can_continue_autonomously(&self) -> bool {
         match &self.current_state {
-            Some(AutonomousWorkflowState::Abandoned { .. }) |
-            Some(AutonomousWorkflowState::Merged { .. }) => false,
+            Some(AutonomousWorkflowState::Abandoned { .. })
+            | Some(AutonomousWorkflowState::Merged { .. }) => false,
             Some(AutonomousWorkflowState::Blocked { blocker, .. }) => {
                 self.can_resolve_blocker_autonomously(blocker)
             }
-            _ => !self.is_timeout_exceeded()
+            _ => !self.is_timeout_exceeded(),
         }
     }
-    
+
     /// Check if a blocker can be resolved autonomously
     fn can_resolve_blocker_autonomously(&self, blocker: &BlockerType) -> bool {
         match blocker {
@@ -766,15 +849,13 @@ impl AutonomousWorkflowMachine {
             BlockerType::NetworkIssue { .. } => true,     // Retry mechanism
         }
     }
-    
+
     /// Generate status report for monitoring
     pub fn generate_status_report(&self) -> AutonomousStatusReport {
-        let uptime = if let Some(start) = self.start_time {
-            Some(Utc::now().signed_duration_since(start).num_minutes() as u32)
-        } else {
-            None
-        };
-        
+        let uptime = self
+            .start_time
+            .map(|start| Utc::now().signed_duration_since(start).num_minutes() as u32);
+
         AutonomousStatusReport {
             current_state: self.current_state.clone(),
             agent_id: self.agent_id.clone(),
@@ -812,115 +893,142 @@ mod tests {
     #[test]
     fn test_autonomous_workflow_basic_flow() {
         let mut workflow = AutonomousWorkflowMachine::new(8);
-        
+
         // Test initial assignment
         let assign_event = AutonomousEvent::AssignAgent {
             agent: AgentId("agent001".to_string()),
             workspace_ready: true,
         };
-        
+
         tokio_test::block_on(async {
             workflow.handle_event(assign_event).await.unwrap();
         });
-        
+
         assert!(matches!(
             workflow.current_state(),
             Some(AutonomousWorkflowState::Assigned { .. })
         ));
-        
+
         // Test starting work
         tokio_test::block_on(async {
-            workflow.handle_event(AutonomousEvent::StartWork).await.unwrap();
+            workflow
+                .handle_event(AutonomousEvent::StartWork)
+                .await
+                .unwrap();
         });
-        
+
         assert!(matches!(
             workflow.current_state(),
             Some(AutonomousWorkflowState::InProgress { .. })
         ));
     }
-    
+
     #[test]
     fn test_blocker_handling() {
         let mut workflow = AutonomousWorkflowMachine::new(8);
-        
+
         // Setup to in-progress state
         tokio_test::block_on(async {
-            workflow.handle_event(AutonomousEvent::AssignAgent {
-                agent: AgentId("agent001".to_string()),
-                workspace_ready: true,
-            }).await.unwrap();
-            
-            workflow.handle_event(AutonomousEvent::StartWork).await.unwrap();
-            
+            workflow
+                .handle_event(AutonomousEvent::AssignAgent {
+                    agent: AgentId("agent001".to_string()),
+                    workspace_ready: true,
+                })
+                .await
+                .unwrap();
+
+            workflow
+                .handle_event(AutonomousEvent::StartWork)
+                .await
+                .unwrap();
+
             // Encounter a blocker
-            workflow.handle_event(AutonomousEvent::EncounterBlocker {
-                blocker: BlockerType::TestFailure {
-                    test_name: "test_example".to_string(),
-                    error: "Assertion failed".to_string(),
-                }
-            }).await.unwrap();
+            workflow
+                .handle_event(AutonomousEvent::EncounterBlocker {
+                    blocker: BlockerType::TestFailure {
+                        test_name: "test_example".to_string(),
+                        error: "Assertion failed".to_string(),
+                    },
+                })
+                .await
+                .unwrap();
         });
-        
+
         assert!(matches!(
             workflow.current_state(),
             Some(AutonomousWorkflowState::Blocked { .. })
         ));
     }
-    
+
     #[test]
     fn test_timeout_handling() {
         let mut workflow = AutonomousWorkflowMachine::new(0); // 0 hours = immediate timeout
-        
+
         tokio_test::block_on(async {
-            workflow.handle_event(AutonomousEvent::AssignAgent {
-                agent: AgentId("agent001".to_string()),
-                workspace_ready: true,
-            }).await.unwrap();
-            
+            workflow
+                .handle_event(AutonomousEvent::AssignAgent {
+                    agent: AgentId("agent001".to_string()),
+                    workspace_ready: true,
+                })
+                .await
+                .unwrap();
+
             // Any subsequent event should trigger timeout
             let _result = workflow.handle_event(AutonomousEvent::StartWork).await;
-            
+
             // Should either be abandoned or handle timeout gracefully
             assert!(workflow.current_state().is_some());
         });
     }
-    
+
     #[test]
     fn test_status_report_generation() {
         let mut workflow = AutonomousWorkflowMachine::new(8);
-        
+
         tokio_test::block_on(async {
-            workflow.handle_event(AutonomousEvent::AssignAgent {
-                agent: AgentId("agent001".to_string()),
-                workspace_ready: true,
-            }).await.unwrap();
+            workflow
+                .handle_event(AutonomousEvent::AssignAgent {
+                    agent: AgentId("agent001".to_string()),
+                    workspace_ready: true,
+                })
+                .await
+                .unwrap();
         });
-        
+
         let report = workflow.generate_status_report();
-        
+
         assert!(report.agent_id.is_some());
         assert!(report.can_continue);
         assert_eq!(report.transitions_count, 1);
     }
-    
+
     #[test]
     fn test_state_transition_recording() {
         let mut workflow = AutonomousWorkflowMachine::new(8);
-        
+
         tokio_test::block_on(async {
-            workflow.handle_event(AutonomousEvent::AssignAgent {
-                agent: AgentId("agent001".to_string()),
-                workspace_ready: true,
-            }).await.unwrap();
-            
-            workflow.handle_event(AutonomousEvent::StartWork).await.unwrap();
+            workflow
+                .handle_event(AutonomousEvent::AssignAgent {
+                    agent: AgentId("agent001".to_string()),
+                    workspace_ready: true,
+                })
+                .await
+                .unwrap();
+
+            workflow
+                .handle_event(AutonomousEvent::StartWork)
+                .await
+                .unwrap();
         });
-        
+
         let history = workflow.state_history();
         assert_eq!(history.len(), 2);
-        
+
         // Check that transitions are recorded correctly
-        assert!(matches!(history[0].event, AutonomousEvent::AssignAgent { .. }));
+        assert!(matches!(
+            history[0].event,
+            AutonomousEvent::AssignAgent { .. }
+        ));
         assert!(matches!(history[1].event, AutonomousEvent::StartWork));
     }
 }

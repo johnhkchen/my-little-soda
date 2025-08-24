@@ -7,8 +7,14 @@ pub enum GitHubError {
     ApiError(OctocrabError),
     IoError(std::io::Error),
     NotImplemented(String),
-    RateLimit { reset_time: chrono::DateTime<chrono::Utc>, remaining: u32 },
-    Timeout { operation: String, duration_ms: u64 },
+    RateLimit {
+        reset_time: chrono::DateTime<chrono::Utc>,
+        remaining: u32,
+    },
+    Timeout {
+        operation: String,
+        duration_ms: u64,
+    },
     NetworkError(String),
 }
 
@@ -28,77 +34,99 @@ impl std::fmt::Display for GitHubError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GitHubError::TokenNotFound(msg) => {
-                write!(f, "GitHub Authentication Error\n")?;
-                write!(f, "──────────────────────────\n")?;
-                write!(f, "🔑 {}\n\n", msg)?;
-                write!(f, "🔧 QUICK FIXES:\n")?;
-                write!(f, "   → Use GitHub CLI: gh auth login\n")?;
-                write!(f, "   → Set token directly: export MY_LITTLE_SODA_GITHUB_TOKEN=your_token\n")?;
-                write!(f, "   → Create token at: https://github.com/settings/tokens\n")?;
-                write!(f, "     (needs 'repo' scope for private repos, 'public_repo' for public)")
-            },
+                writeln!(f, "GitHub Authentication Error")?;
+                writeln!(f, "──────────────────────────")?;
+                write!(f, "🔑 {msg}\n\n")?;
+                writeln!(f, "🔧 QUICK FIXES:")?;
+                writeln!(f, "   → Use GitHub CLI: gh auth login")?;
+                writeln!(
+                    f,
+                    "   → Set token directly: export MY_LITTLE_SODA_GITHUB_TOKEN=your_token"
+                )?;
+                writeln!(
+                    f,
+                    "   → Create token at: https://github.com/settings/tokens"
+                )?;
+                write!(
+                    f,
+                    "     (needs 'repo' scope for private repos, 'public_repo' for public)"
+                )
+            }
             GitHubError::ConfigNotFound(msg) => {
-                write!(f, "GitHub Configuration Error\n")?;
-                write!(f, "─────────────────────────\n")?;
-                write!(f, "📂 {}\n\n", msg)?;
-                write!(f, "🔧 QUICK FIXES:\n")?;
-                write!(f, "   → Set environment variables: export GITHUB_OWNER=username GITHUB_REPO=reponame\n")?;
-                write!(f, "   → Use GitHub CLI in repo: gh repo view\n")?;
+                writeln!(f, "GitHub Configuration Error")?;
+                writeln!(f, "─────────────────────────")?;
+                write!(f, "📂 {msg}\n\n")?;
+                writeln!(f, "🔧 QUICK FIXES:")?;
+                writeln!(f, "   → Set environment variables: export GITHUB_OWNER=username GITHUB_REPO=reponame")?;
+                writeln!(f, "   → Use GitHub CLI in repo: gh repo view")?;
                 write!(f, "   → Run setup: clambake init")
-            },
+            }
             GitHubError::ApiError(octocrab_err) => {
-                write!(f, "GitHub API Error\n")?;
-                write!(f, "────────────────\n")?;
-                write!(f, "🌐 {}\n\n", octocrab_err)?;
-                write!(f, "🔧 TROUBLESHOOTING:\n")?;
-                write!(f, "   → Check authentication: gh auth status\n")?;
-                write!(f, "   → Test connection: curl -I https://api.github.com\n")?;
-                write!(f, "   → Verify repository access: gh repo view\n")?;
+                writeln!(f, "GitHub API Error")?;
+                writeln!(f, "────────────────")?;
+                write!(f, "🌐 {octocrab_err}\n\n")?;
+                writeln!(f, "🔧 TROUBLESHOOTING:")?;
+                writeln!(f, "   → Check authentication: gh auth status")?;
+                writeln!(f, "   → Test connection: curl -I https://api.github.com")?;
+                writeln!(f, "   → Verify repository access: gh repo view")?;
                 write!(f, "   → Check rate limits: gh api rate_limit")
-            },
+            }
             GitHubError::IoError(io_err) => {
-                write!(f, "File System Error\n")?;
-                write!(f, "─────────────────\n")?;
-                write!(f, "📁 {}\n\n", io_err)?;
-                write!(f, "🔧 POSSIBLE CAUSES:\n")?;
-                write!(f, "   → File permissions issue\n")?;
-                write!(f, "   → Directory doesn't exist\n")?;
+                writeln!(f, "File System Error")?;
+                writeln!(f, "─────────────────")?;
+                write!(f, "📁 {io_err}\n\n")?;
+                writeln!(f, "🔧 POSSIBLE CAUSES:")?;
+                writeln!(f, "   → File permissions issue")?;
+                writeln!(f, "   → Directory doesn't exist")?;
                 write!(f, "   → Disk space or I/O error")
-            },
+            }
             GitHubError::NotImplemented(msg) => {
-                write!(f, "Feature Not Yet Implemented\n")?;
-                write!(f, "──────────────────────────\n")?;
-                write!(f, "🚧 {}\n\n", msg)?;
-                write!(f, "🔧 ALTERNATIVES:\n")?;
-                write!(f, "   → Manual workaround may be available\n")?;
+                writeln!(f, "Feature Not Yet Implemented")?;
+                writeln!(f, "──────────────────────────")?;
+                write!(f, "🚧 {msg}\n\n")?;
+                writeln!(f, "🔧 ALTERNATIVES:")?;
+                writeln!(f, "   → Manual workaround may be available")?;
                 write!(f, "   → Feature coming in future release")
-            },
-            GitHubError::RateLimit { reset_time, remaining } => {
-                write!(f, "GitHub Rate Limit Exceeded\n")?;
-                write!(f, "──────────────────────────\n")?;
-                write!(f, "⏱️  Rate limit exceeded. {} requests remaining\n", remaining)?;
-                write!(f, "⏳ Rate limit resets at: {}\n\n", reset_time.format("%Y-%m-%d %H:%M:%S UTC"))?;
-                write!(f, "🔧 RECOMMENDED ACTIONS:\n")?;
-                write!(f, "   → Wait for rate limit reset\n")?;
-                write!(f, "   → Use authentication to increase limits\n")?;
+            }
+            GitHubError::RateLimit {
+                reset_time,
+                remaining,
+            } => {
+                writeln!(f, "GitHub Rate Limit Exceeded")?;
+                writeln!(f, "──────────────────────────")?;
+                writeln!(f, "⏱️  Rate limit exceeded. {remaining} requests remaining")?;
+                write!(
+                    f,
+                    "⏳ Rate limit resets at: {}\n\n",
+                    reset_time.format("%Y-%m-%d %H:%M:%S UTC")
+                )?;
+                writeln!(f, "🔧 RECOMMENDED ACTIONS:")?;
+                writeln!(f, "   → Wait for rate limit reset")?;
+                writeln!(f, "   → Use authentication to increase limits")?;
                 write!(f, "   → Check rate limit status: gh api rate_limit")
-            },
-            GitHubError::Timeout { operation, duration_ms } => {
-                write!(f, "GitHub Operation Timeout\n")?;
-                write!(f, "─────────────────────────\n")?;
-                write!(f, "⏰ Operation '{}' timed out after {}ms\n\n", operation, duration_ms)?;
-                write!(f, "🔧 RECOMMENDED ACTIONS:\n")?;
-                write!(f, "   → Check network connectivity\n")?;
-                write!(f, "   → Retry the operation\n")?;
+            }
+            GitHubError::Timeout {
+                operation,
+                duration_ms,
+            } => {
+                writeln!(f, "GitHub Operation Timeout")?;
+                writeln!(f, "─────────────────────────")?;
+                write!(
+                    f,
+                    "⏰ Operation '{operation}' timed out after {duration_ms}ms\n\n"
+                )?;
+                writeln!(f, "🔧 RECOMMENDED ACTIONS:")?;
+                writeln!(f, "   → Check network connectivity")?;
+                writeln!(f, "   → Retry the operation")?;
                 write!(f, "   → Check GitHub status: https://status.github.com")
-            },
+            }
             GitHubError::NetworkError(msg) => {
-                write!(f, "GitHub Network Error\n")?;
-                write!(f, "───────────────────\n")?;
-                write!(f, "🌐 {}\n\n", msg)?;
-                write!(f, "🔧 RECOMMENDED ACTIONS:\n")?;
-                write!(f, "   → Check internet connectivity\n")?;
-                write!(f, "   → Verify DNS resolution\n")?;
+                writeln!(f, "GitHub Network Error")?;
+                writeln!(f, "───────────────────")?;
+                write!(f, "🌐 {msg}\n\n")?;
+                writeln!(f, "🔧 RECOMMENDED ACTIONS:")?;
+                writeln!(f, "   → Check internet connectivity")?;
+                writeln!(f, "   → Verify DNS resolution")?;
                 write!(f, "   → Check firewall/proxy settings")
             }
         }

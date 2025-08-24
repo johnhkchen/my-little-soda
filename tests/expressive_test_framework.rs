@@ -72,21 +72,21 @@ macro_rules! scenario {
                     map
                 },
             };
-            
+
             // Execute the routing logic (this will be implemented)
             let result = execute_routing_scenario(&scenario, $agent_count);
-            
+
             // Verify expected assignments
             for (agent_id, expected_tickets) in &scenario.expected_assignments {
                 let actual_assignments = result.get_agent_assignments(agent_id);
-                assert_eq!(actual_assignments, *expected_tickets, 
-                    "Agent {} assignments don't match. Expected: {:?}, Got: {:?}", 
+                assert_eq!(actual_assignments, *expected_tickets,
+                    "Agent {} assignments don't match. Expected: {:?}, Got: {:?}",
                     agent_id, expected_tickets, actual_assignments);
             }
-            
+
             // Verify invariants
             $(verify_invariant!(result, $invariant);)*
-            
+
             result
         }
     };
@@ -150,24 +150,36 @@ impl RoutingResult {
     pub fn get_agent_assignments(&self, agent_id: &str) -> Vec<u64> {
         self.assignments.get(agent_id).cloned().unwrap_or_default()
     }
-    
+
     pub fn verify_no_duplicate_assignments(&self) {
         let mut all_assignments: Vec<u64> = Vec::new();
         for tickets in self.assignments.values() {
             all_assignments.extend(tickets);
         }
-        let unique_count = all_assignments.iter().collect::<std::collections::HashSet<_>>().len();
-        assert_eq!(all_assignments.len(), unique_count, "Duplicate assignments detected!");
+        let unique_count = all_assignments
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        assert_eq!(
+            all_assignments.len(),
+            unique_count,
+            "Duplicate assignments detected!"
+        );
     }
-    
+
     pub fn verify_capacity_limits(&self) {
         for agent in &self.agents {
             let assignment_count = self.get_agent_assignments(&agent.id).len();
-            assert!(assignment_count <= agent.capacity as usize, 
-                "Agent {} exceeds capacity: {} > {}", agent.id, assignment_count, agent.capacity);
+            assert!(
+                assignment_count <= agent.capacity as usize,
+                "Agent {} exceeds capacity: {} > {}",
+                agent.id,
+                assignment_count,
+                agent.capacity
+            );
         }
     }
-    
+
     pub fn verify_dependency_order(&self) {
         // For this MVP, we'll implement a simple dependency check
         for issue in &self.issues {
@@ -175,8 +187,13 @@ impl RoutingResult {
                 for dep_id in &issue.dependencies {
                     let dep_issue = self.issues.iter().find(|i| i.id == *dep_id);
                     if let Some(dep) = dep_issue {
-                        assert!(dep.assigned_to.is_some() || dep.labels.contains(&"completed".to_string()),
-                            "Issue {} depends on unassigned issue {}", issue.id, dep_id);
+                        assert!(
+                            dep.assigned_to.is_some()
+                                || dep.labels.contains(&"completed".to_string()),
+                            "Issue {} depends on unassigned issue {}",
+                            issue.id,
+                            dep_id
+                        );
                     }
                 }
             }
@@ -189,47 +206,53 @@ fn execute_routing_scenario(scenario: &TestScenario, max_agents: u32) -> Routing
     let mut assignments = HashMap::new();
     let mut agents = scenario.agents.clone();
     let mut issues = scenario.issues.clone();
-    
+
     // Get available agent IDs first
-    let available_agent_ids: Vec<String> = agents.iter()
+    let available_agent_ids: Vec<String> = agents
+        .iter()
         .filter(|a| a.status == AgentStatus::Available)
         .take(max_agents as usize)
         .map(|a| a.id.clone())
         .collect();
-    
+
     // Find routable issues (without dependencies or with satisfied dependencies)
     let mut routable_issue_ids = Vec::new();
     for issue in &issues {
         if issue.labels.contains(&"route:ready".to_string()) {
             // Check if all dependencies are satisfied (simplified check)
-            let deps_satisfied = issue.dependencies.is_empty() || 
-                issue.dependencies.iter().all(|dep_id| {
-                    issues.iter().any(|i| i.id == *dep_id && i.assigned_to.is_some())
+            let deps_satisfied = issue.dependencies.is_empty()
+                || issue.dependencies.iter().all(|dep_id| {
+                    issues
+                        .iter()
+                        .any(|i| i.id == *dep_id && i.assigned_to.is_some())
                 });
-            
+
             if deps_satisfied {
                 routable_issue_ids.push(issue.id);
             }
         }
     }
-    
+
     // Assign issues to agents
     for (agent_id, issue_id) in available_agent_ids.iter().zip(routable_issue_ids.iter()) {
         // Update issue
         if let Some(issue) = issues.iter_mut().find(|i| i.id == *issue_id) {
             issue.assigned_to = Some(agent_id.clone());
         }
-        
+
         // Update assignments map
-        assignments.entry(agent_id.clone()).or_insert_with(Vec::new).push(*issue_id);
-        
+        assignments
+            .entry(agent_id.clone())
+            .or_insert_with(Vec::new)
+            .push(*issue_id);
+
         // Update agent status
         if let Some(agent) = agents.iter_mut().find(|a| a.id == *agent_id) {
             agent.status = AgentStatus::InProgress;
             agent.current_assignments.push(*issue_id);
         }
     }
-    
+
     RoutingResult {
         assignments,
         agents,
@@ -264,7 +287,7 @@ fn test_expressive_multi_ticket_coordination() {
         then: {
             assignments: {
                 "agent-001" => vec![1],  // Gets the first independent task
-                "agent-002" => vec![4],  // Gets another independent task  
+                "agent-002" => vec![4],  // Gets another independent task
                 "agent-003" => vec![5],  // Gets a low priority task
             },
             invariants: {
@@ -274,29 +297,41 @@ fn test_expressive_multi_ticket_coordination() {
             },
         }
     };
-    
+
     // Additional assertions to verify the coordination worked correctly
-    assert_eq!(result.assignments.len(), 3, "Should assign work to 3 agents");
-    
+    assert_eq!(
+        result.assignments.len(),
+        3,
+        "Should assign work to 3 agents"
+    );
+
     // Verify dependency handling: issue 2 and 3 should NOT be assigned yet
     // because they depend on unfinished work
-    let unassigned_issues: Vec<_> = result.issues.iter()
+    let unassigned_issues: Vec<_> = result
+        .issues
+        .iter()
         .filter(|i| i.assigned_to.is_none())
         .map(|i| i.id)
         .collect();
-    assert!(unassigned_issues.contains(&2), "Issue 2 should wait for dependency");
-    assert!(unassigned_issues.contains(&3), "Issue 3 should wait for dependency");
-    
+    assert!(
+        unassigned_issues.contains(&2),
+        "Issue 2 should wait for dependency"
+    );
+    assert!(
+        unassigned_issues.contains(&3),
+        "Issue 3 should wait for dependency"
+    );
+
     println!("✅ Expressive test framework working!");
     println!("📋 Assignments: {:?}", result.assignments);
     println!("🔄 Remaining tickets: {:?}", unassigned_issues);
 }
 
-#[test] 
+#[test]
 fn test_framework_generates_next_steps() {
     // This test should pass and show that our framework can generate
     // the next steps for development
-    
+
     let result = scenario! {
         name: "Generate development roadmap",
         given: {
@@ -322,11 +357,14 @@ fn test_framework_generates_next_steps() {
             },
         }
     };
-    
+
     // This test passes and shows our next development priorities
     println!("🚀 Next development step identified:");
     println!("   Ticket #{}: Implement property_test! macro", 100);
     println!("   This will enable chaos engineering and property-based testing");
-    
-    assert!(!result.assignments.is_empty(), "Should generate work assignments");
+
+    assert!(
+        !result.assignments.is_empty(),
+        "Should generate work assignments"
+    );
 }

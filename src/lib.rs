@@ -1,49 +1,47 @@
 // Clambake Library - Multi-Agent GitHub Orchestration
 // This exposes the core components for testing and integration
 
-pub mod github;
 pub mod agent_lifecycle;
 pub mod agents;
-pub mod workflows;
-pub mod priority;
-pub mod train_schedule;
-pub mod telemetry;
-pub mod metrics;
-pub mod git;
-pub mod bundling;
-pub mod http;
-pub mod observability;
-pub mod config;
-pub mod shutdown;
-pub mod database;
 pub mod autonomous;
+pub mod bundling;
+pub mod config;
+pub mod database;
+pub mod git;
+pub mod github;
+pub mod http;
+pub mod metrics;
+pub mod observability;
+pub mod priority;
+pub mod shutdown;
+pub mod telemetry;
+pub mod train_schedule;
+pub mod workflows;
 
 // Re-export key types for easy access
-pub use github::{GitHubClient, GitHubError};
+pub use agent_lifecycle::types::{AgentState, Command, GitCommand, GitHubCommand, PreFlightIssue};
+pub use agents::integrator::{CompletedWork, IntegrationResult, WorkIntegrator};
 pub use agents::{AgentCoordinator, AgentRouter};
-pub use agents::integrator::{WorkIntegrator, CompletedWork, IntegrationResult};
-pub use workflows::state_machine::{StateMachine, StateTransition, TransitionResult};
-pub use priority::Priority;
-pub use train_schedule::{TrainSchedule, ScheduleStatus, QueuedBranch};
-pub use telemetry::{init_telemetry, shutdown_telemetry, generate_correlation_id, create_coordination_span};
-pub use agent_lifecycle::types::{AgentState, PreFlightIssue, Command, GitCommand, GitHubCommand};
-pub use metrics::{MetricsTracker, IntegrationAttempt, IntegrationPhase, IntegrationOutcome};
-pub use git::{GitOperations, Git2Operations};
-pub use git::operations::CommitInfo;
-pub use bundling::{BundleManager, BundleResult};
-pub use bundling::types::BundleWindow;
-pub use http::{RateLimitedHttpClient};
-pub use observability::{GitHubApiMetrics, github_metrics, create_workflow_span, OperationTimer};
-pub use config::{MyLittleSodaConfig, config, init_config};
-pub use shutdown::ShutdownCoordinator;
-pub use database::{init_database, shutdown_database};
-pub use autonomous::{
-    AutonomousCoordinator, 
-    AutonomousWorkflowMachine, 
-    AutonomousWorkflowState, 
-    AutonomousEvent,
-    AutonomousErrorRecovery,
-    CoordinationConfig,
-};
-pub use autonomous::persistence::StatePersistenceManager;
 pub use autonomous::integration::IntegrationCoordinator;
+pub use autonomous::persistence::StatePersistenceManager;
+pub use autonomous::{
+    AutonomousCoordinator, AutonomousErrorRecovery, AutonomousEvent, AutonomousWorkflowMachine,
+    AutonomousWorkflowState, CoordinationConfig,
+};
+pub use bundling::types::BundleWindow;
+pub use bundling::{BundleManager, BundleResult};
+pub use config::{config, init_config, MyLittleSodaConfig};
+pub use database::{init_database, shutdown_database};
+pub use git::operations::CommitInfo;
+pub use git::{Git2Operations, GitOperations};
+pub use github::{GitHubClient, GitHubError};
+pub use http::RateLimitedHttpClient;
+pub use metrics::{IntegrationAttempt, IntegrationOutcome, IntegrationPhase, MetricsTracker};
+pub use observability::{create_workflow_span, github_metrics, GitHubApiMetrics, OperationTimer};
+pub use priority::Priority;
+pub use shutdown::ShutdownCoordinator;
+pub use telemetry::{
+    create_coordination_span, generate_correlation_id, init_telemetry, shutdown_telemetry,
+};
+pub use train_schedule::{QueuedBranch, ScheduleStatus, TrainSchedule};
+pub use workflows::state_machine::{StateMachine, StateTransition, TransitionResult};

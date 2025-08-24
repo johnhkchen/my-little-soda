@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,9 +16,9 @@ pub struct IntegrationAttempt {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IntegrationPhase {
-    WorkCompletion,     // agent completed work, created PR
-    MergeReady,         // PR reviewed, ready for merge
-    Merged,             // PR merged to main
+    WorkCompletion, // agent completed work, created PR
+    MergeReady,     // PR reviewed, ready for merge
+    Merged,         // PR merged to main
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -6,17 +6,17 @@ pub enum AgentState {
     /// Agent has no active assignment
     Idle,
     /// Agent has been assigned to an issue but hasn't committed work
-    Assigned { 
-        agent_id: String, 
-        issue: u64, 
-        branch: String 
+    Assigned {
+        agent_id: String,
+        issue: u64,
+        branch: String,
     },
     /// Agent is actively working (has made commits)
-    Working { 
-        agent_id: String, 
-        issue: u64, 
-        branch: String, 
-        commits_ahead: u32 
+    Working {
+        agent_id: String,
+        issue: u64,
+        branch: String,
+        commits_ahead: u32,
     },
     /// Agent has completed work and landed it (freed immediately)
     Landed { issue: u64 },
@@ -40,15 +40,15 @@ pub enum PreFlightIssue {
     /// Branch is missing
     BranchMissing { branch: String },
     /// GitHub labels don't match expected state
-    LabelMismatch { 
-        expected: Vec<String>, 
-        actual: Vec<String> 
+    LabelMismatch {
+        expected: Vec<String>,
+        actual: Vec<String>,
     },
     /// Issue is in wrong state
-    IssueStateMismatch { 
-        issue: u64, 
+    IssueStateMismatch {
+        issue: u64,
         expected_labels: Vec<String>,
-        actual_labels: Vec<String>
+        actual_labels: Vec<String>,
     },
 }
 
@@ -99,7 +99,7 @@ pub enum RiskLevel {
 pub enum Command {
     // Git operations
     Git(GitCommand),
-    // GitHub operations  
+    // GitHub operations
     GitHub(GitHubCommand),
     // User communication
     Print(String),
@@ -107,11 +107,11 @@ pub enum Command {
     Error(String),
     // Compound operations
     Sequence(Vec<Command>),
-    Conditional { 
-        condition: Condition, 
-        then_cmd: Box<Command>, 
-        else_cmd: Option<Box<Command>> 
-    }
+    Conditional {
+        condition: Condition,
+        then_cmd: Box<Command>,
+        else_cmd: Option<Box<Command>>,
+    },
 }
 
 /// Git operations
@@ -132,21 +132,37 @@ pub enum GitCommand {
 }
 
 /// GitHub operations
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]  
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GitHubCommand {
-    AddLabel { issue: u64, label: String },
-    RemoveLabel { issue: u64, label: String },
-    GetIssue { issue: u64 },
-    GetLabels { issue: u64 },
-    CreatePR { 
-        title: String, 
-        body: String, 
-        head: String, 
-        base: String 
+    AddLabel {
+        issue: u64,
+        label: String,
     },
-    MergePR { number: u64 },
-    ClosePR { number: u64 },
-    GetPR { number: u64 },
+    RemoveLabel {
+        issue: u64,
+        label: String,
+    },
+    GetIssue {
+        issue: u64,
+    },
+    GetLabels {
+        issue: u64,
+    },
+    CreatePR {
+        title: String,
+        body: String,
+        head: String,
+        base: String,
+    },
+    MergePR {
+        number: u64,
+    },
+    ClosePR {
+        number: u64,
+    },
+    GetPR {
+        number: u64,
+    },
 }
 
 /// Conditions for conditional commands
@@ -154,7 +170,7 @@ pub enum GitHubCommand {
 pub enum Condition {
     /// Always true
     Always,
-    /// Always false  
+    /// Always false
     Never,
     /// Check if branch exists
     BranchExists { branch: String },
@@ -212,7 +228,7 @@ pub fn parse_agent_branch(branch: &str) -> Option<(String, u64)> {
     if parts.len() == 2 {
         let agent_id = parts[0];
         let issue_part = parts[1];
-        
+
         // Handle both formats: "123" and "123-description"
         let issue_number = if let Some(dash_pos) = issue_part.find('-') {
             // New format: "123-description" -> extract "123"
@@ -221,7 +237,7 @@ pub fn parse_agent_branch(branch: &str) -> Option<(String, u64)> {
             // Legacy format: "123" -> parse directly
             issue_part.parse::<u64>()
         };
-        
+
         if let Ok(issue_num) = issue_number {
             return Some((agent_id.to_string(), issue_num));
         }
@@ -245,7 +261,7 @@ impl AgentState {
             _ => None,
         }
     }
-    
+
     pub fn issue_number(&self) -> Option<u64> {
         match self {
             AgentState::Assigned { issue, .. } => Some(*issue),
@@ -254,7 +270,7 @@ impl AgentState {
             _ => None,
         }
     }
-    
+
     pub fn branch_name(&self) -> Option<&str> {
         match self {
             AgentState::Assigned { branch, .. } => Some(branch),
@@ -262,11 +278,14 @@ impl AgentState {
             _ => None,
         }
     }
-    
+
     pub fn is_busy(&self) -> bool {
-        matches!(self, AgentState::Assigned { .. } | AgentState::Working { .. })
+        matches!(
+            self,
+            AgentState::Assigned { .. } | AgentState::Working { .. }
+        )
     }
-    
+
     pub fn is_available(&self) -> bool {
         matches!(self, AgentState::Idle)
     }

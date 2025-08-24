@@ -1,11 +1,17 @@
-use crate::github::GitHubError;
-use super::types::*;
 use super::storage::MetricsStorage;
+use super::types::*;
+use crate::github::GitHubError;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct BottleneckDetector {
     storage: MetricsStorage,
+}
+
+impl Default for BottleneckDetector {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BottleneckDetector {
@@ -15,13 +21,16 @@ impl BottleneckDetector {
         }
     }
 
-    pub async fn detect_and_store_bottlenecks(&self) -> Result<Vec<PerformanceBottleneck>, GitHubError> {
+    pub async fn detect_and_store_bottlenecks(
+        &self,
+    ) -> Result<Vec<PerformanceBottleneck>, GitHubError> {
         let mut bottlenecks = Vec::new();
 
         // Check recent routing metrics for latency bottlenecks
         if let Ok(routing_metrics) = self.storage.load_routing_metrics(Some(1)).await {
             for metric in routing_metrics {
-                if metric.routing_duration_ms > 2000 { // > 2 seconds
+                if metric.routing_duration_ms > 2000 {
+                    // > 2 seconds
                     let severity = if metric.routing_duration_ms > 10000 {
                         BottleneckSeverity::Critical
                     } else if metric.routing_duration_ms > 5000 {
@@ -31,8 +40,14 @@ impl BottleneckDetector {
                     };
 
                     let mut metrics_map = HashMap::new();
-                    metrics_map.insert("routing_duration_ms".to_string(), metric.routing_duration_ms as f64);
-                    metrics_map.insert("issues_evaluated".to_string(), metric.issues_evaluated as f64);
+                    metrics_map.insert(
+                        "routing_duration_ms".to_string(),
+                        metric.routing_duration_ms as f64,
+                    );
+                    metrics_map.insert(
+                        "issues_evaluated".to_string(),
+                        metric.issues_evaluated as f64,
+                    );
 
                     bottlenecks.push(PerformanceBottleneck {
                         detected_at: SystemTime::now()
@@ -45,7 +60,8 @@ impl BottleneckDetector {
                             "Routing operation took {}ms (target: <2000ms)",
                             metric.routing_duration_ms
                         ),
-                        suggested_action: "Consider optimizing GitHub API calls or filtering logic".to_string(),
+                        suggested_action: "Consider optimizing GitHub API calls or filtering logic"
+                            .to_string(),
                         metrics: metrics_map,
                     });
                 }
@@ -53,7 +69,8 @@ impl BottleneckDetector {
         }
 
         // Check agent utilization for capacity bottlenecks
-        if let Ok(utilization_metrics) = self.storage.load_agent_utilization_metrics(Some(1)).await {
+        if let Ok(utilization_metrics) = self.storage.load_agent_utilization_metrics(Some(1)).await
+        {
             let mut utilization_by_agent = HashMap::new();
             for metric in utilization_metrics {
                 utilization_by_agent.insert(metric.agent_id.clone(), metric.utilization_percentage);
@@ -67,7 +84,7 @@ impl BottleneckDetector {
             if !high_utilization_agents.is_empty() {
                 let mut metrics_map = HashMap::new();
                 for (agent_id, utilization) in high_utilization_agents.iter() {
-                    metrics_map.insert(format!("{}_utilization", agent_id), **utilization);
+                    metrics_map.insert(format!("{agent_id}_utilization"), **utilization);
                 }
 
                 bottlenecks.push(PerformanceBottleneck {
@@ -81,7 +98,9 @@ impl BottleneckDetector {
                         "High agent utilization detected: {} agents >80%",
                         high_utilization_agents.len()
                     ),
-                    suggested_action: "Consider adding more agent capacity or optimizing task distribution".to_string(),
+                    suggested_action:
+                        "Consider adding more agent capacity or optimizing task distribution"
+                            .to_string(),
                     metrics: metrics_map,
                 });
             }
@@ -89,7 +108,9 @@ impl BottleneckDetector {
 
         // Store detected bottlenecks
         for bottleneck in &bottlenecks {
-            self.storage.store_performance_bottleneck(bottleneck.clone()).await?;
+            self.storage
+                .store_performance_bottleneck(bottleneck.clone())
+                .await?;
         }
 
         Ok(bottlenecks)
@@ -123,7 +144,10 @@ impl BottleneckDetector {
                 bottlenecks.push("agent_capacity_exhausted".to_string());
             }
             RoutingDecision::FilteredOut { reason } => {
-                bottlenecks.push(format!("filtered_out_{}", reason.replace(" ", "_").to_lowercase()));
+                bottlenecks.push(format!(
+                    "filtered_out_{}",
+                    reason.replace(" ", "_").to_lowercase()
+                ));
             }
             _ => {}
         }

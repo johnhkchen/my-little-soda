@@ -1,34 +1,39 @@
+use super::{
+    actions::ActionsHandler,
+    branches::BranchHandler,
+    comments::CommentHandler,
+    errors::GitHubError,
+    issues::IssueHandler,
+    pulls::{PullRequestHandler, PullRequestStatus},
+    types::{ConflictAnalysis, ConflictRecoveryData, SafeMergeResult},
+};
+use crate::github::retry::GitHubRetryHandler;
+use async_trait::async_trait;
 use octocrab::Octocrab;
 use std::fs;
 use std::path::Path;
-use async_trait::async_trait;
-use super::{
-    issues::IssueHandler, 
-    pulls::{PullRequestHandler, PullRequestStatus}, 
-    branches::BranchHandler, 
-    comments::CommentHandler,
-    actions::ActionsHandler,
-    types::{ConflictAnalysis, ConflictRecoveryData, SafeMergeResult},
-    errors::GitHubError
-};
-use crate::github::retry::GitHubRetryHandler;
-
 
 /// Trait for GitHub operations to enable testing with mocks
 #[async_trait]
 pub trait GitHubOps {
     async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError>;
-    async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError>;
+    async fn fetch_issues_with_state(
+        &self,
+        state: Option<octocrab::params::State>,
+    ) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError>;
     async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<(), GitHubError>;
     async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError>;
-    async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError>;
+    async fn create_issue(
+        &self,
+        title: &str,
+        body: &str,
+        labels: Vec<String>,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError>;
     async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError>;
     async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError>;
     fn owner(&self) -> &str;
     fn repo(&self) -> &str;
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct GitHubClient {
@@ -48,10 +53,8 @@ impl GitHubClient {
     pub fn new() -> Result<Self, GitHubError> {
         let token = Self::read_token()?;
         let (owner, repo) = Self::read_config()?;
-        
-        let octocrab = Octocrab::builder()
-            .personal_token(token)
-            .build()?;
+
+        let octocrab = Octocrab::builder().personal_token(token).build()?;
 
         Ok(Self::create_client(octocrab, owner, repo))
     }
@@ -63,26 +66,23 @@ impl GitHubClient {
                 return Ok(token);
             }
         }
-        
+
         // Fall back to file-based configuration
         let token_path = ".clambake/credentials/github_token";
         if !Path::new(token_path).exists() {
             return Err(GitHubError::TokenNotFound(format!(
-                "GitHub token not found. Please set MY_LITTLE_SODA_GITHUB_TOKEN environment variable or create {} with your GitHub personal access token.",
-                token_path
+                "GitHub token not found. Please set MY_LITTLE_SODA_GITHUB_TOKEN environment variable or create {token_path} with your GitHub personal access token."
             )));
         }
-        
-        let token = fs::read_to_string(token_path)?
-            .trim()
-            .to_string();
-            
+
+        let token = fs::read_to_string(token_path)?.trim().to_string();
+
         if token == "YOUR_GITHUB_TOKEN_HERE" || token.is_empty() {
             return Err(GitHubError::TokenNotFound(
                 "Please replace YOUR_GITHUB_TOKEN_HERE with your actual GitHub token in the credential file".to_string()
             ));
         }
-        
+
         Ok(token)
     }
 
@@ -90,55 +90,61 @@ impl GitHubClient {
         // First try environment variables (set by flox)
         let env_owner = std::env::var("GITHUB_OWNER").unwrap_or_default();
         let env_repo = std::env::var("GITHUB_REPO").unwrap_or_default();
-        
-        if !env_owner.is_empty() && !env_repo.is_empty() 
-            && env_owner != "your-github-username" 
-            && env_repo != "your-repo-name" {
+
+        if !env_owner.is_empty()
+            && !env_repo.is_empty()
+            && env_owner != "your-github-username"
+            && env_repo != "your-repo-name"
+        {
             return Ok((env_owner, env_repo));
         }
-        
+
         // Fall back to file-based configuration
         let owner_path = ".clambake/credentials/github_owner";
         let repo_path = ".clambake/credentials/github_repo";
-        
+
         if !Path::new(owner_path).exists() {
             return Err(GitHubError::ConfigNotFound(format!(
-                "GitHub config not found. Please set GITHUB_OWNER and GITHUB_REPO environment variables or create {} with your GitHub username/organization.",
-                owner_path
+                "GitHub config not found. Please set GITHUB_OWNER and GITHUB_REPO environment variables or create {owner_path} with your GitHub username/organization."
             )));
         }
-        
+
         if !Path::new(repo_path).exists() {
             return Err(GitHubError::ConfigNotFound(format!(
-                "GitHub repo not found at {}. Please create this file with your repository name.",
-                repo_path
+                "GitHub repo not found at {repo_path}. Please create this file with your repository name."
             )));
         }
-        
+
         let owner = fs::read_to_string(owner_path)?.trim().to_string();
         let repo = fs::read_to_string(repo_path)?.trim().to_string();
-        
-        if owner.is_empty() || repo.is_empty() 
-            || owner == "your-github-username" 
-            || repo == "your-repo-name" {
+
+        if owner.is_empty()
+            || repo.is_empty()
+            || owner == "your-github-username"
+            || repo == "your-repo-name"
+        {
             return Err(GitHubError::ConfigNotFound(
-                "GitHub owner and repo must be set to actual values, not placeholders".to_string()
+                "GitHub owner and repo must be set to actual values, not placeholders".to_string(),
             ));
         }
-        
+
         Ok((owner, repo))
     }
 
     /// Common error handling utility for GitHub API calls
     pub async fn handle_api_result<T>(
         &self,
-        result: Result<T, octocrab::Error>
+        result: Result<T, octocrab::Error>,
     ) -> Result<T, GitHubError> {
         result.map_err(GitHubError::ApiError)
     }
 
     /// Standard retry wrapper for GitHub operations
-    pub async fn with_retry<F, T>(&self, operation_name: &str, operation: F) -> Result<T, GitHubError>
+    pub async fn with_retry<F, T>(
+        &self,
+        operation_name: &str,
+        operation: F,
+    ) -> Result<T, GitHubError>
     where
         F: std::future::Future<Output = Result<T, octocrab::Error>>,
     {
@@ -157,11 +163,15 @@ impl GitHubClient {
     where
         F: std::future::Future<Output = Result<T, octocrab::Error>>,
     {
-        tracing::debug!("GitHub issue operation: {} on issue #{}", operation_name, issue_number);
+        tracing::debug!(
+            "GitHub issue operation: {} on issue #{}",
+            operation_name,
+            issue_number
+        );
         operation.await.map_err(GitHubError::ApiError)
     }
 
-    /// Common pattern for PR operations with consistent error handling  
+    /// Common pattern for PR operations with consistent error handling
     pub async fn execute_pr_operation<F, T>(
         &self,
         operation_name: &str,
@@ -171,7 +181,11 @@ impl GitHubClient {
     where
         F: std::future::Future<Output = Result<T, octocrab::Error>>,
     {
-        tracing::debug!("GitHub PR operation: {} on PR #{}", operation_name, pr_number);
+        tracing::debug!(
+            "GitHub PR operation: {} on PR #{}",
+            operation_name,
+            pr_number
+        );
         operation.await.map_err(GitHubError::ApiError)
     }
 
@@ -195,19 +209,33 @@ impl GitHubClient {
         self.issues.fetch_issues().await
     }
 
-    pub async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
+    pub async fn fetch_issues_with_state(
+        &self,
+        state: Option<octocrab::params::State>,
+    ) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
         self.issues.fetch_issues_with_state(state).await
     }
 
-    pub async fn fetch_issue(&self, issue_number: u64) -> Result<octocrab::models::issues::Issue, GitHubError> {
+    pub async fn fetch_issue(
+        &self,
+        issue_number: u64,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError> {
         self.issues.fetch_issue(issue_number).await
     }
 
-    pub async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<octocrab::models::issues::Issue, GitHubError> {
+    pub async fn assign_issue(
+        &self,
+        issue_number: u64,
+        assignee: &str,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError> {
         self.issues.assign_issue(issue_number, assignee).await
     }
 
-    pub async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError> {
+    pub async fn create_branch(
+        &self,
+        branch_name: &str,
+        from_branch: &str,
+    ) -> Result<(), GitHubError> {
         self.branches.create_branch(branch_name, from_branch).await
     }
 
@@ -226,18 +254,26 @@ impl GitHubClient {
         base_branch: &str,
         body: &str,
     ) -> Result<octocrab::models::pulls::PullRequest, GitHubError> {
-        self.pulls.create_pull_request(title, head_branch, base_branch, body).await
+        self.pulls
+            .create_pull_request(title, head_branch, base_branch, body)
+            .await
     }
 
-    pub async fn get_pull_request(&self, pr_number: u64) -> Result<octocrab::models::pulls::PullRequest, GitHubError> {
+    pub async fn get_pull_request(
+        &self,
+        pr_number: u64,
+    ) -> Result<octocrab::models::pulls::PullRequest, GitHubError> {
         self.pulls.get_pull_request(pr_number).await
     }
 
     /// Check if a PR is ready for merging
-    pub async fn is_pr_mergeable(&self, pr: &octocrab::models::pulls::PullRequest) -> Result<bool, GitHubError> {
+    pub async fn is_pr_mergeable(
+        &self,
+        pr: &octocrab::models::pulls::PullRequest,
+    ) -> Result<bool, GitHubError> {
         self.pulls.is_pr_mergeable(pr).await
     }
-    
+
     /// Get detailed PR status including CI and review status
     pub async fn get_pr_status(&self, pr_number: u64) -> Result<PullRequestStatus, GitHubError> {
         self.pulls.get_pr_status(pr_number).await
@@ -258,20 +294,35 @@ impl GitHubClient {
     pub fn repo(&self) -> &str {
         &self.repo
     }
-    
-    pub async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
+
+    pub async fn add_label_to_issue(
+        &self,
+        issue_number: u64,
+        label: &str,
+    ) -> Result<(), GitHubError> {
         self.issues.add_label_to_issue(issue_number, label).await
     }
 
-    pub async fn remove_label_from_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
+    pub async fn remove_label_from_issue(
+        &self,
+        issue_number: u64,
+        label: &str,
+    ) -> Result<(), GitHubError> {
         self.issues.remove_label(issue_number, label).await
     }
 
-    pub async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError> {
+    pub async fn create_issue(
+        &self,
+        title: &str,
+        body: &str,
+        labels: Vec<String>,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError> {
         self.issues.create_issue(title, body, labels).await
     }
 
-    pub async fn fetch_open_pull_requests(&self) -> Result<Vec<octocrab::models::pulls::PullRequest>, GitHubError> {
+    pub async fn fetch_open_pull_requests(
+        &self,
+    ) -> Result<Vec<octocrab::models::pulls::PullRequest>, GitHubError> {
         self.pulls.fetch_open_pull_requests().await
     }
 
@@ -279,7 +330,9 @@ impl GitHubClient {
     /// Returns true if the issue has an open PR WITHOUT route:ready_to_merge label
     pub async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError> {
         let open_prs = self.fetch_open_pull_requests().await?;
-        self.issues.issue_has_blocking_pr(issue_number, &open_prs).await
+        self.issues
+            .issue_has_blocking_pr(issue_number, &open_prs)
+            .await
     }
 
     /// Get the number of PRs created in the last hour
@@ -288,14 +341,24 @@ impl GitHubClient {
     }
 
     /// Enhanced merge conflict detection with detailed diagnostics
-    pub async fn detect_merge_conflicts(&self, pr_number: u64) -> Result<ConflictAnalysis, GitHubError> {
+    pub async fn detect_merge_conflicts(
+        &self,
+        pr_number: u64,
+    ) -> Result<ConflictAnalysis, GitHubError> {
         self.pulls.detect_merge_conflicts(pr_number).await
     }
 
     /// Create a recovery PR for conflicted work with human review request
-    pub async fn create_conflict_recovery_pr(&self, original_pr: u64, work_data: ConflictRecoveryData) -> Result<octocrab::models::pulls::PullRequest, GitHubError> {
+    pub async fn create_conflict_recovery_pr(
+        &self,
+        original_pr: u64,
+        work_data: ConflictRecoveryData,
+    ) -> Result<octocrab::models::pulls::PullRequest, GitHubError> {
         // Use pulls handler but pass issue handler for label operations
-        let pr = self.pulls.create_conflict_recovery_pr(original_pr, work_data, &self.issues).await?;
+        let pr = self
+            .pulls
+            .create_conflict_recovery_pr(original_pr, work_data, &self.issues)
+            .await?;
         Ok(pr)
     }
 
@@ -307,10 +370,17 @@ impl GitHubClient {
         issue_number: u64,
         merge_method: Option<&str>,
     ) -> Result<SafeMergeResult, GitHubError> {
-        self.pulls.safe_merge_pull_request(pr_number, agent_id, issue_number, merge_method, &self.issues).await
+        self.pulls
+            .safe_merge_pull_request(
+                pr_number,
+                agent_id,
+                issue_number,
+                merge_method,
+                &self.issues,
+            )
+            .await
     }
 }
-
 
 // Implement the trait for GitHubClient
 #[async_trait]
@@ -318,38 +388,45 @@ impl GitHubOps for GitHubClient {
     async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
         self.fetch_issues().await
     }
-    
-    async fn fetch_issues_with_state(&self, state: Option<octocrab::params::State>) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
+
+    async fn fetch_issues_with_state(
+        &self,
+        state: Option<octocrab::params::State>,
+    ) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
         self.fetch_issues_with_state(state).await
     }
-    
+
     async fn assign_issue(&self, issue_number: u64, assignee: &str) -> Result<(), GitHubError> {
         self.assign_issue(issue_number, assignee).await?;
         Ok(())
     }
-    
+
     async fn add_label_to_issue(&self, issue_number: u64, label: &str) -> Result<(), GitHubError> {
         self.add_label_to_issue(issue_number, label).await
     }
-    
-    async fn create_issue(&self, title: &str, body: &str, labels: Vec<String>) -> Result<octocrab::models::issues::Issue, GitHubError> {
+
+    async fn create_issue(
+        &self,
+        title: &str,
+        body: &str,
+        labels: Vec<String>,
+    ) -> Result<octocrab::models::issues::Issue, GitHubError> {
         self.create_issue(title, body, labels).await
     }
-    
+
     async fn create_branch(&self, branch_name: &str, from_branch: &str) -> Result<(), GitHubError> {
         self.create_branch(branch_name, from_branch).await
     }
-    
+
     async fn issue_has_blocking_pr(&self, issue_number: u64) -> Result<bool, GitHubError> {
         self.issue_has_blocking_pr(issue_number).await
     }
-    
+
     fn owner(&self) -> &str {
         self.owner()
     }
-    
+
     fn repo(&self) -> &str {
         self.repo()
     }
 }
-

@@ -50,14 +50,14 @@ impl WorkIntegrator {
         // GitHub-native: Scan for completed work in GitHub repository
         // Look for branches with naming pattern like "agent-work-issue-123"
         // Check PR status, CI status, etc.
-        
+
         let issues = self.github_client.fetch_issues().await?;
         let mut completed_work = Vec::new();
-        
+
         // For MVP, simulate detecting completed work
         // In production, this would:
         // 1. List all branches with agent work patterns
-        // 2. Check CI status for each branch  
+        // 2. Check CI status for each branch
         // 3. Verify work is ready for integration
         for issue in issues {
             if issue.state == octocrab::models::IssueState::Open {
@@ -72,30 +72,38 @@ impl WorkIntegrator {
                 }
             }
         }
-        
+
         Ok(completed_work)
     }
 
-    pub async fn land_completed_work(&self, work_items: Vec<CompletedWork>) -> Result<Vec<IntegrationResult>, GitHubError> {
+    pub async fn land_completed_work(
+        &self,
+        work_items: Vec<CompletedWork>,
+    ) -> Result<Vec<IntegrationResult>, GitHubError> {
         // Atomic integration: Each work item is integrated atomically
         // Following "clambake land" command pattern
         let mut results = Vec::new();
-        
+
         for work in work_items {
             let result = self.integrate_single_work_item(&work).await?;
             results.push(result);
         }
-        
+
         Ok(results)
     }
 
-    async fn integrate_single_work_item(&self, work: &CompletedWork) -> Result<IntegrationResult, GitHubError> {
+    async fn integrate_single_work_item(
+        &self,
+        work: &CompletedWork,
+    ) -> Result<IntegrationResult, GitHubError> {
         // Atomic operation: Integrate single work item to main branch
         // This preserves work by ensuring it's never lost during integration
-        
-        println!("🔄 Integrating work for issue #{} from branch {}", 
-                work.issue.number, work.branch_name);
-        
+
+        println!(
+            "🔄 Integrating work for issue #{} from branch {}",
+            work.issue.number, work.branch_name
+        );
+
         // Generate PR body with auto-close keywords for GitHub's native issue closure
         let pr_body = format!(
             "## Summary\n\
@@ -112,20 +120,28 @@ impl WorkIntegrator {
             work.issue.number, // This is the key auto-close keyword
             work.agent_id
         );
-        
+
         // Create PR with auto-close keywords
         let pr_title = format!("Agent {}: {}", work.agent_id, work.issue.title);
-        
-        match self.github_client.create_pull_request(
-            &pr_title,
-            &work.branch_name,
-            "main",
-            &pr_body
-        ).await {
+
+        match self
+            .github_client
+            .create_pull_request(&pr_title, &work.branch_name, "main", &pr_body)
+            .await
+        {
             Ok(pr) => {
-                println!("✅ Created PR #{} with auto-close for issue #{}", pr.number, work.issue.number);
-                println!("🔗 PR URL: {}", pr.html_url.as_ref().map(|url| url.as_str()).unwrap_or("(URL not available)"));
-                
+                println!(
+                    "✅ Created PR #{} with auto-close for issue #{}",
+                    pr.number, work.issue.number
+                );
+                println!(
+                    "🔗 PR URL: {}",
+                    pr.html_url
+                        .as_ref()
+                        .map(|url| url.as_str())
+                        .unwrap_or("(URL not available)")
+                );
+
                 // The issue will automatically close when this PR is merged
                 let result = IntegrationResult {
                     issue_number: work.issue.number,
@@ -133,90 +149,102 @@ impl WorkIntegrator {
                     merged_commit: Some(format!("pr-{}-{}", pr.number, work.commit_sha)),
                     error: None,
                 };
-                
-                println!("✅ Successfully integrated issue #{} - will auto-close on PR merge", work.issue.number);
+
+                println!(
+                    "✅ Successfully integrated issue #{} - will auto-close on PR merge",
+                    work.issue.number
+                );
                 Ok(result)
             }
             Err(e) => {
                 // Fallback to manual issue management
-                self.preserve_work_on_failure(work, &format!("PR creation failed: {:?}", e)).await?;
-                
+                self.preserve_work_on_failure(work, &format!("PR creation failed: {e:?}"))
+                    .await?;
+
                 let result = IntegrationResult {
                     issue_number: work.issue.number,
                     success: false,
                     merged_commit: None,
-                    error: Some(format!("PR creation failed: {:?}", e)),
+                    error: Some(format!("PR creation failed: {e:?}")),
                 };
-                
+
                 Ok(result)
             }
         }
     }
 
     /// Clean up agent branch after successful merge
-    pub async fn cleanup_merged_branch(&self, branch_name: &str, pr_number: u64) -> Result<(), GitHubError> {
+    pub async fn cleanup_merged_branch(
+        &self,
+        branch_name: &str,
+        pr_number: u64,
+    ) -> Result<(), GitHubError> {
         // Check if PR was successfully merged before cleanup
         match self.github_client.get_pull_request(pr_number).await {
             Ok(pr) => {
                 if pr.merged.unwrap_or(false) {
-                    println!("🧹 Cleaning up merged branch: {}", branch_name);
-                    
+                    println!("🧹 Cleaning up merged branch: {branch_name}");
+
                     // Delete the branch using GitHub API
                     match self.github_client.delete_branch(branch_name).await {
                         Ok(()) => {
-                            println!("✅ Successfully deleted branch: {}", branch_name);
+                            println!("✅ Successfully deleted branch: {branch_name}");
                         }
                         Err(e) => {
                             tracing::warn!("Failed to delete branch {}: {:?}", branch_name, e);
-                            println!("⚠️  Failed to delete branch {}: {:?}", branch_name, e);
+                            println!("⚠️  Failed to delete branch {branch_name}: {e:?}");
                         }
                     }
                 } else {
-                    println!("⏳ PR #{} not yet merged, keeping branch: {}", pr_number, branch_name);
+                    println!("⏳ PR #{pr_number} not yet merged, keeping branch: {branch_name}");
                 }
             }
             Err(e) => {
-                tracing::warn!("Failed to check PR status for cleanup {}: {:?}", pr_number, e);
-                println!("⚠️  Could not verify PR merge status, keeping branch: {}", branch_name);
+                tracing::warn!(
+                    "Failed to check PR status for cleanup {}: {:?}",
+                    pr_number,
+                    e
+                );
+                println!("⚠️  Could not verify PR merge status, keeping branch: {branch_name}");
             }
         }
-        
+
         Ok(())
     }
 
     /// Scan for merged PRs and clean up their branches
     pub async fn cleanup_all_merged_branches(&self) -> Result<Vec<String>, GitHubError> {
         let cleaned_branches = Vec::new();
-        
+
         // This would scan all PRs and clean up merged branches
         // For now, this is a placeholder for the full implementation
         println!("🔍 Scanning for merged PRs to clean up branches...");
-        
+
         // In production, this would:
         // 1. Fetch all merged PRs from the last N days
         // 2. Check if their head branches still exist
         // 3. Delete branches that correspond to completed agent work
         // 4. Handle orphaned branches (branches without corresponding PRs)
-        
+
         Ok(cleaned_branches)
     }
 
     /// Recover orphaned agent branches (branches without corresponding issues or PRs)
     pub async fn recover_orphaned_branches(&self) -> Result<Vec<OrphanedBranch>, GitHubError> {
         let mut orphaned_branches = Vec::new();
-        
+
         println!("🔍 Scanning for orphaned agent branches...");
-        
+
         // Get all agent branches using git command
         if let Ok(output) = std::process::Command::new("git")
-            .args(&["branch", "-r", "--format=%(refname:short)"])
+            .args(["branch", "-r", "--format=%(refname:short)"])
             .output()
         {
             if output.status.success() {
                 let branches = String::from_utf8_lossy(&output.stdout);
                 for line in branches.lines() {
                     let branch_name = line.trim().trim_start_matches("origin/");
-                    
+
                     // Check if this looks like an agent branch
                     if self.is_agent_branch(branch_name) {
                         match self.analyze_branch_status(branch_name).await {
@@ -235,7 +263,7 @@ impl WorkIntegrator {
                 }
             }
         }
-        
+
         println!("✅ Found {} orphaned branches", orphaned_branches.len());
         Ok(orphaned_branches)
     }
@@ -249,7 +277,7 @@ impl WorkIntegrator {
         if parts.len() == 2 {
             let agent_part = parts[0];
             let issue_part = parts[1];
-            
+
             // Check if agent part matches pattern (agentXXX)
             if agent_part.starts_with("agent") && agent_part.len() >= 6 {
                 // Check if issue part starts with a number
@@ -258,12 +286,15 @@ impl WorkIntegrator {
                 }
             }
         }
-        
+
         false
     }
 
     /// Analyze a branch to determine if it's orphaned
-    async fn analyze_branch_status(&self, branch_name: &str) -> Result<Option<OrphanedBranch>, GitHubError> {
+    async fn analyze_branch_status(
+        &self,
+        branch_name: &str,
+    ) -> Result<Option<OrphanedBranch>, GitHubError> {
         // Extract issue number from branch name
         let issue_number = if let Some(issue_num) = self.extract_issue_number(branch_name) {
             issue_num
@@ -283,7 +314,9 @@ impl WorkIntegrator {
                                 branch_name: branch_name.to_string(),
                                 issue_number,
                                 reason: OrphanReason::IssueClosedNoPr,
-                                last_commit_date: self.get_branch_last_commit_date(branch_name).await?,
+                                last_commit_date: self
+                                    .get_branch_last_commit_date(branch_name)
+                                    .await?,
                             }));
                         }
                     }
@@ -319,10 +352,18 @@ impl WorkIntegrator {
     }
 
     /// Get the last commit date for a branch
-    async fn get_branch_last_commit_date(&self, branch_name: &str) -> Result<Option<i64>, GitHubError> {
+    async fn get_branch_last_commit_date(
+        &self,
+        branch_name: &str,
+    ) -> Result<Option<i64>, GitHubError> {
         // Use git command to get last commit date
         if let Ok(output) = std::process::Command::new("git")
-            .args(&["log", "-1", "--format=%ct", &format!("origin/{}", branch_name)])
+            .args([
+                "log",
+                "-1",
+                "--format=%ct",
+                &format!("origin/{branch_name}"),
+            ])
             .output()
         {
             if output.status.success() {
@@ -332,7 +373,7 @@ impl WorkIntegrator {
                 }
             }
         }
-        
+
         Ok(None)
     }
 
@@ -355,36 +396,57 @@ impl WorkIntegrator {
             orphaned.issue_number,
             orphaned.reason,
             orphaned.last_commit_date
-                .map(|ts| format!("Unix timestamp: {}", ts))
+                .map(|ts| format!("Unix timestamp: {ts}"))
                 .unwrap_or_else(|| "Unknown".to_string())
         );
 
         // Create recovery issue
-        match self.github_client.create_issue(&recovery_title, &recovery_body, vec!["route:ready".to_string()]).await {
+        match self
+            .github_client
+            .create_issue(
+                &recovery_title,
+                &recovery_body,
+                vec!["route:ready".to_string()],
+            )
+            .await
+        {
             Ok(_) => {
-                println!("✅ Created recovery issue for branch: {}", orphaned.branch_name);
+                println!(
+                    "✅ Created recovery issue for branch: {}",
+                    orphaned.branch_name
+                );
                 Ok(())
             }
             Err(e) => {
-                tracing::error!("Failed to create recovery issue for {}: {:?}", orphaned.branch_name, e);
+                tracing::error!(
+                    "Failed to create recovery issue for {}: {:?}",
+                    orphaned.branch_name,
+                    e
+                );
                 Err(e)
             }
         }
     }
 
-    pub async fn preserve_work_on_failure(&self, work: &CompletedWork, error: &str) -> Result<(), GitHubError> {
+    pub async fn preserve_work_on_failure(
+        &self,
+        work: &CompletedWork,
+        error: &str,
+    ) -> Result<(), GitHubError> {
         // VERBOTEN rule: Work must be preserved
         // If integration fails, ensure work is not lost
-        
-        println!("🛡️ Preserving work for issue #{} due to error: {}", 
-                work.issue.number, error);
-        
+
+        println!(
+            "🛡️ Preserving work for issue #{} due to error: {}",
+            work.issue.number, error
+        );
+
         // In production, this would:
         // 1. Create backup branch
         // 2. Tag the work with preservation metadata
         // 3. Create GitHub issue documenting the preservation
         // 4. Notify relevant stakeholders
-        
+
         Ok(())
     }
 }

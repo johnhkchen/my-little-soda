@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local, Timelike, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
 
 /// Represents a bundling time window (10-minute intervals)
 #[derive(Debug, Clone)]
@@ -14,7 +14,7 @@ impl BundleWindow {
     pub fn current() -> Self {
         let now = Local::now();
         let current_minute = now.minute();
-        
+
         // Round down to nearest 10-minute mark
         let window_minute = (current_minute / 10) * 10;
         let start = now
@@ -25,22 +25,23 @@ impl BundleWindow {
             .with_nanosecond(0)
             .unwrap();
         let end = start + chrono::Duration::minutes(10);
-        
+
         Self { start, end }
     }
-    
+
     /// Generate deterministic bundle branch name for this window
     pub fn bundle_branch_name(&self, issues: &[u64]) -> String {
         let mut sorted_issues = issues.to_vec();
         sorted_issues.sort_unstable();
-        
+
         let window_str = self.start.format("%Y%m%d_%H%M");
-        let issues_str = sorted_issues.iter()
+        let issues_str = sorted_issues
+            .iter()
             .map(|i| i.to_string())
             .collect::<Vec<_>>()
             .join("_");
-            
-        format!("bundle/{}__issues_{}", window_str, issues_str)
+
+        format!("bundle/{window_str}__issues_{issues_str}")
     }
 }
 
@@ -57,9 +58,7 @@ pub enum BundleResult {
         individual_prs: HashMap<String, u64>, // branch_name -> pr_number
     },
     /// Bundle creation failed
-    Failed {
-        error: anyhow::Error,
-    },
+    Failed { error: anyhow::Error },
 }
 
 /// Information about a bundle branch being created
@@ -74,13 +73,36 @@ pub struct BundleBranch {
 /// Comprehensive error types for bundling operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BundleErrorType {
-    GitOperation { operation: String, details: String },
-    GitHubApi { status_code: Option<u16>, message: String, retry_after: Option<u64> },
-    ConflictResolution { conflicted_files: Vec<String>, branches: Vec<String> },
-    NetworkTimeout { operation: String, duration_ms: u64 },
-    PermissionDenied { resource: String, required_permission: String },
-    RateLimit { limit_type: String, reset_time: DateTime<Utc>, remaining: u32 },
-    PartialFailure { completed_operations: Vec<String>, failed_operations: Vec<String> },
+    GitOperation {
+        operation: String,
+        details: String,
+    },
+    GitHubApi {
+        status_code: Option<u16>,
+        message: String,
+        retry_after: Option<u64>,
+    },
+    ConflictResolution {
+        conflicted_files: Vec<String>,
+        branches: Vec<String>,
+    },
+    NetworkTimeout {
+        operation: String,
+        duration_ms: u64,
+    },
+    PermissionDenied {
+        resource: String,
+        required_permission: String,
+    },
+    RateLimit {
+        limit_type: String,
+        reset_time: DateTime<Utc>,
+        remaining: u32,
+    },
+    PartialFailure {
+        completed_operations: Vec<String>,
+        failed_operations: Vec<String>,
+    },
 }
 
 /// Recovery strategy for failed bundling operations

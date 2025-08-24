@@ -1,6 +1,6 @@
-use anyhow::Result;
 use crate::cli::commands::with_agent_router;
 use crate::priority::Priority;
+use anyhow::Result;
 use octocrab::models::issues::Issue;
 
 pub struct PeekCommand {
@@ -20,7 +20,7 @@ impl PeekCommand {
     pub async fn execute(&self) -> Result<()> {
         println!("👀 Peeking at next task in queue...");
         println!();
-        
+
         with_agent_router(|router| async move {
             match router.fetch_routable_issues().await {
                     Ok(mut issues) => {
@@ -29,23 +29,23 @@ impl PeekCommand {
                             println!("   💡 Create issues with: gh issue create --title 'Your task' --label 'route:ready'");
                             return Ok(());
                         }
-                        
+
                         // Sort issues by priority (same logic as router)
                         issues.sort_by(|a, b| {
                             let a_priority = get_issue_priority(a);
                             let b_priority = get_issue_priority(b);
                             b_priority.cmp(&a_priority) // Higher priority first
                         });
-                        
+
                         let next_issue = &issues[0];
                         let priority = get_issue_priority(next_issue);
                         let priority_enum = Priority::from_labels(&next_issue.labels.iter()
                             .map(|l| l.name.as_str()).collect::<Vec<_>>());
-                        
+
                         println!("🎯 NEXT TASK TO BE ASSIGNED:");
                         println!("   📋 Issue #{}: {}", next_issue.number, next_issue.title);
-                        println!("   🏷️  Priority: {} ({})", priority_enum, priority);
-                        
+                        println!("   🏷️  Priority: {priority_enum} ({priority})");
+
                         // Show labels for context
                         let labels: Vec<String> = next_issue.labels.iter()
                             .map(|l| l.name.clone())
@@ -53,7 +53,7 @@ impl PeekCommand {
                         if !labels.is_empty() {
                             println!("   🏷️  Labels: {}", labels.join(", "));
                         }
-                        
+
                         // Show description if available
                         if let Some(body) = &next_issue.body {
                             if !body.is_empty() {
@@ -62,22 +62,22 @@ impl PeekCommand {
                                 } else {
                                     body.clone()
                                 };
-                                println!("   📄 Description: {}", preview);
+                                println!("   📄 Description: {preview}");
                             }
                         }
-                        
+
                         println!("   🔗 URL: {}", next_issue.html_url);
                         println!();
-                        
+
                         if issues.len() > 1 {
                             println!("📈 QUEUE DEPTH: {} total routable tasks available", issues.len());
                         }
-                        
+
                         println!("💡 Run 'my-little-soda pop' to claim this task");
                         Ok(())
                     }
                     Err(e) => {
-                        println!("❌ Failed to fetch tasks: {}", e);
+                        println!("❌ Failed to fetch tasks: {e}");
                         println!();
                         println!("🎯 TROUBLESHOOTING:");
                         println!("   → Check GitHub authentication: gh auth status");
@@ -96,6 +96,12 @@ impl PeekCommand {
 }
 
 fn get_issue_priority(issue: &Issue) -> u32 {
-    Priority::from_labels(&issue.labels.iter()
-        .map(|l| l.name.as_str()).collect::<Vec<_>>()).value()
+    Priority::from_labels(
+        &issue
+            .labels
+            .iter()
+            .map(|l| l.name.as_str())
+            .collect::<Vec<_>>(),
+    )
+    .value()
 }
