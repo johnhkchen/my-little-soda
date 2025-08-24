@@ -13,9 +13,7 @@ regex = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread", "fs", "io-util", "test-util", "process", "time"] }
-tokio-retry = "0.3.0"
 toml = "0.8"
-exponential-backoff = "2.0.0"
 governor = "0.6.3"
 reqwest = { version = "0.12", features = ["json"] }
 reqwest-middleware = "0.3.0"
@@ -28,7 +26,6 @@ opentelemetry = { version = "0.27.0", features = ["metrics"] }
 opentelemetry-stdout = { version = "0.27.0", features = ["trace"] }
 config = "0.14.1"
 dotenvy = "0.15.7"
-tokio-graceful-shutdown = "0.16.0"
 sqlx = { version = "0.8.2", features = ["sqlite", "runtime-tokio-rustls", "macros", "migrate"], optional = true }
 uuid = { version = "1.0", features = ["v4"] }
 git2 = "0.20.2"
