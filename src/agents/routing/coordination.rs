@@ -20,10 +20,12 @@ pub struct RoutingCoordinator {
     pub assignment_ops: AssignmentOperations,
     pub issue_filter: IssueFilter,
     pub decisions: RoutingDecisions,
+    #[cfg(feature = "metrics")]
     pub metrics_tracker: MetricsTracker,
 }
 
 impl RoutingCoordinator {
+    #[cfg(feature = "metrics")]
     pub fn new(
         assignment_ops: AssignmentOperations,
         issue_filter: IssueFilter,
@@ -35,6 +37,20 @@ impl RoutingCoordinator {
             issue_filter,
             decisions,
             metrics_tracker,
+        }
+    }
+
+    #[cfg(not(feature = "metrics"))]
+    pub fn new(
+        assignment_ops: AssignmentOperations,
+        issue_filter: IssueFilter,
+        decisions: RoutingDecisions,
+        _metrics_tracker: (),
+    ) -> Self {
+        Self {
+            assignment_ops,
+            issue_filter,
+            decisions,
         }
     }
 
@@ -167,6 +183,7 @@ impl RoutingCoordinator {
                 };
 
                 let active_issues = vec![issue.number];
+                #[cfg(feature = "metrics")]
                 let _ = self
                     .metrics_tracker
                     .track_agent_utilization(
@@ -178,21 +195,24 @@ impl RoutingCoordinator {
                     )
                     .await;
 
-                let decision = RoutingDecision::TaskAssigned {
-                    issue_number: issue.number,
-                    agent_id: agent.id.clone(),
-                };
+                #[cfg(feature = "metrics")]
+                {
+                    let decision = RoutingDecision::TaskAssigned {
+                        issue_number: issue.number,
+                        agent_id: agent.id.clone(),
+                    };
 
-                let _ = self
-                    .metrics_tracker
-                    .track_routing_metrics(
-                        correlation_id.clone(),
-                        routing_start,
-                        all_issues.len() as u64,
-                        available_agents.len() as u64,
-                        decision.clone(),
-                    )
-                    .await;
+                    let _ = self
+                        .metrics_tracker
+                        .track_routing_metrics(
+                            correlation_id.clone(),
+                            routing_start,
+                            all_issues.len() as u64,
+                            available_agents.len() as u64,
+                            decision.clone(),
+                        )
+                        .await;
+                }
 
                 Ok(Some(RoutingAssignment {
                     issue: issue.clone(),
@@ -200,30 +220,36 @@ impl RoutingCoordinator {
                     branch_name,
                 }))
             } else if available_agents.is_empty() {
-                let decision = RoutingDecision::NoAgentsAvailable;
-                let _ = self
-                    .metrics_tracker
-                    .track_routing_metrics(
-                        correlation_id.clone(),
-                        routing_start,
-                        all_issues.len() as u64,
-                        0,
-                        decision,
-                    )
-                    .await;
+                #[cfg(feature = "metrics")]
+                {
+                    let decision = RoutingDecision::NoAgentsAvailable;
+                    let _ = self
+                        .metrics_tracker
+                        .track_routing_metrics(
+                            correlation_id.clone(),
+                            routing_start,
+                            all_issues.len() as u64,
+                            0,
+                            decision,
+                        )
+                        .await;
+                }
                 Ok(None)
             } else {
-                let decision = RoutingDecision::NoTasksAvailable;
-                let _ = self
-                    .metrics_tracker
-                    .track_routing_metrics(
-                        correlation_id.clone(),
-                        routing_start,
-                        all_issues.len() as u64,
-                        available_agents.len() as u64,
-                        decision,
-                    )
-                    .await;
+                #[cfg(feature = "metrics")]
+                {
+                    let decision = RoutingDecision::NoTasksAvailable;
+                    let _ = self
+                        .metrics_tracker
+                        .track_routing_metrics(
+                            correlation_id.clone(),
+                            routing_start,
+                            all_issues.len() as u64,
+                            available_agents.len() as u64,
+                            decision,
+                        )
+                        .await;
+                }
                 Ok(None)
             };
 

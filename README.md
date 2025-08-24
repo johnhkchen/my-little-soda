@@ -75,6 +75,49 @@ cargo build --release
 
 Executable location: `./target/release/my-little-soda` (Windows: `.\target\release\my-little-soda.exe`)
 
+### Feature Flags
+
+My Little Soda supports optional features that can be enabled during compilation to add functionality while maintaining minimal binary size:
+
+#### Available Features
+- `autonomous` - Work continuity and recovery capabilities for resuming interrupted tasks
+- `metrics` - Performance tracking and routing metrics collection
+- `observability` - Enhanced telemetry and tracing capabilities
+- `database` - SQLite database support for persistent storage
+
+#### Usage Examples
+
+**Default (minimal):**
+```bash
+cargo build --release
+# Builds with basic functionality only
+```
+
+**With specific features:**
+```bash
+# Build with metrics tracking
+cargo build --release --features metrics
+
+# Build with work continuity
+cargo build --release --features autonomous
+
+# Build with observability and metrics
+cargo build --release --features "observability,metrics"
+
+# Build with all features
+cargo build --release --all-features
+```
+
+#### Binary Size Comparison
+- **Default build**: ~15MB (core functionality only)  
+- **All features**: ~17MB (includes all modules)
+- **Individual features**: Add ~0.5-1MB each
+
+#### Recommendations
+- **Production**: Use default build for minimal footprint
+- **Development**: Use `--features metrics` for performance insights
+- **CI/CD environments**: Use `--features autonomous` for recovery capabilities
+
 ### Option 2: Pre-built Binaries
 Pre-built binaries are planned for future releases.
 

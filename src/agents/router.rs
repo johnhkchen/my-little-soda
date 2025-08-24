@@ -31,27 +31,37 @@ impl AgentRouter {
         }
 
         // Attempt to recover previous work state
-        match coordinator.attempt_work_recovery("agent001").await {
-            Ok(Some(resume_action)) => {
-                println!("🔄 Found previous work state, attempting recovery...");
-                if let Err(e) = coordinator
-                    .resume_interrupted_work("agent001", resume_action)
-                    .await
-                {
-                    eprintln!("Warning: Failed to resume interrupted work: {e:?}");
+        #[cfg(feature = "autonomous")]
+        {
+            match coordinator.attempt_work_recovery("agent001").await {
+                Ok(Some(resume_action)) => {
+                    println!("🔄 Found previous work state, attempting recovery...");
+                    if let Err(e) = coordinator
+                        .resume_interrupted_work("agent001", resume_action)
+                        .await
+                    {
+                        eprintln!("Warning: Failed to resume interrupted work: {e:?}");
+                        println!("📋 Starting fresh...");
+                    }
+                }
+                Ok(None) => {
+                    // No previous work to recover, normal startup
+                }
+                Err(e) => {
+                    eprintln!("Warning: Work recovery failed: {e:?}");
                     println!("📋 Starting fresh...");
                 }
             }
-            Ok(None) => {
-                // No previous work to recover, normal startup
-            }
-            Err(e) => {
-                eprintln!("Warning: Work recovery failed: {e:?}");
-                println!("📋 Starting fresh...");
-            }
+        }
+        #[cfg(not(feature = "autonomous"))]
+        {
+            // No work continuity, start fresh
         }
 
+        #[cfg(feature = "metrics")]
         let metrics_tracker = MetricsTracker::new();
+        #[cfg(not(feature = "metrics"))]
+        let metrics_tracker = ();
 
         // Create routing components
         let assignment_ops = AssignmentOperations::new();
@@ -191,7 +201,10 @@ mod tests {
     impl AgentRouter {
         #[cfg(test)]
         fn new_for_test(github_client: GitHubClient, coordinator: AgentCoordinator) -> Self {
+            #[cfg(feature = "metrics")]
             let metrics_tracker = MetricsTracker::new();
+            #[cfg(not(feature = "metrics"))]
+            let metrics_tracker = ();
             let assignment_ops = AssignmentOperations::new();
             let issue_filter = IssueFilter::new(assignment_ops);
             let decisions = RoutingDecisions::new();

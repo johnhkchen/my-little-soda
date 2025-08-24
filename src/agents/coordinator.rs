@@ -432,6 +432,7 @@ impl AgentCoordinator {
         ).await;
 
         // Checkpoint work state after successful assignment
+        #[cfg(feature = "autonomous")]
         if let Err(e) = self.checkpoint_work_state(agent_id).await {
             warn!("Failed to checkpoint after assignment: {:?}", e);
         }
@@ -618,6 +619,7 @@ impl AgentCoordinator {
         ).await;
 
         // Checkpoint work state after successful assignment
+        #[cfg(feature = "autonomous")]
         if let Err(e) = self.checkpoint_work_state(agent_id).await {
             warn!("Failed to checkpoint after assignment: {:?}", e);
         }
@@ -1003,76 +1005,84 @@ impl AgentCoordinator {
 
     /// Initialize work continuity for the specified agent
     pub async fn initialize_work_continuity(&self, agent_id: &str) -> Result<(), GitHubError> {
-        let config = match config() {
-            Ok(c) => c,
-            Err(e) => {
-                warn!("Failed to load configuration for work continuity: {}", e);
-                return Ok(()); // Continue without work continuity
-            }
-        };
-
-        // Convert config structures
         #[cfg(feature = "autonomous")]
-        let continuity_config = AutonomousWorkContinuityConfig {
-            enable_continuity: config.agents.work_continuity.enable_continuity,
-            state_file_path: std::path::PathBuf::from(
-                &config.agents.work_continuity.state_file_path,
-            ),
-            backup_interval_minutes: config.agents.work_continuity.backup_interval_minutes,
-            max_recovery_attempts: config.agents.work_continuity.max_recovery_attempts,
-            validation_timeout_seconds: config.agents.work_continuity.validation_timeout_seconds,
-            force_fresh_start_after_hours: config
-                .agents
-                .work_continuity
-                .force_fresh_start_after_hours,
-            preserve_partial_work: config.agents.work_continuity.preserve_partial_work,
-        };
+        {
+            let config = match config() {
+                Ok(c) => c,
+                Err(e) => {
+                    warn!("Failed to load configuration for work continuity: {}", e);
+                    return Ok(()); // Continue without work continuity
+                }
+            };
 
-        let persistence_config = PersistenceConfig {
-            enable_persistence: continuity_config.enable_continuity,
-            persistence_directory: continuity_config
-                .state_file_path
-                .parent()
-                .unwrap_or(&std::path::PathBuf::from(".my-little-soda"))
-                .to_path_buf(),
-            auto_save_interval_minutes: continuity_config.backup_interval_minutes,
-            max_state_history_entries: 1000,
-            max_recovery_history_entries: 500,
-            compress_old_states: true,
-            backup_retention_days: 7,
-            enable_integrity_checks: true,
-        };
+            // Convert config structures
+            let continuity_config = AutonomousWorkContinuityConfig {
+                enable_continuity: config.agents.work_continuity.enable_continuity,
+                state_file_path: std::path::PathBuf::from(
+                    &config.agents.work_continuity.state_file_path,
+                ),
+                backup_interval_minutes: config.agents.work_continuity.backup_interval_minutes,
+                max_recovery_attempts: config.agents.work_continuity.max_recovery_attempts,
+                validation_timeout_seconds: config.agents.work_continuity.validation_timeout_seconds,
+                force_fresh_start_after_hours: config
+                    .agents
+                    .work_continuity
+                    .force_fresh_start_after_hours,
+                preserve_partial_work: config.agents.work_continuity.preserve_partial_work,
+            };
 
-        if !continuity_config.enable_continuity {
-            info!("Work continuity disabled for agent {}", agent_id);
-            return Ok(());
+            let persistence_config = PersistenceConfig {
+                enable_persistence: continuity_config.enable_continuity,
+                persistence_directory: continuity_config
+                    .state_file_path
+                    .parent()
+                    .unwrap_or(&std::path::PathBuf::from(".my-little-soda"))
+                    .to_path_buf(),
+                auto_save_interval_minutes: continuity_config.backup_interval_minutes,
+                max_state_history_entries: 1000,
+                max_recovery_history_entries: 500,
+                compress_old_states: true,
+                backup_retention_days: 7,
+                enable_integrity_checks: true,
+            };
+
+            if !continuity_config.enable_continuity {
+                info!("Work continuity disabled for agent {}", agent_id);
+                return Ok(());
+            }
+
+            let mut continuity_manager = WorkContinuityManager::new(
+                continuity_config,
+                self.github_client.clone(),
+                persistence_config,
+            );
+
+            match continuity_manager.initialize(agent_id).await {
+                Ok(_) => {
+                    info!("Work continuity initialized for agent {}", agent_id);
+                    let mut work_continuity = self.work_continuity.lock().await;
+                    *work_continuity = Some(continuity_manager);
+                    Ok(())
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to initialize work continuity for agent {}: {:?}",
+                        agent_id, e
+                    );
+                    // Continue without work continuity rather than failing
+                    Ok(())
+                }
+            }
         }
-
-        let mut continuity_manager = WorkContinuityManager::new(
-            continuity_config,
-            self.github_client.clone(),
-            persistence_config,
-        );
-
-        match continuity_manager.initialize(agent_id).await {
-            Ok(_) => {
-                info!("Work continuity initialized for agent {}", agent_id);
-                let mut work_continuity = self.work_continuity.lock().await;
-                *work_continuity = Some(continuity_manager);
-                Ok(())
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to initialize work continuity for agent {}: {:?}",
-                    agent_id, e
-                );
-                // Continue without work continuity rather than failing
-                Ok(())
-            }
+        #[cfg(not(feature = "autonomous"))]
+        {
+            info!("Work continuity not initialized for agent {}", agent_id);
+            Ok(())
         }
     }
 
     /// Attempt to recover work state after process restart
+    #[cfg(feature = "autonomous")]
     pub async fn attempt_work_recovery(
         &self,
         agent_id: &str,
@@ -1104,6 +1114,7 @@ impl AgentCoordinator {
     }
 
     /// Save current work state to persistent storage
+    #[cfg(feature = "autonomous")]
     pub async fn checkpoint_work_state(&self, agent_id: &str) -> Result<(), GitHubError> {
         let work_continuity_guard = self.work_continuity.lock().await;
         let continuity_manager = match work_continuity_guard.as_ref() {
@@ -1147,6 +1158,7 @@ impl AgentCoordinator {
     }
 
     /// Resume interrupted work based on recovery action
+    #[cfg(feature = "autonomous")]
     pub async fn resume_interrupted_work(
         &self,
         agent_id: &str,
@@ -1190,6 +1202,7 @@ impl AgentCoordinator {
     }
 
     /// Get current work continuity status
+    #[cfg(feature = "autonomous")]
     pub async fn get_work_continuity_status(&self, agent_id: &str) -> Option<ContinuityStatus> {
         let work_continuity_guard = self.work_continuity.lock().await;
         let continuity_manager = work_continuity_guard.as_ref()?;
