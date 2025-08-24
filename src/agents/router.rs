@@ -76,9 +76,6 @@ impl AgentRouter {
         self.routing_coordinator.issue_filter.fetch_routable_issues(&self.github_client).await
     }
 
-    fn get_issue_priority(&self, issue: &Issue) -> u32 {
-        self.routing_coordinator.decisions.get_issue_priority(issue)
-    }
 
     pub async fn route_issues_to_agents(&self) -> Result<Vec<RoutingAssignment>, GitHubError> {
         self.routing_coordinator.route_issues_to_agents(&self.coordinator, &self.github_client).await

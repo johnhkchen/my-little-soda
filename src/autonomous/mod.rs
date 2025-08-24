@@ -102,7 +102,8 @@ impl AutonomousCoordinator {
         config: CoordinationConfig,
     ) -> Result<Self, AutonomousWorkflowError> {
         let workflow_machine = AutonomousWorkflowMachine::new(config.max_work_hours)
-            .with_github_client(github_client.clone());
+            .with_github_client(github_client.clone())
+            .with_agent_id(agent_id.clone());
         
         let error_recovery = AutonomousErrorRecovery::new(github_client.clone(), recovery_client)
             .with_max_attempts(config.max_recovery_attempts)

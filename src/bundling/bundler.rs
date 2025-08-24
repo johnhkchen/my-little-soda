@@ -6,7 +6,7 @@ use std::fs::File;
 use crate::train_schedule::QueuedBranch;
 use crate::github::{GitHubClient};
 use super::{
-    types::{BundleWindow, BundleResult, BundleState, BundleAuditEntry, BundleOperationStatus, BundleErrorType, RecoveryStrategy},
+    types::{BundleWindow, BundleResult, BundleState, BundleAuditEntry, BundleOperationStatus},
     git_ops::{GitOperations, ConflictStrategy, ConflictCompatibilityReport},
 };
 use std::fs;
@@ -59,136 +59,11 @@ impl BundleManager {
         Ok(())
     }
 
-    /// Save bundle state for recovery
-    fn save_bundle_state(&self, state: &BundleState) -> Result<()> {
-        let state_path = ".clambake/bundle_state.json";
-        let state_json = serde_json::to_string_pretty(state)?;
-        fs::write(state_path, state_json)?;
-        Ok(())
-    }
 
-    /// Clear bundle state after successful completion
-    fn clear_bundle_state(&self) -> Result<()> {
-        let state_path = ".clambake/bundle_state.json";
-        fs::remove_file(state_path).ok();
-        Ok(())
-    }
 
-    /// Create recovery state for current bundle operation
-    fn create_bundle_state(&self, bundle_branch: &str, target_branches: &[QueuedBranch]) -> BundleState {
-        BundleState {
-            bundle_branch: bundle_branch.to_string(),
-            target_branches: target_branches.iter().map(|b| b.branch_name.clone()).collect(),
-            completed_branches: Vec::new(),
-            failed_branches: Vec::new(),
-            current_operation: None,
-            audit_trail: Vec::new(),
-            recovery_data: None,
-        }
-    }
 
-    /// Handle partial bundle failure with automatic recovery
-    async fn handle_bundle_failure(&mut self, mut state: BundleState, error: BundleErrorType) -> Result<BundleResult> {
-        println!("⚠️  Bundle failure detected, attempting recovery...");
-        
-        // Log the failure
-        let audit_entry = BundleAuditEntry {
-            timestamp: chrono::Utc::now(),
-            operation: "bundle_failure_recovery".to_string(),
-            branch_name: Some(state.bundle_branch.clone()),
-            affected_issues: vec![],
-            status: BundleOperationStatus::Failed,
-            error: Some(error.clone()),
-            recovery_action: None,
-            execution_time_ms: 0,
-            correlation_id: uuid::Uuid::new_v4().to_string(),
-        };
-        state.audit_trail.push(audit_entry);
 
-        // Determine recovery strategy based on error type
-        let recovery_strategy = match &error {
-            BundleErrorType::GitOperation { .. } => RecoveryStrategy::Retry { max_attempts: 2, backoff_ms: 1000 },
-            BundleErrorType::ConflictResolution { .. } => RecoveryStrategy::Fallback { to_operation: "individual_prs".to_string() },
-            BundleErrorType::NetworkTimeout { .. } => RecoveryStrategy::Retry { max_attempts: 3, backoff_ms: 5000 },
-            BundleErrorType::RateLimit { .. } => RecoveryStrategy::Retry { max_attempts: 1, backoff_ms: 60000 },
-            _ => RecoveryStrategy::Abort { cleanup_required: true },
-        };
 
-        match recovery_strategy {
-            RecoveryStrategy::Retry { max_attempts, backoff_ms } => {
-                println!("🔄 Attempting retry recovery with {} attempts, {}ms backoff", max_attempts, backoff_ms);
-                tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
-                
-                // For now, fall back to individual PRs
-                self.recovery_fallback_to_individual_prs(&state).await
-            }
-            RecoveryStrategy::Fallback { to_operation } => {
-                println!("🔄 Falling back to: {}", to_operation);
-                self.recovery_fallback_to_individual_prs(&state).await
-            }
-            RecoveryStrategy::Abort { cleanup_required } => {
-                if cleanup_required {
-                    self.cleanup_failed_bundle(&state.bundle_branch).await?;
-                }
-                Ok(BundleResult::Failed { error: anyhow::anyhow!("Bundle failed and recovery aborted") })
-            }
-            RecoveryStrategy::Manual { instructions } => {
-                println!("🚨 Manual recovery required: {}", instructions);
-                Ok(BundleResult::Failed { error: anyhow::anyhow!("Manual recovery required: {}", instructions) })
-            }
-        }
-    }
-
-    /// Recovery fallback to individual PRs from failed bundle state
-    async fn recovery_fallback_to_individual_prs(&self, state: &BundleState) -> Result<BundleResult> {
-        println!("🔄 Recovering by creating individual PRs for remaining branches...");
-        
-        // Get the original queued branches from the failed state
-        let remaining_branches: Vec<_> = state.target_branches.iter()
-            .filter(|branch| !state.completed_branches.contains(branch))
-            .filter(|branch| !state.failed_branches.contains(branch))
-            .collect();
-
-        if remaining_branches.is_empty() {
-            return Ok(BundleResult::Failed { 
-                error: anyhow::anyhow!("No remaining branches to recover") 
-            });
-        }
-
-        // Convert branch names back to QueuedBranch (simplified for recovery)
-        let recovery_branches: Vec<QueuedBranch> = remaining_branches.iter().map(|branch_name| {
-            QueuedBranch {
-                branch_name: (*branch_name).clone(),
-                issue_number: 0, // This would need to be restored from state in production
-                description: format!("Recovery PR for {}", branch_name),
-            }
-        }).collect();
-
-        self.create_individual_prs_with_context(&recovery_branches, None).await
-    }
-
-    /// Cleanup failed bundle artifacts
-    async fn cleanup_failed_bundle(&mut self, bundle_branch: &str) -> Result<()> {
-        println!("🧹 Cleaning up failed bundle: {}", bundle_branch);
-        
-        // Switch back to main branch if we're on the bundle branch
-        if let Ok(current_branch) = self.get_current_branch() {
-            if current_branch == bundle_branch {
-                let _ = self.git_ops.checkout_branch("main");
-            }
-        }
-        
-        // Remove the bundle branch if it exists
-        if self.git_ops.branch_exists(bundle_branch) {
-            let _ = self.git_ops.repo.find_branch(bundle_branch, git2::BranchType::Local)
-                .and_then(|mut branch| branch.delete());
-        }
-        
-        // Clear any bundle state
-        self.clear_bundle_state()?;
-        
-        Ok(())
-    }
 
     /// Generate deterministic bundle branch name
     pub fn generate_bundle_branch_name(&self, queued_branches: &[QueuedBranch]) -> String {
@@ -592,8 +467,4 @@ impl BundleManager {
         println!("═══════════════════════════════════");
     }
 
-    /// Legacy method for backwards compatibility
-    async fn create_individual_prs(&self, queued_branches: &[QueuedBranch]) -> Result<BundleResult> {
-        self.create_individual_prs_with_context(queued_branches, None).await
-    }
 }

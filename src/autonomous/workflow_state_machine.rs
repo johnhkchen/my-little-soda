@@ -292,6 +292,11 @@ impl AutonomousWorkflowMachine {
         self
     }
     
+    pub fn with_agent_id(mut self, agent_id: String) -> Self {
+        self.agent_id = Some(AgentId(agent_id));
+        self
+    }
+    
     pub fn with_recovery_client(mut self, recovery: Box<dyn AutomaticRecovery + Send + Sync>) -> Self {
         self.recovery_client = Some(recovery);
         self

@@ -120,15 +120,3 @@ async fn close_github_connections() -> Result<()> {
     Ok(())
 }
 
-/// Flush telemetry data
-async fn flush_telemetry_data() -> Result<()> {
-    info!("Flushing telemetry data...");
-    
-    // This would flush any pending OpenTelemetry spans/metrics
-    timeout(Duration::from_secs(10), async {
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }).await.map_err(|_| anyhow::anyhow!("Timeout waiting for telemetry flush"))?;
-    
-    info!("Telemetry data flushed");
-    Ok(())
-}
