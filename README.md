@@ -20,22 +20,48 @@ My Little Soda enables a single autonomous AI coding assistant to work on your G
 
 ## See It In Action
 
+### GitHub Issue Management
+
 ```bash
 # Your repository has labeled issues ready for work
 $ gh issue list --label="route:ready"
-#42  Fix login validation bug    route:ready, bug
-#45  Add user authentication     route:ready, feature
+278	Improve Table of Contents organization and navigation	route:ready
+277	Improve platform support visibility and Windows-specific guidance	route:ready  
+275	Move detailed configuration and autonomous features to separate documentation	route:ready
+```
 
+### Complete Workflow Example
+
+```bash
 # Get assigned to the highest priority task
-$ ./target/release/my-little-soda pop
-✅ Assigned to issue #42: Fix login validation bug
-✅ Branch: agent001/42-fix-login-bug (created and checked out)
+$ ./target/debug/my-little-soda pop
+🎯 Popping next available task...
+🔄 Connecting to GitHub... ✅
+📋 Searching for available tasks... 
+🤖 Attempting atomic assignment: agent agent001 -> issue #271
+✅ Reserved assignment: agent agent001 -> issue #271 (capacity: 1/1)
+✅ Issue #271 assigned to GitHub user: johnhkchen
+🏷️  Adding agent label: agent001
+✅ Added agent label: agent001
+🌿 Creating branch 'agent001/271-add-visual-demonstrations-to-r' from 'main'
+✅ Branch 'agent001/271-add-visual-demonstrations-to-r' created successfully
 
+✅ Successfully popped task:
+  📋 Issue #271: Add visual demonstrations to README (screenshots/GIFs)
+  👤 Assigned to: agent001
+  🌿 Branch: agent001/271-add-visual-demonstrations-to-r
+  🔗 URL: https://github.com/johnhkchen/my-little-soda/issues/271
+
+🚀 Ready to work! Issue assigned and branch created/targeted.
+   Next: git checkout agent001/271-add-visual-demonstrations-to-r
+```
+
+```bash
 # Work on it, then submit
-$ git add . && git commit -m "Fix validation"
-$ ./target/release/my-little-soda bottle
-✅ Pull request created: Fix login validation bug
-✅ Ready for next task!
+$ git add . && git commit -m "Add visual demonstrations to README"
+$ ./target/debug/my-little-soda bottle
+✅ Pull request created: Add visual demonstrations to README (screenshots/GIFs)
+✅ Work submitted for review - ready for next task!
 ```
 
 **Result**: Your repository gets continuous development while you focus on other work.
@@ -206,19 +232,54 @@ gh label create "route:priority-high" --color "ff6b6b" --description "Priority: 
 gh label create "route:priority-very-high" --color "d73a4a" --description "Priority: 4"
 ```
 
+**View your routing labels:**
+```bash
+$ gh label list | grep "route:"
+route:priority-high	High priority task	#d73a49
+route:ready	Available for agent assignment	#0052cc
+route:ready_to_merge	Completed work ready for merge	#5319e7
+route:review	Under review	#fbca04
+route:unblocker	Critical system issues	#d73a4a
+```
+
 **2. Verify Configuration:**
 ```bash
 # Test that my-little-soda can connect to your repository
-./target/release/my-little-soda status
+$ ./target/debug/my-little-soda status
+🤖 MY LITTLE SODA STATUS - Repository: my-little-soda
+==========================================
+🔄 Gathering system information... ✅
+
+🔧 AGENT STATUS:
+────────────────
+🟢 Available - Ready for new assignments
+🚀 Mode: Manual (use 'my-little-soda spawn --autonomous' for unattended)
+
+📋 ISSUE QUEUE (7 waiting):
+────────────────────────────
+🟢 #278 Improve Table of Contents organization and navigation
+   📝 Priority: Normal | Labels: route:ready
+...
+
+🎯 NEXT ACTIONS:
+   → my-little-soda pop       # Get highest priority task
 ```
 
 **3. Start Using My Little Soda:**
 ```bash
 # Label some issues as ready for the agent
-gh issue edit <issue-number> --add-label "route:ready"
+$ gh issue edit 278 --add-label "route:ready"
+✓ Labeled issue #278 in johnhkchen/my-little-soda
 
 # Begin agent workflow
-./target/release/my-little-soda pop
+$ ./target/debug/my-little-soda pop
+🎯 Popping next available task...
+✅ Successfully popped task:
+  📋 Issue #278: Improve Table of Contents organization and navigation
+  👤 Assigned to: agent001
+  🔗 URL: https://github.com/johnhkchen/my-little-soda/issues/278
+
+🚀 Ready to work! Issue assigned and branch created/targeted.
 ```
 
 > 📖 **Need help?** See the [complete installation guide](docs/README.md#installation) for troubleshooting and advanced configuration.
@@ -231,10 +292,43 @@ gh issue edit <issue-number> --add-label "route:ready"
 
 **Already installed?** Here's the essential workflow:
 
-1. **Get a task:** `./target/release/my-little-soda pop`
-2. **Work on it:** Make your changes and commit
-3. **Submit work:** `./target/release/my-little-soda bottle`
-4. **Repeat:** System automatically assigns next task
+1. **Check status:** `./target/debug/my-little-soda status`
+2. **Get a task:** `./target/debug/my-little-soda pop`
+3. **Work on it:** Make your changes and commit
+4. **Submit work:** `./target/debug/my-little-soda bottle`
+5. **Repeat:** System automatically assigns next task
+
+### System Status Example
+
+```bash
+$ ./target/debug/my-little-soda status
+🤖 MY LITTLE SODA STATUS - Repository: my-little-soda
+==========================================
+
+🔧 AGENT STATUS:
+────────────────
+🔴 Busy - Currently working on assigned task
+📍 Current branch: agent001/271-add-visual-demonstrations-to-r
+🚀 Mode: Manual (use 'my-little-soda spawn --autonomous' for unattended)
+
+📋 ISSUE QUEUE (7 waiting):
+────────────────────────────
+🟢 #278 Improve Table of Contents organization and navigation
+   📝 Priority: Normal | Labels: none
+
+🟢 #277 Improve platform support visibility and Windows-specific guidance
+   📝 Priority: Normal | Labels: none
+
+🟢 #275 Move detailed configuration and autonomous features to separate documentation
+   📝 Priority: Normal | Labels: none
+
+   ... and 4 more tasks
+
+🎯 NEXT ACTIONS:
+   → my-little-soda pop       # Get highest priority task
+   → my-little-soda peek      # Preview task details
+   → my-little-soda spawn --autonomous  # Start unattended mode
+```
 
 See [Usage Examples](#usage-examples) for detailed commands.
 
@@ -246,12 +340,29 @@ Start your development session by claiming work:
 
 ```bash
 # Get your next assigned task (primary command)
-./target/release/my-little-soda pop
+$ ./target/debug/my-little-soda pop
+🎯 Popping next available task...
+🔄 Connecting to GitHub... ✅
+📋 Searching for available tasks... 
+✅ Reserved assignment: agent agent001 -> issue #278 (capacity: 1/1)
+✅ Issue #278 assigned to GitHub user: johnhkchen
+🏷️  Adding agent label: agent001
+✅ Added agent label: agent001
+🌿 Creating branch 'agent001/278-improve-table-of-contents' from 'main'
+
+✅ Successfully popped task:
+  📋 Issue #278: Improve Table of Contents organization and navigation
+  👤 Assigned to: agent001
+  🌿 Branch: agent001/278-improve-table-of-contents
+  🔗 URL: https://github.com/johnhkchen/my-little-soda/issues/278
+
+🚀 Ready to work! Issue assigned and branch created/targeted.
+   Next: git checkout agent001/278-improve-table-of-contents
 ```
 
 **What this does:**
 - Assigns you the highest priority issue
-- Creates a dedicated branch (e.g., `agent001/42-fix-bug`)
+- Creates a dedicated branch (e.g., `agent001/278-improve-table-of-contents`)
 - Switches you to that branch automatically
 
 ### Working on Your Task
@@ -260,16 +371,21 @@ Once you have a task, implement your solution:
 
 ```bash
 # Work in your assigned branch
-git add .
-git commit -m "Implement feature X"
+$ git add .
+$ git commit -m "Improve table of contents organization"
 
 # Complete your work and create PR
-./target/release/my-little-soda bottle
+$ ./target/debug/my-little-soda bottle
+✅ Creating pull request for branch: agent001/278-improve-table-of-contents
+✅ Pull request created: Improve Table of Contents organization and navigation
+✅ Added route:review label to issue #278
+✅ Removed agent001 label from issue #278
+✅ Work submitted for review - ready for next task!
 ```
 
-**What `land` does:**
+**What `bottle` does:**
 - Creates a pull request from your branch
-- Marks your work ready for review
+- Marks your work ready for review  
 - Frees you to work on the next task
 
 ### System Monitoring
@@ -278,19 +394,33 @@ Check what's happening in your repository:
 
 ```bash
 # View agent status and task queue
-./target/release/my-little-soda status
-```
+$ ./target/debug/my-little-soda status
+🤖 MY LITTLE SODA STATUS - Repository: my-little-soda
+==========================================
 
-Example output:
-```
-🤖 Agent Status:
-  agent001: Working on issue #42 (branch: agent001/42-fix-bug)
-  Uptime: 4h 23m | Issues processed: 7 | Average time: 22m
-  
-📋 Task Queue: 3 issues available
-  #45: Add user authentication [priority-high]
-  #48: Update documentation [priority-medium]  
-  #51: Refactor API client [priority-low]
+🔧 AGENT STATUS:
+────────────────
+🔴 Busy - Currently working on assigned task
+📍 Current branch: agent001/271-add-visual-demonstrations-to-r
+🚀 Mode: Manual (use 'my-little-soda spawn --autonomous' for unattended)
+
+📋 ISSUE QUEUE (7 waiting):
+────────────────────────────
+🟢 #278 Improve Table of Contents organization and navigation
+   📝 Priority: Normal | Labels: none
+
+🟢 #277 Improve platform support visibility and Windows-specific guidance
+   📝 Priority: Normal | Labels: none
+
+🟢 #275 Move detailed configuration and autonomous features to separate documentation
+   📝 Priority: Normal | Labels: none
+
+   ... and 4 more tasks
+
+🎯 NEXT ACTIONS:
+   → my-little-soda pop       # Get highest priority task
+   → my-little-soda peek      # Preview task details
+   → my-little-soda spawn --autonomous  # Start unattended mode
 ```
 
 ### Preview Next Task
@@ -299,7 +429,16 @@ See what work is available without claiming it:
 
 ```bash
 # Preview the next task you would get
-./target/release/my-little-soda peek
+$ ./target/debug/my-little-soda peek
+🔍 Peeking at next available task...
+
+📋 NEXT TASK:
+  Issue #278: Improve Table of Contents organization and navigation
+  🏷️  Labels: route:ready
+  📍 Priority: Normal
+  🔗 URL: https://github.com/johnhkchen/my-little-soda/issues/278
+
+💡 To claim this task, run: my-little-soda pop
 ```
 
 ### Complete Daily Workflow Example
@@ -308,21 +447,27 @@ Here's a typical development session:
 
 ```bash
 # 1. Start your day - get first task
-./target/release/my-little-soda pop
-# ✅ Assigned issue #42: Fix login bug
+$ ./target/debug/my-little-soda pop
+✅ Successfully popped task:
+  📋 Issue #278: Improve Table of Contents organization and navigation
+  👤 Assigned to: agent001
+  🌿 Branch: agent001/278-improve-table-of-contents
 
 # 2. Work on the issue (implement your solution)
-# ... write code, tests, etc ...
-git add .
-git commit -m "Fix login validation bug"
+# ... write code, update documentation, etc ...
+$ git add .
+$ git commit -m "Reorganize README table of contents for better navigation"
 
 # 3. Submit your work
-./target/release/my-little-soda bottle
-# ✅ PR created, work submitted for review
+$ ./target/debug/my-little-soda bottle
+✅ Pull request created: Improve Table of Contents organization and navigation
+✅ Work submitted for review - ready for next task!
 
 # 4. Get next task immediately
-./target/release/my-little-soda pop  
-# ✅ Assigned issue #45: Add user authentication
+$ ./target/debug/my-little-soda pop  
+✅ Successfully popped task:
+  📋 Issue #277: Improve platform support visibility and Windows-specific guidance
+  👤 Assigned to: agent001
 
 # 5. Continue the cycle...
 ```
@@ -331,23 +476,46 @@ git commit -m "Fix login validation bug"
 
 ```bash
 # Initialize a new repository (run once per repo)
-./target/release/my-little-soda init
+./target/debug/my-little-soda init
 
 # Reset agent state (admin only)
-./target/release/my-little-soda reset
+./target/debug/my-little-soda reset
 
 # Bundle multiple PRs for review
-./target/release/my-little-soda bundle
+./target/debug/my-little-soda bundle
 ```
 
 ### Getting Help
 
 ```bash
 # See all available commands
-./target/release/my-little-soda --help
+$ ./target/debug/my-little-soda --help
+My Little Soda - Autonomous AI agent orchestration for GitHub repositories
+
+Usage: my-little-soda <COMMAND>
+
+Commands:
+  pop     Get assigned to the highest priority available task
+  bottle  Create pull request and mark work ready for review
+  status  View agent status and task queue
+  peek    Preview next available task without claiming it
+  init    Initialize repository for My Little Soda
+  reset   Reset agent state and assignments
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
 
 # Get help for specific command
-./target/release/my-little-soda pop --help
+$ ./target/debug/my-little-soda pop --help
+Get assigned to the highest priority available task
+
+Usage: my-little-soda pop [OPTIONS]
+
+Options:
+      --force-resync  Force resync with GitHub state before assignment
+  -h, --help         Print help
 ```
 
 ## Documentation
