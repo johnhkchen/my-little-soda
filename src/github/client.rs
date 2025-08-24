@@ -35,10 +35,12 @@ pub struct GitHubClient {
     pub issues: IssueHandler,
     pub pulls: PullRequestHandler,
     pub branches: BranchHandler,
+    #[allow(dead_code)]
     pub comments: CommentHandler,
     pub actions: ActionsHandler,
     owner: String,
     repo: String,
+    #[allow(dead_code)]
     retry_handler: GitHubRetryHandler,
 }
 
@@ -51,16 +53,7 @@ impl GitHubClient {
             .personal_token(token)
             .build()?;
 
-        Ok(GitHubClient {
-            issues: IssueHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
-            pulls: PullRequestHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
-            branches: BranchHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
-            comments: CommentHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
-            actions: ActionsHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
-            owner,
-            repo,
-            retry_handler: GitHubRetryHandler::default(),
-        })
+        Ok(Self::create_client(octocrab, owner, repo))
     }
 
     fn read_token() -> Result<String, GitHubError> {
@@ -134,6 +127,68 @@ impl GitHubClient {
         }
         
         Ok((owner, repo))
+    }
+
+    /// Common error handling utility for GitHub API calls
+    pub async fn handle_api_result<T>(
+        &self,
+        result: Result<T, octocrab::Error>
+    ) -> Result<T, GitHubError> {
+        result.map_err(GitHubError::ApiError)
+    }
+
+    /// Standard retry wrapper for GitHub operations
+    pub async fn with_retry<F, T>(&self, operation_name: &str, operation: F) -> Result<T, GitHubError>
+    where
+        F: std::future::Future<Output = Result<T, octocrab::Error>>,
+    {
+        // For now, just execute once - retry logic can be added later
+        tracing::info!("Executing GitHub operation: {}", operation_name);
+        operation.await.map_err(GitHubError::ApiError)
+    }
+
+    /// Common pattern for issue operations with consistent error handling
+    pub async fn execute_issue_operation<F, T>(
+        &self,
+        operation_name: &str,
+        issue_number: u64,
+        operation: F,
+    ) -> Result<T, GitHubError>
+    where
+        F: std::future::Future<Output = Result<T, octocrab::Error>>,
+    {
+        tracing::debug!("GitHub issue operation: {} on issue #{}", operation_name, issue_number);
+        operation.await.map_err(GitHubError::ApiError)
+    }
+
+    /// Common pattern for PR operations with consistent error handling  
+    pub async fn execute_pr_operation<F, T>(
+        &self,
+        operation_name: &str,
+        pr_number: u64,
+        operation: F,
+    ) -> Result<T, GitHubError>
+    where
+        F: std::future::Future<Output = Result<T, octocrab::Error>>,
+    {
+        tracing::debug!("GitHub PR operation: {} on PR #{}", operation_name, pr_number);
+        operation.await.map_err(GitHubError::ApiError)
+    }
+
+    /// Factory method to reduce constructor duplication
+    fn create_client(octocrab: Octocrab, owner: String, repo: String) -> Self {
+        GitHubClient {
+            issues: IssueHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
+            pulls: PullRequestHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
+            branches: BranchHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
+            #[allow(dead_code)]
+            comments: CommentHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
+            actions: ActionsHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
+            owner,
+            repo,
+            #[allow(dead_code)]
+            retry_handler: GitHubRetryHandler::default(),
+        }
     }
 
     pub async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {

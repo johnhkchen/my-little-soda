@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crate::agents::AgentCoordinator;
 use crate::github::{GitHubClient, GitHubActions, WorkflowStatus};
-use tracing::{info, warn};
+// info and warn imports removed - unused
 
 pub struct ActionsCommand {
     pub trigger_bundle: bool,

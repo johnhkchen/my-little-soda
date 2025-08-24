@@ -34,8 +34,8 @@ pub use workflow_state_machine::{
     CIFailure, CompletedWork, AutonomousStatusReport
 };
 pub use error_recovery::{AutonomousErrorRecovery, ErrorType, RecoveryStrategy, AutonomousRecoveryReport};
-pub use integration::{IntegrationCoordinator};
-pub use persistence::{StatePersistenceManager, PersistenceConfig, CheckpointReason};
+// Unused integration and persistence imports removed
+pub use persistence::{PersistenceConfig, CheckpointReason};
 pub use work_continuity::{WorkContinuityManager, WorkContinuityConfig, ResumeAction, ContinuityStatus};
 pub use state_validation::{StateDriftDetector, CorrectionAction, DriftDetectionReport};
 
@@ -59,6 +59,7 @@ pub struct AutonomousCoordinator {
     workflow_machine: Arc<RwLock<AutonomousWorkflowMachine>>,
     error_recovery: Arc<RwLock<AutonomousErrorRecovery>>,
     drift_detector: Arc<RwLock<StateDriftDetector>>,
+    #[allow(dead_code)]
     github_client: GitHubClient,
     agent_id: String,
     coordination_config: CoordinationConfig,

@@ -4,7 +4,7 @@ use std::fs;
 use octocrab::Octocrab;
 use crate::config::{MyLittleSodaConfig, GitHubConfig, ObservabilityConfig, AgentConfig, DatabaseConfig, RateLimitConfig, BundleConfig, AgentProcessConfig, CIModeConfig, WorkContinuityConfig};
 use crate::github::client::GitHubClient;
-use crate::github::errors::GitHubError;
+// GitHubError import removed - unused
 
 pub struct InitCommand {
     pub agents: u32,

@@ -7,4 +7,4 @@ pub mod git_ops;
 pub mod types;
 
 pub use bundler::BundleManager;
-pub use types::{BundleWindow, BundleResult};
+pub use types::BundleResult;

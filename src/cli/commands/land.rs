@@ -226,7 +226,7 @@ impl LandCommand {
     }
     
     /// Validate that the branch is ready to land
-    fn validate_ready_to_land(&self, branch_name: &str) -> Result<()> {
+    fn validate_ready_to_land(&self, _branch_name: &str) -> Result<()> {
         // Check for uncommitted changes
         let status_output = Command::new("git")
             .args(&["status", "--porcelain"])

@@ -16,5 +16,5 @@ pub mod mocks;
 #[cfg(test)]  
 pub mod tests;
 
-pub use types::{AgentState, PreFlightIssue, Command, GitCommand, GitHubCommand};
+// Unused imports removed for code quality
 pub use state_machine::{AgentStateMachine, AgentEvent};

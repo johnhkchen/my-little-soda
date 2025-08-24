@@ -19,8 +19,10 @@ use super::{
 /// Integration layer between autonomous workflow and existing agent coordination
 pub struct AutonomousIntegration {
     autonomous_coordinator: AutonomousCoordinator,
+    #[allow(dead_code)]
     agent_coordinator: AgentCoordinator,
     agent_state_machine: Arc<RwLock<AgentStateMachine>>,
+    #[allow(dead_code)]
     github_client: GitHubClient,
     agent_id: String,
 }
@@ -268,6 +270,7 @@ impl AutonomousEventBridge for EventBridge {
 /// Integration coordinator that manages both systems
 pub struct IntegrationCoordinator {
     integration: AutonomousIntegration,
+    #[allow(dead_code)]
     event_bridge: EventBridge,
 }
 

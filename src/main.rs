@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
     }
 
     // Create shutdown coordinator for graceful shutdowns
-    let mut shutdown_coordinator = ShutdownCoordinator::new();
+    let _shutdown_coordinator = ShutdownCoordinator::new();
 
     let cli = Cli::parse();
     

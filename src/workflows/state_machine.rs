@@ -67,6 +67,10 @@ impl StateMachine {
     }
 
     fn parse_issue_number_from_url(&self, issue_url: &str) -> Result<u64, GitHubError> {
+        Self::parse_issue_number_from_url_static(issue_url)
+    }
+
+    fn parse_issue_number_from_url_static(issue_url: &str) -> Result<u64, GitHubError> {
         // Parse issue number from GitHub URL like: https://github.com/owner/repo/issues/123
         if let Some(issue_number_str) = issue_url.split('/').last() {
             issue_number_str.parse::<u64>()
@@ -282,34 +286,25 @@ impl StateMachine {
 mod tests_parse_issue_number {
     use super::StateMachine;
 
-    // Unsafe helper: construct a StateMachine suitable for calling parse_issue_number_from_url,
-    // which does not touch any fields.
-    fn sm() -> StateMachine {
-        unsafe { std::mem::MaybeUninit::<StateMachine>::zeroed().assume_init() }
-    }
-
     #[test]
     fn parses_valid_issue_url() {
-        let s = sm();
         let url = "https://github.com/owner/repo/issues/123";
-        let n = s.parse_issue_number_from_url(url).unwrap();
+        let n = StateMachine::parse_issue_number_from_url_static(url).unwrap();
         assert_eq!(n, 123);
     }
 
     #[test]
     fn rejects_non_numeric_tail() {
-        let s = sm();
         let url = "https://github.com/owner/repo/issues/notanumber";
-        let err = s.parse_issue_number_from_url(url).unwrap_err();
+        let err = StateMachine::parse_issue_number_from_url_static(url).unwrap_err();
         let msg = format!("{:?}", err);
         assert!(msg.contains("Invalid issue URL format"));
     }
 
     #[test]
     fn empty_url_is_error() {
-        let s = sm();
         let url = "";
-        let err = s.parse_issue_number_from_url(url).unwrap_err();
+        let err = StateMachine::parse_issue_number_from_url_static(url).unwrap_err();
         let msg = format!("{:?}", err);
         // split('/').last() returns Some(""), parse fails
         assert!(msg.contains("Invalid issue URL format") || msg.contains("Could not extract issue number"));
@@ -317,9 +312,8 @@ mod tests_parse_issue_number {
 
     #[test]
     fn accepts_pulls_path_currently() {
-        let s = sm();
         let url = "https://github.com/owner/repo/pulls/77";
-        let n = s.parse_issue_number_from_url(url).unwrap();
+        let n = StateMachine::parse_issue_number_from_url_static(url).unwrap();
         assert_eq!(n, 77);
     }
 }

@@ -1127,7 +1127,10 @@ impl std::fmt::Debug for AgentCoordinator {
 #[derive(Debug)]
 struct BundlingStatus {
     queued_branches: Vec<crate::train_schedule::QueuedBranch>,
+    #[allow(dead_code)]
     next_departure: chrono::DateTime<chrono::Local>,
+    #[allow(dead_code)]
     minutes_until_departure: i64,
+    #[allow(dead_code)]
     status: crate::train_schedule::ScheduleStatus,
 }

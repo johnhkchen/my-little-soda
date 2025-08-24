@@ -3,4 +3,4 @@
 
 pub mod state_machine;
 
-pub use state_machine::{StateMachine, StateTransition, TransitionResult};
+// Unused state machine imports removed for code quality

@@ -13,5 +13,4 @@ pub mod process_lifecycle;
 
 pub use coordinator::{AgentCoordinator, Agent, AgentState};
 pub use router::AgentRouter;
-pub use integrator::{WorkIntegrator, CompletedWork, IntegrationResult};
-pub use recovery::{AutoRecovery, AutomaticRecovery, ComprehensiveRecoveryReport};
+// Unused integrator and recovery imports removed for code quality

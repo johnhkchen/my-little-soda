@@ -145,7 +145,9 @@ pub struct RecoveryMetrics {
 
 /// Comprehensive autonomous recovery system
 pub struct AutonomousErrorRecovery {
+    #[allow(dead_code)]
     github_client: GitHubClient,
+    #[allow(dead_code)]
     base_recovery: Box<dyn AutomaticRecovery + Send + Sync>,
     recovery_history: Vec<AutonomousRecoveryAttempt>,
     max_recovery_attempts: u8,

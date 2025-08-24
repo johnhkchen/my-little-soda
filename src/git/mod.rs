@@ -5,4 +5,4 @@
 
 pub mod operations;
 
-pub use operations::{GitOperations, Git2Operations, CommitInfo};
+pub use operations::{GitOperations, Git2Operations};

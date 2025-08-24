@@ -201,6 +201,7 @@ impl Default for WorkContinuityConfig {
 /// Main work continuity manager
 pub struct WorkContinuityManager {
     config: WorkContinuityConfig,
+    #[allow(dead_code)]
     github_client: GitHubClient,
     persistence_manager: StatePersistenceManager,
     current_state: RwLock<Option<PersistentAgentState>>,
