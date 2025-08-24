@@ -18,6 +18,28 @@ My Little Soda enables a single autonomous AI coding assistant to work on your G
 
 **In simple terms:** Scale your productivity with an autonomous AI assistant that works unattended on your repository.
 
+## See It In Action
+
+```bash
+# Your repository has labeled issues ready for work
+$ gh issue list --label="route:ready"
+#42  Fix login validation bug    route:ready, bug
+#45  Add user authentication     route:ready, feature
+
+# Get assigned to the highest priority task
+$ ./target/release/my-little-soda pop
+✅ Assigned to issue #42: Fix login validation bug
+✅ Branch: agent001/42-fix-login-bug (created and checked out)
+
+# Work on it, then submit
+$ git add . && git commit -m "Fix validation"
+$ ./target/release/my-little-soda bottle
+✅ Pull request created: Fix login validation bug
+✅ Ready for next task!
+```
+
+**Result**: Your repository gets continuous development while you focus on other work.
+
 ## Table of Contents
 - [Installation](#installation)
 - [Quick Start](#quick-start)
