@@ -1,6 +1,7 @@
 use crate::agents::routing::{AssignmentOperations, IssueFilter, RoutingDecisions};
 use crate::agents::{Agent, AgentCoordinator};
 use crate::github::{GitHubClient, GitHubError};
+#[cfg(feature = "metrics")]
 use crate::metrics::{MetricsTracker, RoutingDecision};
 use crate::telemetry::{create_coordination_span, generate_correlation_id};
 use octocrab::models::issues::Issue;

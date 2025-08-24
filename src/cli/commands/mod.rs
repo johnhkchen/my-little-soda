@@ -6,6 +6,7 @@ pub mod agent;
 pub mod bundle;
 pub mod init;
 pub mod land;
+#[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod peek;
 pub mod pop;

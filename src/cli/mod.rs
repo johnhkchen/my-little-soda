@@ -130,6 +130,7 @@ pub enum Commands {
     /// Preview the next task in queue without claiming it
     Peek,
     /// Display integration success metrics and performance analytics
+    #[cfg(feature = "metrics")]
     Metrics {
         /// Time window in hours to analyze (default: 24)
         #[arg(
@@ -146,6 +147,7 @@ pub enum Commands {
         detailed: bool,
     },
     /// Export metrics in JSON format for external monitoring systems
+    #[cfg(feature = "metrics")]
     ExportMetrics {
         /// Time window in hours to analyze (default: 24)
         #[arg(

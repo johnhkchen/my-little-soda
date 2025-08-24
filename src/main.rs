@@ -3,6 +3,7 @@ use clap::Parser;
 
 mod agent_lifecycle;
 mod agents;
+#[cfg(feature = "autonomous")]
 mod autonomous;
 mod bundling;
 mod cli;
@@ -10,7 +11,9 @@ mod config;
 mod database;
 mod git;
 mod github;
+#[cfg(feature = "metrics")]
 mod metrics;
+#[cfg(feature = "observability")]
 mod observability;
 mod priority;
 mod shutdown;
@@ -27,7 +30,6 @@ use cli::commands::{
     bundle::BundleCommand,
     init::InitCommand,
     land::LandCommand,
-    metrics::{ExportMetricsCommand, MetricsCommand},
     peek::PeekCommand,
     pop::PopCommand,
     reset::ResetCommand,
@@ -41,6 +43,9 @@ use config::init_config;
 use database::init_database;
 use shutdown::ShutdownCoordinator;
 use telemetry::init_telemetry;
+
+#[cfg(feature = "metrics")]
+use cli::commands::metrics::{ExportMetricsCommand, MetricsCommand};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -131,12 +136,14 @@ async fn main() -> Result<()> {
                 .await
         }
         Some(Commands::Peek) => PeekCommand::new().with_ci_mode(cli.ci_mode).execute().await,
+        #[cfg(feature = "metrics")]
         Some(Commands::Metrics { hours, detailed }) => {
             MetricsCommand::new(hours, detailed)
                 .with_ci_mode(cli.ci_mode)
                 .execute()
                 .await
         }
+        #[cfg(feature = "metrics")]
         Some(Commands::ExportMetrics { hours, output }) => {
             ExportMetricsCommand::new(hours, output)
                 .with_ci_mode(cli.ci_mode)

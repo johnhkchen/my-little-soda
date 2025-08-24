@@ -6,6 +6,7 @@ use crate::agents::routing::{
 };
 use crate::agents::AgentCoordinator;
 use crate::github::{GitHubClient, GitHubError};
+#[cfg(feature = "metrics")]
 use crate::metrics::MetricsTracker;
 use octocrab::models::issues::Issue;
 use std::collections::HashMap;

@@ -57,6 +57,7 @@ impl ShutdownCoordinator {
         }
 
         // Log final API usage statistics
+        #[cfg(feature = "observability")]
         crate::observability::github_metrics().log_stats();
 
         // Close any persistent connections

@@ -2,14 +2,21 @@
 // Following VERBOTEN rules: GitHub is source of truth, no local state files
 
 use crate::agent_lifecycle::{AgentEvent, AgentStateMachine};
+#[cfg(feature = "autonomous")]
 use crate::autonomous::CheckpointReason;
+#[cfg(feature = "autonomous")]
 use crate::autonomous::ContinuityStatus;
+#[cfg(feature = "autonomous")]
 use crate::autonomous::PersistenceConfig;
+#[cfg(feature = "autonomous")]
 use crate::autonomous::ResumeAction;
+#[cfg(feature = "autonomous")]
 use crate::autonomous::WorkContinuityConfig as AutonomousWorkContinuityConfig;
+#[cfg(feature = "autonomous")]
 use crate::autonomous::WorkContinuityManager;
 use crate::config::config;
 use crate::github::{GitHubActions, GitHubClient, GitHubError};
+#[cfg(feature = "metrics")]
 use crate::metrics::MetricsTracker;
 use crate::telemetry::{create_coordination_span, generate_correlation_id};
 use serde_json::json;
@@ -43,16 +50,19 @@ pub struct AgentCoordinator {
     // Safe coordination state - prevents race conditions
     assignment_lock: Arc<Mutex<HashMap<u64, String>>>, // issue_number -> agent_id
     agent_capacity: Arc<Mutex<HashMap<String, (u32, u32)>>>, // agent_id -> (current, max)
+    #[cfg(feature = "metrics")]
     metrics_tracker: MetricsTracker,
     // State machine for agent lifecycle management
     agent_state_machines: Arc<Mutex<HashMap<String, StateMachine<AgentStateMachine>>>>,
     // Work continuity manager for persistent state across restarts
+    #[cfg(feature = "autonomous")]
     work_continuity: Arc<Mutex<Option<WorkContinuityManager>>>,
 }
 
 impl AgentCoordinator {
     pub async fn new() -> Result<Self, GitHubError> {
         let github_client = GitHubClient::new()?;
+        #[cfg(feature = "metrics")]
         let metrics_tracker = MetricsTracker::new();
 
         // Agent capacity: Solo agent system - agent001 only
@@ -68,8 +78,10 @@ impl AgentCoordinator {
             github_client,
             assignment_lock: Arc::new(Mutex::new(HashMap::new())),
             agent_capacity: Arc::new(Mutex::new(agent_capacity)),
+            #[cfg(feature = "metrics")]
             metrics_tracker,
             agent_state_machines: Arc::new(Mutex::new(agent_state_machines)),
+            #[cfg(feature = "autonomous")]
             work_continuity: Arc::new(Mutex::new(None)),
         })
     }
@@ -206,7 +218,9 @@ impl AgentCoordinator {
                 // Check if agent is available before attempting assignment
                 if !sm.inner().is_available() {
                     // Track failed coordination decision
-                    let _ = self.metrics_tracker.track_coordination_decision(
+                    #[cfg(feature = "metrics")]
+                    #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                         correlation_id.clone(),
                         "assign_agent_to_issue",
                         Some(agent_id),
@@ -233,7 +247,9 @@ impl AgentCoordinator {
                 // Verify the transition succeeded
                 if sm.inner().current_issue() != Some(issue_number) {
                     // Track failed coordination decision
-                    let _ = self.metrics_tracker.track_coordination_decision(
+                    #[cfg(feature = "metrics")]
+                    #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                         correlation_id.clone(),
                         "assign_agent_to_issue",
                         Some(agent_id),
@@ -274,7 +290,8 @@ impl AgentCoordinator {
                 let existing_agent = assignments.get(&issue_number).unwrap();
 
                 // Track failed coordination decision
-                let _ = self.metrics_tracker.track_coordination_decision(
+                #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                     correlation_id.clone(),
                     "assign_agent_to_issue",
                     Some(agent_id),
@@ -304,7 +321,8 @@ impl AgentCoordinator {
                 metadata.insert("current_capacity".to_string(), current.to_string());
                 metadata.insert("max_capacity".to_string(), max.to_string());
 
-                let _ = self.metrics_tracker.track_coordination_decision(
+                #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                     correlation_id.clone(),
                     "assign_agent_to_issue",
                     Some(agent_id),
@@ -347,7 +365,8 @@ impl AgentCoordinator {
                 metadata.insert("error_type".to_string(), "github_assignment_failed".to_string());
                 metadata.insert("error_message".to_string(), format!("{e:?}"));
 
-                let _ = self.metrics_tracker.track_coordination_decision(
+                #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                     correlation_id.clone(),
                     "assign_agent_to_issue",
                     Some(agent_id),
@@ -400,6 +419,7 @@ impl AgentCoordinator {
         metadata.insert("branch_name".to_string(), branch_name.clone());
         metadata.insert("github_user".to_string(), github_user.to_string());
 
+        #[cfg(feature = "metrics")]
         let _ = self.metrics_tracker.track_coordination_decision(
             correlation_id.clone(),
             "assign_agent_to_issue",
@@ -455,7 +475,8 @@ impl AgentCoordinator {
                 let existing_agent = assignments.get(&issue_number).unwrap();
 
                 // Track failed coordination decision
-                let _ = self.metrics_tracker.track_coordination_decision(
+                #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                     correlation_id.clone(),
                     "assign_agent_to_issue",
                     Some(agent_id),
@@ -485,7 +506,8 @@ impl AgentCoordinator {
                 metadata.insert("current_capacity".to_string(), current.to_string());
                 metadata.insert("max_capacity".to_string(), max.to_string());
 
-                let _ = self.metrics_tracker.track_coordination_decision(
+                #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                     correlation_id.clone(),
                     "assign_agent_to_issue",
                     Some(agent_id),
@@ -528,7 +550,8 @@ impl AgentCoordinator {
                 metadata.insert("error_type".to_string(), "github_assignment_failed".to_string());
                 metadata.insert("error_message".to_string(), format!("{e:?}"));
 
-                let _ = self.metrics_tracker.track_coordination_decision(
+                #[cfg(feature = "metrics")]
+        let _ = self.metrics_tracker.track_coordination_decision(
                     correlation_id.clone(),
                     "assign_agent_to_issue",
                     Some(agent_id),
@@ -582,6 +605,7 @@ impl AgentCoordinator {
         metadata.insert("branch_name".to_string(), format!("{agent_id}/{issue_number}"));
         metadata.insert("github_user".to_string(), github_user.to_string());
 
+        #[cfg(feature = "metrics")]
         let _ = self.metrics_tracker.track_coordination_decision(
             correlation_id.clone(),
             "assign_agent_to_issue",
@@ -988,6 +1012,7 @@ impl AgentCoordinator {
         };
 
         // Convert config structures
+        #[cfg(feature = "autonomous")]
         let continuity_config = AutonomousWorkContinuityConfig {
             enable_continuity: config.agents.work_continuity.enable_continuity,
             state_file_path: std::path::PathBuf::from(
@@ -1184,11 +1209,16 @@ impl AgentCoordinator {
 
 impl std::fmt::Debug for AgentCoordinator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AgentCoordinator")
+        let mut debug_struct = f.debug_struct("AgentCoordinator");
+        debug_struct
             .field("github_client", &"GitHubClient")
             .field("assignment_lock", &"Arc<Mutex<HashMap<u64, String>>>")
-            .field("agent_capacity", &"Arc<Mutex<HashMap<String, (u32, u32)>>>")
-            .field("metrics_tracker", &"MetricsTracker")
+            .field("agent_capacity", &"Arc<Mutex<HashMap<String, (u32, u32)>>>");
+        
+        #[cfg(feature = "metrics")]
+        debug_struct.field("metrics_tracker", &"MetricsTracker");
+        
+        debug_struct
             .field(
                 "agent_state_machines",
                 &"Arc<Mutex<HashMap<String, StateMachine<AgentStateMachine>>>>",
