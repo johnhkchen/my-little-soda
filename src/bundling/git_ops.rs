@@ -1,9 +1,9 @@
 use anyhow::{Result, anyhow};
 use git2::{Repository, BranchType, Oid, DiffOptions, ErrorCode};
 use std::collections::{HashMap, HashSet};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use chrono::{DateTime, Utc};
-use super::types::{BundleErrorType, BundleAuditEntry, BundleOperationStatus, RecoveryData};
+use super::types::{BundleErrorType, BundleAuditEntry, BundleOperationStatus};
 use uuid::Uuid;
 
 /// Strategy for handling merge conflicts during bundling
@@ -94,18 +94,6 @@ impl GitOperations {
         &self.audit_trail
     }
 
-    /// Create recovery data for current state
-    fn create_recovery_data(&self, last_commit: Option<String>) -> RecoveryData {
-        RecoveryData {
-            last_successful_commit: last_commit,
-            cleanup_commands: vec![
-                "git reset --hard HEAD".to_string(),
-                "git clean -fd".to_string(),
-            ],
-            rollback_branch: Some("main".to_string()),
-            temp_files: vec![".git/CHERRY_PICK_HEAD".to_string()],
-        }
-    }
 
     /// Handle git2 errors with enhanced context
     fn handle_git_error(&self, operation: &str, error: git2::Error) -> BundleErrorType {
@@ -133,63 +121,6 @@ impl GitOperations {
         }
     }
 
-    /// Execute git operation with retry logic
-    async fn execute_with_retry<T, F>(&self, operation: &str, max_retries: u32, mut operation_fn: F) -> Result<(T, Vec<BundleAuditEntry>)>
-    where
-        F: FnMut() -> Result<T, git2::Error>,
-    {
-        let start_time = Instant::now();
-        let mut last_error = None;
-        let mut audit_entries = Vec::new();
-
-        for attempt in 0..=max_retries {
-            match operation_fn() {
-                Ok(result) => {
-                    let execution_time = start_time.elapsed().as_millis() as u64;
-                    let entry = BundleAuditEntry {
-                        timestamp: chrono::Utc::now(),
-                        operation: operation.to_string(),
-                        branch_name: None,
-                        affected_issues: vec![],
-                        status: BundleOperationStatus::Completed,
-                        error: None,
-                        recovery_action: None,
-                        execution_time_ms: execution_time,
-                        correlation_id: self.correlation_id.clone(),
-                    };
-                    audit_entries.push(entry);
-                    return Ok((result, audit_entries));
-                }
-                Err(error) => {
-                    last_error = Some(error);
-                    
-                    if attempt < max_retries {
-                        let backoff_ms = (1 << attempt) * 100; // Exponential backoff
-                        println!("⚠️  Git operation '{}' failed (attempt {}/{}), retrying in {}ms: {}", 
-                            operation, attempt + 1, max_retries + 1, backoff_ms, last_error.as_ref().unwrap().message());
-                        tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
-                    }
-                }
-            }
-        }
-
-        let execution_time = start_time.elapsed().as_millis() as u64;
-        let bundle_error = self.handle_git_error(operation, last_error.unwrap());
-        let entry = BundleAuditEntry {
-            timestamp: chrono::Utc::now(),
-            operation: operation.to_string(),
-            branch_name: None,
-            affected_issues: vec![],
-            status: BundleOperationStatus::Failed,
-            error: Some(bundle_error.clone()),
-            recovery_action: None,
-            execution_time_ms: execution_time,
-            correlation_id: self.correlation_id.clone(),
-        };
-        audit_entries.push(entry);
-        
-        Err(anyhow!("Git operation '{}' failed after {} attempts", operation, max_retries + 1))
-    }
     
     /// Create a new bundle branch from the base branch with error handling
     pub fn create_bundle_branch(&mut self, branch_name: &str, base_branch: &str) -> Result<()> {

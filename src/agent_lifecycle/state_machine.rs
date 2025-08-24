@@ -386,14 +386,6 @@ impl AgentStateMachine {
         );
     }
     
-    /// Exit action for landed state - called when leaving landed
-    fn on_exit_landed(&mut self) {
-        tracing::debug!(
-            agent_id = %self.agent_id,
-            issue = ?self.current_issue,
-            "Exiting landed state"
-        );
-    }
     
     pub fn current_issue(&self) -> Option<u64> {
         self.current_issue

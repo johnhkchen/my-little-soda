@@ -362,51 +362,50 @@ impl AutonomousErrorRecovery {
         );
         
         let mut recovery_actions = Vec::new();
-        let mut success = false;
         let mut error_message = None;
         
-        match strategy {
+        let success = match strategy {
             RecoveryStrategy::RetryWithBackoff { max_attempts, base_delay_ms, max_delay_ms } => {
-                success = self.execute_retry_strategy(
+                self.execute_retry_strategy(
                     &error_type,
                     max_attempts,
                     base_delay_ms,
                     max_delay_ms,
                     &mut recovery_actions
-                ).await?;
+                ).await?
             }
             
             RecoveryStrategy::AutomatedFix { fix_type, confidence } => {
                 match self.execute_automated_fix(fix_type, confidence, &mut recovery_actions).await {
-                    Ok(_) => success = true,
+                    Ok(_) => true,
                     Err(e) => {
                         error_message = Some(format!("Automated fix failed: {:?}", e));
-                        success = false;
+                        false
                     }
                 }
             }
             
             RecoveryStrategy::Fallback { ref alternative } => {
                 match self.execute_fallback_strategy(*alternative, &mut recovery_actions).await {
-                    Ok(_) => success = true,
+                    Ok(_) => true,
                     Err(e) => {
                         error_message = Some(format!("Fallback strategy failed: {:?}", e));
-                        success = false;
+                        false
                     }
                 }
             }
             
             RecoveryStrategy::Escalate { ref urgency, context: ref escalation_context } => {
                 self.execute_escalation(*urgency, escalation_context.clone(), &mut recovery_actions).await?;
-                success = false; // Escalation is not a "success" in terms of autonomous recovery
                 error_message = Some("Escalated to human intervention".to_string());
+                false // Escalation is not a "success" in terms of autonomous recovery
             }
             
             RecoveryStrategy::AbandonAndReset { ref reason } => {
                 self.execute_abandonment(reason.clone(), &mut recovery_actions).await?;
-                success = true; // Reset is considered successful
+                true // Reset is considered successful
             }
-        }
+        };
         
         let duration = start_instant.elapsed();
         let attempt = AutonomousRecoveryAttempt {

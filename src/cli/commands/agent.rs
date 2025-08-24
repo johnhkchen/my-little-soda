@@ -69,7 +69,7 @@ async fn show_all_agents_status(_router: &crate::agents::AgentRouter) -> Result<
     // Show status for common agent IDs (agent001, agent002, agent003)
     for i in 1..=3 {
         let agent_id = format!("agent{:03}", i);
-        let _state_machine = AgentStateMachine::new(agent_id.clone());
+        let state_machine = AgentStateMachine::new(agent_id.clone());
         
         let status = if state_machine.is_working() {
             "🔨 Working"
@@ -129,7 +129,7 @@ async fn diagnose_single_agent(agent_id: &str, router: &crate::agents::AgentRout
     println!("🔍 Diagnosing Agent: {}", agent_id);
     println!();
     
-    let _github_client = router.get_github_client();
+    let github_client = router.get_github_client();
     let state_machine = AgentStateMachine::new(agent_id.to_string());
     
     println!("📋 State Machine Validation:");
@@ -172,7 +172,7 @@ async fn diagnose_all_agents(_router: &crate::agents::AgentRouter) -> Result<()>
     
     for i in 1..=12 {
         let agent_id = format!("agent{:03}", i);
-        let _state_machine = AgentStateMachine::new(agent_id.clone());
+        let state_machine = AgentStateMachine::new(agent_id.clone());
         
         total_agents += 1;
         
@@ -235,7 +235,7 @@ async fn recover_single_agent(agent_id: &str, router: &crate::agents::AgentRoute
              agent_id);
     println!();
     
-    let _github_client = router.get_github_client();
+    let github_client = router.get_github_client();
     let state_machine = AgentStateMachine::new(agent_id.to_string());
     
     if dry_run {
@@ -276,7 +276,7 @@ async fn recover_all_agents(router: &crate::agents::AgentRouter, dry_run: bool) 
              if dry_run { "Simulating" } else { "Initiating" });
     println!();
     
-    let _github_client = router.get_github_client();
+    let github_client = router.get_github_client();
     let recovery = AutoRecovery::new(github_client.clone(), true);
     
     if dry_run {
@@ -444,7 +444,7 @@ async fn validate_all_agents(_router: &crate::agents::AgentRouter) -> Result<()>
     
     for i in 1..=12 {
         let agent_id = format!("agent{:03}", i);
-        let _state_machine = AgentStateMachine::new(agent_id.clone());
+        let state_machine = AgentStateMachine::new(agent_id.clone());
         
         total_agents += 1;
         
