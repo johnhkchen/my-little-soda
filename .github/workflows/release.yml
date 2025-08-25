@@ -269,40 +269,133 @@ jobs:
       - name: Generate release notes
         id: generate-notes
         run: |
-          # Generate automated release notes from commits since last tag
+          # Generate automated release notes from commits and PRs since last tag
           LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          CURRENT_VERSION="${{ needs.prepare-release.outputs.version }}"
+          
+          echo "# Release v${CURRENT_VERSION}" > release_notes.md
+          echo "" >> release_notes.md
           
           if [ -n "$LAST_TAG" ]; then
-            echo "## What's Changed" > release_notes.md
+            echo "## What's Changed" >> release_notes.md
             echo "" >> release_notes.md
-            git log --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD >> release_notes.md
+            
+            # Get commits since last tag and categorize them
+            MERGE_COMMITS=$(git log --pretty=format:"%s|%H|%an|%ae" ${LAST_TAG}..HEAD --grep="Merge" --grep="merge" -i)
+            FEATURE_COMMITS=$(git log --pretty=format:"%s|%H|%an|%ae" ${LAST_TAG}..HEAD --grep="feat" --grep="add" --grep="implement" -i --invert-grep --grep="Merge" --invert-grep --grep="merge")
+            FIX_COMMITS=$(git log --pretty=format:"%s|%H|%an|%ae" ${LAST_TAG}..HEAD --grep="fix" --grep="bug" --grep="patch" -i --invert-grep --grep="Merge" --invert-grep --grep="merge")
+            OTHER_COMMITS=$(git log --pretty=format:"%s|%H|%an|%ae" ${LAST_TAG}..HEAD --invert-grep --grep="feat" --invert-grep --grep="add" --invert-grep --grep="implement" --invert-grep --grep="fix" --invert-grep --grep="bug" --invert-grep --grep="patch" --invert-grep --grep="Merge" --invert-grep --grep="merge")
+            
+            # Process feature commits
+            if [ -n "$FEATURE_COMMITS" ]; then
+              echo "### ✨ New Features" >> release_notes.md
+              echo "$FEATURE_COMMITS" | while IFS='|' read -r subject hash author email; do
+                if [ -n "$subject" ]; then
+                  # Clean up commit message and format nicely
+                  CLEAN_SUBJECT=$(echo "$subject" | sed 's/^[Ff]eat[^:]*: *//' | sed 's/^[Aa]dd[^:]*: *//' | sed 's/^[Ii]mplement[^:]*: *//')
+                  echo "- ${CLEAN_SUBJECT} ([${hash:0:7}](https://github.com/johnhkchen/my-little-soda/commit/${hash}))" >> release_notes.md
+                fi
+              done
+              echo "" >> release_notes.md
+            fi
+            
+            # Process bug fixes
+            if [ -n "$FIX_COMMITS" ]; then
+              echo "### 🐛 Bug Fixes" >> release_notes.md
+              echo "$FIX_COMMITS" | while IFS='|' read -r subject hash author email; do
+                if [ -n "$subject" ]; then
+                  CLEAN_SUBJECT=$(echo "$subject" | sed 's/^[Ff]ix[^:]*: *//' | sed 's/^[Bb]ug[^:]*: *//' | sed 's/^[Pp]atch[^:]*: *//')
+                  echo "- ${CLEAN_SUBJECT} ([${hash:0:7}](https://github.com/johnhkchen/my-little-soda/commit/${hash}))" >> release_notes.md
+                fi
+              done
+              echo "" >> release_notes.md
+            fi
+            
+            # Process other changes
+            if [ -n "$OTHER_COMMITS" ]; then
+              echo "### 🔧 Other Changes" >> release_notes.md
+              echo "$OTHER_COMMITS" | while IFS='|' read -r subject hash author email; do
+                if [ -n "$subject" ]; then
+                  echo "- ${subject} ([${hash:0:7}](https://github.com/johnhkchen/my-little-soda/commit/${hash}))" >> release_notes.md
+                fi
+              done
+              echo "" >> release_notes.md
+            fi
+            
+            # Add contributor acknowledgments
+            echo "### 🙏 Contributors" >> release_notes.md
             echo "" >> release_notes.md
+            git log --pretty=format:"%an|%ae" ${LAST_TAG}..HEAD | sort | uniq | while IFS='|' read -r name email; do
+              if [ -n "$name" ] && [ "$name" != "GitHub" ]; then
+                echo "- [@${name}](mailto:${email})" >> release_notes.md
+              fi
+            done
             echo "" >> release_notes.md
+            
           else
-            echo "## What's Changed" > release_notes.md
+            echo "## What's Changed" >> release_notes.md
             echo "" >> release_notes.md
-            echo "- Initial release" >> release_notes.md
+            echo "### ✨ Initial Release" >> release_notes.md
+            echo "- First release of My Little Soda autonomous coding agent" >> release_notes.md
+            echo "- Multi-agent orchestration system for GitHub issue processing" >> release_notes.md
+            echo "- Cross-platform binary support (Linux, macOS, Windows)" >> release_notes.md
             echo "" >> release_notes.md
           fi
           
-          # Add standard footer
+          # Add download and installation instructions
           cat >> release_notes.md << 'EOF'
-          ## Installation
+          ## 📦 Installation
           
-          Download the appropriate binary for your platform from the assets below.
+          Download the appropriate binary for your platform from the assets below:
           
-          ### Linux/macOS
+          ### Linux (x86_64)
           ```bash
-          # Download and make executable
-          chmod +x my-little-soda-*
-          # Move to PATH (optional)
-          sudo mv my-little-soda-* /usr/local/bin/my-little-soda
+          # Download
+          wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-linux-x86_64
+          
+          # Make executable and install
+          chmod +x my-little-soda-linux-x86_64
+          sudo mv my-little-soda-linux-x86_64 /usr/local/bin/my-little-soda
+          
+          # Verify installation
+          my-little-soda --version
           ```
           
-          ### Windows
-          ```cmd
-          # Download my-little-soda-windows-x64.exe
-          # Rename to my-little-soda.exe (optional)
+          ### macOS (Intel & Apple Silicon)
+          ```bash
+          # For Intel Macs
+          wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-macos-x86_64
+          
+          # For Apple Silicon Macs  
+          wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-macos-arm64
+          
+          # Make executable and install
+          chmod +x my-little-soda-macos-*
+          sudo mv my-little-soda-macos-* /usr/local/bin/my-little-soda
+          
+          # Verify installation
+          my-little-soda --version
+          ```
+          
+          ### Windows (x64)
+          ```powershell
+          # Download my-little-soda-windows-x64.exe from the assets
+          # Place in a directory in your PATH or rename to my-little-soda.exe
+          
+          # Verify installation
+          my-little-soda.exe --version
+          ```
+          
+          ## 🔐 Verification
+          
+          All binaries include SHA256 and MD5 checksums for integrity verification:
+          
+          ```bash
+          # Verify SHA256 checksum
+          sha256sum my-little-soda-* && cat my-little-soda-*.sha256
+          
+          # Verify MD5 checksum  
+          md5sum my-little-soda-* && cat my-little-soda-*.md5
           ```
           EOF
           
@@ -418,11 +511,3 @@ jobs:
           echo "MD5: ${{ steps.checksums.outputs.md5 }}"
           echo "All assets uploaded successfully for ${{ matrix.asset_name }}"
 
-  # Placeholder for release notes - will be implemented in A3c
-  generate-release-notes:
-    name: Generate Release Notes
-    runs-on: ubuntu-latest
-    needs: [create-release]
-    steps:
-      - name: Placeholder for release notes
-        run: echo "Release notes generation will be implemented in A3c"
