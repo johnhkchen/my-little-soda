@@ -1,6 +1,6 @@
 # My Little Soda
 
-**Autonomous AI agent orchestration for GitHub repositories.** 
+**Turn your GitHub Issues into an autonomous coding queue - scale your productivity with an AI agent that works while you focus elsewhere.** 
 
 My Little Soda enables a single autonomous AI coding assistant to work on your GitHub Issues continuously while you focus elsewhere. It provides unattended operation and multiplicative productivity through the one-agent-per-repo architecture.
 
