@@ -83,36 +83,96 @@ jobs:
           # Make version available as environment variable for other jobs
           echo "RELEASE_VERSION=${VERSION}" >> $GITHUB_ENV
 
-  # Placeholder for build jobs - will be implemented in A2x tasks
-  build-linux:
-    name: Build Linux x86_64
-    runs-on: ubuntu-latest
+  # Build matrix for cross-platform binary compilation
+  build-matrix:
+    name: Build ${{ matrix.target }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     needs: prepare-release
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux-x86_64
+            artifact_name: my-little-soda-linux-x86_64
+            executable_suffix: ""
+            
+          # macOS Intel x86_64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            platform: macos-x86_64
+            artifact_name: my-little-soda-macos-x86_64
+            executable_suffix: ""
+            
+          # macOS Apple Silicon ARM64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform: macos-arm64
+            artifact_name: my-little-soda-macos-arm64
+            executable_suffix: ""
+            
+          # Windows x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows-x64
+            artifact_name: my-little-soda-windows-x64
+            executable_suffix: ".exe"
+    
     steps:
-      - name: Placeholder for Linux build
-        run: echo "Linux x86_64 build will be implemented in A2a"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  build-macos:
-    name: Build macOS (Intel and ARM)
-    runs-on: macos-latest
-    needs: prepare-release
-    steps:
-      - name: Placeholder for macOS builds
-        run: echo "macOS builds will be implemented in A2b"
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          cache: false
 
-  build-windows:
-    name: Build Windows x64
-    runs-on: windows-latest
-    needs: prepare-release
-    steps:
-      - name: Placeholder for Windows build
-        run: echo "Windows x64 build will be implemented in A2c"
+      - name: Configure Rust caching
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: "release-${{ matrix.platform }}-${{ needs.prepare-release.outputs.version }}"
+          cache-directories: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          cache-all-crates: true
+
+      - name: Extract matrix variables
+        id: matrix-vars
+        run: |
+          echo "target=${{ matrix.target }}" >> $GITHUB_OUTPUT
+          echo "platform=${{ matrix.platform }}" >> $GITHUB_OUTPUT
+          echo "artifact_name=${{ matrix.artifact_name }}" >> $GITHUB_OUTPUT
+          echo "executable_suffix=${{ matrix.executable_suffix }}" >> $GITHUB_OUTPUT
+          echo "os=${{ matrix.os }}" >> $GITHUB_OUTPUT
+          
+          # Make variables available as environment variables
+          echo "BUILD_TARGET=${{ matrix.target }}" >> $GITHUB_ENV
+          echo "BUILD_PLATFORM=${{ matrix.platform }}" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${{ matrix.artifact_name }}" >> $GITHUB_ENV
+          echo "EXECUTABLE_SUFFIX=${{ matrix.executable_suffix }}" >> $GITHUB_ENV
+
+      - name: Placeholder for platform-specific build
+        run: |
+          echo "Building for platform: ${{ matrix.platform }}"
+          echo "Rust target: ${{ matrix.target }}"
+          echo "Runner OS: ${{ matrix.os }}"
+          echo "Artifact name: ${{ matrix.artifact_name }}"
+          echo "Version: ${{ needs.prepare-release.outputs.version }}"
+          echo "Build will be implemented in A2x tasks"
 
   # Placeholder for release creation - will be implemented in A3x tasks
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [prepare-release, build-linux, build-macos, build-windows]
+    needs: [prepare-release, build-matrix]
     steps:
       - name: Placeholder for release creation
         run: echo "Release creation will be implemented in A3a"
