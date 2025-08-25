@@ -1,3 +1,4 @@
+use crate::agents::routing::RoutingDecisions;
 use crate::cli::commands::with_agent_router;
 use crate::priority::Priority;
 use anyhow::Result;
@@ -30,12 +31,10 @@ impl PeekCommand {
                             return Ok(());
                         }
 
-                        // Sort issues by priority (same logic as router)
-                        issues.sort_by(|a, b| {
-                            let a_priority = get_issue_priority(a);
-                            let b_priority = get_issue_priority(b);
-                            b_priority.cmp(&a_priority) // Higher priority first
-                        });
+                        // Sort issues by priority using the same logic as the router
+                        // This ensures consistent ordering with lexicographic sorting as secondary criterion
+                        let routing_decisions = RoutingDecisions::new();
+                        routing_decisions.sort_issues_by_priority(&mut issues);
 
                         let next_issue = &issues[0];
                         let priority = get_issue_priority(next_issue);
