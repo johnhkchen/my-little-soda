@@ -1,10 +1,30 @@
 name: Release Binary Assets
 
 # This workflow handles automated binary releases for the my-little-soda project
-# It will be triggered by version tags and will build cross-platform binaries
+# It builds cross-platform binaries and creates GitHub releases
+#
+# TRIGGER CONDITIONS:
+# - Version tags: v1.0.0, v2.1.3, v0.1.0-beta.1 (semantic versioning with 'v' prefix)
+# - Manual dispatch: For testing and manual releases
+#
+# TAG PATTERN MATCHING:
+# - Matches: v[0-9]+.[0-9]+.[0-9]+           (e.g., v1.0.0, v2.1.3)
+# - Matches: v[0-9]+.[0-9]+.[0-9]+-*         (e.g., v1.0.0-beta.1, v2.0.0-rc.1)
+# - Ignores: Non-version tags, tags without 'v' prefix, malformed versions
+#
+# VERSION EXTRACTION:
+# - From tags: Strips 'v' prefix (v1.2.3 → 1.2.3)
+# - From Cargo.toml: Fallback for manual dispatch
+# - Available as: ${{ needs.prepare-release.outputs.version }}
 
 on:
-  # Placeholder for trigger conditions - will be configured in A1b
+  # Trigger on version tags (v*.*.* pattern)
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'  # Pre-release tags like v1.0.0-beta.1
+  
+  # Manual trigger for testing
   workflow_dispatch:
     inputs:
       dry_run:
@@ -23,6 +43,8 @@ env:
   CARGO_TERM_COLOR: always
   # Binary name from Cargo.toml
   BINARY_NAME: my-little-soda
+  # Version information available from Git tag
+  # Will be set in prepare-release job
 
 jobs:
   # Placeholder job structure - will be expanded in subsequent tasks
@@ -32,6 +54,7 @@ jobs:
     outputs:
       version: ${{ steps.extract-version.outputs.version }}
       release-name: ${{ steps.extract-version.outputs.release-name }}
+      tag-name: ${{ steps.extract-version.outputs.tag-name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,11 +64,24 @@ jobs:
       - name: Extract version information
         id: extract-version
         run: |
-          # Extract version from Cargo.toml
-          VERSION=$(grep '^version = ' Cargo.toml | head -n1 | cut -d'"' -f2)
+          # Extract version from Git tag or Cargo.toml
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            # Extract from tag (remove 'v' prefix)
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "Version extracted from tag: ${VERSION}"
+          else
+            # Fallback to Cargo.toml for workflow_dispatch
+            VERSION=$(grep '^version = ' Cargo.toml | head -n1 | cut -d'"' -f2)
+            echo "Version extracted from Cargo.toml: ${VERSION}"
+          fi
+          
+          # Set outputs
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "release-name=my-little-soda-v${VERSION}" >> $GITHUB_OUTPUT
-          echo "Extracted version: ${VERSION}"
+          echo "tag-name=v${VERSION}" >> $GITHUB_OUTPUT
+          
+          # Make version available as environment variable for other jobs
+          echo "RELEASE_VERSION=${VERSION}" >> $GITHUB_ENV
 
   # Placeholder for build jobs - will be implemented in A2x tasks
   build-linux:
