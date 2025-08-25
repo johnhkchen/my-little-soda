@@ -18,6 +18,30 @@ My Little Soda enables a single autonomous AI coding assistant to work on your G
 
 **In simple terms:** Scale your productivity with an autonomous AI assistant that works unattended on your repository.
 
+## Platform Support
+
+✅ **Linux** (x86_64, aarch64)  
+✅ **macOS** (Intel, Apple Silicon)  
+✅ **Windows** (Windows 10/11)
+
+### Platform-Specific Notes
+
+**Windows Users:**
+- Use `.\target\release\my-little-soda.exe` instead of `./target/release/my-little-soda`
+- Use `.\target\debug\my-little-soda.exe` for development builds
+- PowerShell and Command Prompt both supported
+- Git Bash recommended for best experience with git operations
+
+**macOS Users:**
+- Both Intel and Apple Silicon supported natively
+- No additional setup required beyond standard prerequisites
+- Works with all popular terminal applications (Terminal, iTerm2, etc.)
+
+**Linux Users:**
+- All major distributions supported (Ubuntu, Debian, RHEL, Arch, etc.)
+- Works with any shell (bash, zsh, fish)
+- No distribution-specific packages required
+
 ## See It In Action
 
 ### GitHub Issue Management
@@ -34,7 +58,10 @@ $ gh issue list --label="route:ready"
 
 ```bash
 # Get assigned to the highest priority task
+# Linux/macOS:
 $ ./target/debug/my-little-soda pop
+# Windows:
+$ .\target\debug\my-little-soda.exe pop
 🎯 Popping next available task...
 🔄 Connecting to GitHub... ✅
 📋 Searching for available tasks... 
@@ -59,7 +86,10 @@ $ ./target/debug/my-little-soda pop
 ```bash
 # Work on it, then submit
 $ git add . && git commit -m "Add visual demonstrations to README"
+# Linux/macOS:
 $ ./target/debug/my-little-soda bottle
+# Windows:
+$ .\target\debug\my-little-soda.exe bottle
 ✅ Pull request created: Add visual demonstrations to README (screenshots/GIFs)
 ✅ Work submitted for review - ready for next task!
 ```
@@ -69,9 +99,9 @@ $ ./target/debug/my-little-soda bottle
 ## Table of Contents
 
 🚀 **Getting Started**
+- [Platform Support](#platform-support) - Linux, macOS, Windows compatibility
 - [Quick Start](#quick-start) - See it working in 30 seconds
 - [Installation](#installation) - Get it running on your system
-- [Platform Support](#platform-support) - Linux, macOS, Windows
 
 ⚙️ **Using My Little Soda**  
 - [Basic Workflow](#basic-agent-workflow) - pop → work → bottle cycle
@@ -120,12 +150,6 @@ Before installing My Little Soda, ensure you have the following:
 
 > **Note**: My Little Soda is a coordination tool for GitHub repositories. It does not require API keys for AI services (OpenAI, Anthropic, etc.) as it manages workflows for an external autonomous AI agent that handles its own authentication.
 
-### Platform Support
-- **Linux** (x86_64, aarch64)
-- **macOS** (Intel and Apple Silicon)  
-- **Windows** (Windows 10/11)
-
-> **Windows Note:** Use `.\target\release\my-little-soda.exe` instead of `./target/release/my-little-soda`
 
 ### Option 1: Build from Source
 
@@ -135,7 +159,9 @@ cd my-little-soda
 cargo build --release
 ```
 
-Executable location: `./target/release/my-little-soda` (Windows: `.\target\release\my-little-soda.exe`)
+**Executable location:**
+- **Linux/macOS**: `./target/release/my-little-soda`
+- **Windows**: `.\target\release\my-little-soda.exe`
 
 ### Feature Flags
 
@@ -306,10 +332,10 @@ $ ./target/debug/my-little-soda pop
 
 **Already installed?** Here's the essential workflow:
 
-1. **Check status:** `./target/debug/my-little-soda status`
-2. **Get a task:** `./target/debug/my-little-soda pop`
+1. **Check status:** `./target/debug/my-little-soda status` (Windows: `.\target\debug\my-little-soda.exe status`)
+2. **Get a task:** `./target/debug/my-little-soda pop` (Windows: `.\target\debug\my-little-soda.exe pop`)
 3. **Work on it:** Make your changes and commit
-4. **Submit work:** `./target/debug/my-little-soda bottle`
+4. **Submit work:** `./target/debug/my-little-soda bottle` (Windows: `.\target\debug\my-little-soda.exe bottle`)
 5. **Repeat:** System automatically assigns next task
 
 ### System Status Example
@@ -490,20 +516,26 @@ $ ./target/debug/my-little-soda pop
 
 ```bash
 # Initialize a new repository (run once per repo)
-./target/debug/my-little-soda init
+# Linux/macOS: ./target/debug/my-little-soda init
+# Windows: .\target\debug\my-little-soda.exe init
 
 # Reset agent state (admin only)
-./target/debug/my-little-soda reset
+# Linux/macOS: ./target/debug/my-little-soda reset
+# Windows: .\target\debug\my-little-soda.exe reset
 
 # Bundle multiple PRs for review
-./target/debug/my-little-soda bundle
+# Linux/macOS: ./target/debug/my-little-soda bundle
+# Windows: .\target\debug\my-little-soda.exe bundle
 ```
 
 ### Getting Help
 
 ```bash
 # See all available commands
+# Linux/macOS:
 $ ./target/debug/my-little-soda --help
+# Windows:
+$ .\target\debug\my-little-soda.exe --help
 My Little Soda - Autonomous AI agent orchestration for GitHub repositories
 
 Usage: my-little-soda <COMMAND>
@@ -522,7 +554,8 @@ Options:
   -V, --version  Print version
 
 # Get help for specific command
-$ ./target/debug/my-little-soda pop --help
+# Linux/macOS: ./target/debug/my-little-soda pop --help
+# Windows: .\target\debug\my-little-soda.exe pop --help
 Get assigned to the highest priority available task
 
 Usage: my-little-soda pop [OPTIONS]
@@ -681,16 +714,20 @@ Track autonomous operation health and performance:
 **Status Commands:**
 ```bash
 # Check autonomous system status
-./target/release/my-little-soda status --autonomous
+# Linux/macOS: ./target/release/my-little-soda status --autonomous
+# Windows: .\target\release\my-little-soda.exe status --autonomous
 
 # View drift detection report
-./target/release/my-little-soda drift-report
+# Linux/macOS: ./target/release/my-little-soda drift-report
+# Windows: .\target\release\my-little-soda.exe drift-report
 
 # Check error recovery statistics  
-./target/release/my-little-soda recovery-report
+# Linux/macOS: ./target/release/my-little-soda recovery-report
+# Windows: .\target\release\my-little-soda.exe recovery-report
 
 # Validate work continuity state
-./target/release/my-little-soda continuity-status
+# Linux/macOS: ./target/release/my-little-soda continuity-status
+# Windows: .\target\release\my-little-soda.exe continuity-status
 ```
 
 **Key Metrics Monitored:**
@@ -706,7 +743,8 @@ Track autonomous operation health and performance:
 **Issue:** "Critical drift detected requiring manual intervention"
 ```bash
 # Check what drifts were detected
-./target/release/my-little-soda drift-report
+# Linux/macOS: ./target/release/my-little-soda drift-report
+# Windows: .\target\release\my-little-soda.exe drift-report
 
 # Common causes:
 # - Issue was closed while agent was working
@@ -726,7 +764,8 @@ git status
 git log --oneline -10
 
 # Check expected vs actual state
-./target/release/my-little-soda status --detailed
+# Linux/macOS: ./target/release/my-little-soda status --detailed
+# Windows: .\target\release\my-little-soda.exe status --detailed
 
 # Resolution:
 # 1. Fix any uncommitted changes or conflicts
@@ -739,7 +778,8 @@ git log --oneline -10
 **Issue:** "Recovery attempts exhausted"
 ```bash
 # Check recovery history
-./target/release/my-little-soda recovery-report
+# Linux/macOS: ./target/release/my-little-soda recovery-report
+# Windows: .\target\release\my-little-soda.exe recovery-report
 
 # View detailed error logs
 tail -f .my-little-soda/logs/autonomous.log
@@ -769,10 +809,12 @@ git diff HEAD~1 Cargo.toml Cargo.lock
 **Issue:** "Cannot resume work after restart"
 ```bash
 # Check persistence state
-ls -la .my-little-soda/state/
+ls -la .my-little-soda/state/  # Linux/macOS
+dir .my-little-soda\state\     # Windows
 
 # Validate state files
-./target/release/my-little-soda continuity-status
+# Linux/macOS: ./target/release/my-little-soda continuity-status
+# Windows: .\target\release\my-little-soda.exe continuity-status
 
 # Resolution:
 # 1. Check state file permissions
@@ -804,7 +846,8 @@ df -h .my-little-soda/  # Disk space
 ps aux | grep my-little-soda  # CPU usage
 
 # Review performance metrics
-./target/release/my-little-soda status --performance
+# Linux/macOS: ./target/release/my-little-soda status --performance
+# Windows: .\target\release\my-little-soda.exe status --performance
 
 # Resolution:
 # 1. Clean old state files: my-little-soda cleanup --old-states
