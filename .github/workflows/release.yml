@@ -323,14 +323,100 @@ jobs:
           draft: false
           prerelease: ${{ contains(needs.prepare-release.outputs.tag-name, '-') }}
 
-  # Placeholder for asset uploads - will be implemented in A3b
+  # Upload compiled binaries as release assets
   upload-assets:
     name: Upload Release Assets
     runs-on: ubuntu-latest
-    needs: [create-release]
+    needs: [prepare-release, create-release, build-matrix]
+    strategy:
+      matrix:
+        include:
+          - artifact_name: my-little-soda-linux-x86_64
+            asset_name: my-little-soda-linux-x86_64
+            executable_suffix: ""
+          - artifact_name: my-little-soda-macos-x86_64
+            asset_name: my-little-soda-macos-x86_64
+            executable_suffix: ""
+          - artifact_name: my-little-soda-macos-arm64
+            asset_name: my-little-soda-macos-arm64
+            executable_suffix: ""
+          - artifact_name: my-little-soda-windows-x64
+            asset_name: my-little-soda-windows-x64
+            executable_suffix: ".exe"
     steps:
-      - name: Placeholder for asset uploads
-        run: echo "Asset uploads will be implemented in A3b"
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ./artifacts/
+
+      - name: Generate checksums
+        id: checksums
+        run: |
+          cd artifacts/
+          BINARY_FILE="${{ matrix.asset_name }}${{ matrix.executable_suffix }}"
+          
+          # Generate SHA256 checksum
+          sha256sum "${BINARY_FILE}" > "${BINARY_FILE}.sha256"
+          
+          # Generate MD5 checksum for additional verification
+          md5sum "${BINARY_FILE}" > "${BINARY_FILE}.md5"
+          
+          # Set checksums as outputs for later use
+          SHA256_CHECKSUM=$(sha256sum "${BINARY_FILE}" | cut -d' ' -f1)
+          MD5_CHECKSUM=$(md5sum "${BINARY_FILE}" | cut -d' ' -f1)
+          
+          echo "sha256=${SHA256_CHECKSUM}" >> $GITHUB_OUTPUT
+          echo "md5=${MD5_CHECKSUM}" >> $GITHUB_OUTPUT
+          
+          # Display checksums
+          echo "Generated checksums for ${BINARY_FILE}:"
+          echo "SHA256: ${SHA256_CHECKSUM}"
+          echo "MD5: ${MD5_CHECKSUM}"
+          
+          # Verify files exist
+          ls -la
+
+      - name: Upload binary asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./artifacts/${{ matrix.asset_name }}${{ matrix.executable_suffix }}
+          asset_name: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}
+          asset_content_type: application/octet-stream
+        continue-on-error: false
+
+      - name: Upload SHA256 checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./artifacts/${{ matrix.asset_name }}${{ matrix.executable_suffix }}.sha256
+          asset_name: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}.sha256
+          asset_content_type: text/plain
+        continue-on-error: false
+
+      - name: Upload MD5 checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./artifacts/${{ matrix.asset_name }}${{ matrix.executable_suffix }}.md5
+          asset_name: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}.md5
+          asset_content_type: text/plain
+        continue-on-error: false
+
+      - name: Verify asset uploads completed successfully
+        run: |
+          echo "Asset upload verification for ${{ matrix.asset_name }}"
+          echo "Binary: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}"
+          echo "SHA256: ${{ steps.checksums.outputs.sha256 }}"
+          echo "MD5: ${{ steps.checksums.outputs.md5 }}"
+          echo "All assets uploaded successfully for ${{ matrix.asset_name }}"
 
   # Placeholder for release notes - will be implemented in A3c
   generate-release-notes:
