@@ -113,3 +113,111 @@ My Little Soda follows a strict **ONE AGENT PER REPOSITORY** architecture:
 - Horizontal scaling documentation
 
 This architectural constraint is fundamental to My Little Soda's value proposition and must never be violated.
+
+## CI/CD and Development Workflow
+
+- All CI workflows must pass before code changes may be reviewed.
+- The existing code structure must not be changed without a strong reason.
+- Every bug must be reproduced by a unit test before being fixed.
+- Every new feature must be covered by a unit test before it is implemented.
+- Minor inconsistencies and typos in the existing code may be fixed.
+
+## Documentation
+
+- The README.md file must explain the purpose of the repository.
+- The README.md file must be free of typos, grammar mistakes, and broken English.
+- The README.md file must be as short as possible and must not duplicate code documentation.
+- Every struct and enum must have a supplementary doc comment (`///`) preceding it.
+- Doc comments must explain the purpose and provide usage examples.
+- Every function and method must have a supplementary doc comment preceding it.
+- Doc comments must be written in English only, using UTF-8 encoding.
+- Use `cargo doc` to generate and verify documentation.
+
+## Code Style and Structure
+
+- Function bodies may not contain blank lines.
+- Function and method bodies may not contain comments (use self-documenting code).
+- Variable names should be descriptive nouns following `snake_case` convention.
+- Function names should be descriptive verbs following `snake_case` convention.
+- Respect Rust’s bracket placement conventions (opening brace on same line).
+- Error messages should not end with a period.
+- Error messages must always be a single sentence, with no periods inside.
+- Favor “fail fast” paradigm: use `panic!`, `expect()`, or return `Result` early.
+
+## Rust-Specific Design Principles
+
+- Constructors should be simple associated functions (typically `new()`) containing only initialization.
+- Favor composition over inheritance (Rust doesn’t have classical inheritance).
+- Avoid unnecessary getter methods; prefer direct field access or explicit methods.
+- Follow domain-driven design principles where applicable.
+- Struct names may not end with the `-er` suffix unless they represent actors (like `Iterator`).
+- Favor immutable data structures; use `mut` sparingly and deliberately.
+- Every struct should have one primary constructor (`new()`); additional constructors should delegate.
+- Every struct should encapsulate no more than four fields for simplicity.
+- Every struct must encapsulate at least one field or be a unit struct with clear purpose.
+- Utility modules are preferred over utility structs with associated functions.
+- Free functions are acceptable in modules; avoid complex associated functions on empty structs.
+- Function names must respect command-query separation: either return data or cause side effects.
+- Avoid public constants in structs; use module-level constants instead.
+- Define behavior in traits and implement them for structs.
+- Public methods should implement traits when possible.
+- Functions must return `Option<T>` or `Result<T, E>` instead of potentially panicking.
+- Use Rust’s type system to validate arguments at compile time when possible.
+- `None` and error values should be handled explicitly, never ignored.
+- Avoid `as` casting; use `From`/`Into` traits or explicit conversion methods.
+- Avoid reflection-like behavior; use compile-time generics and traits.
+- Structs should be the default; use inheritance-like patterns only when necessary via traits.
+- Error types should include comprehensive context using `thiserror` or similar.
+
+## Testing Guidelines
+
+- Every change must be covered by a unit test to guarantee repeatability.
+- Every test case may contain only one assertion.
+- In every test, the assertion must be the last statement.
+- Test cases must be as short as possible.
+- Every test must assert at least once.
+- Each test file should have a clear relationship with the module it tests.
+- Every assertion should include a descriptive failure message.
+- Tests must use diverse inputs, including non-ASCII strings and edge cases.
+- Tests may not share state between test cases.
+- Tests may not use setup/teardown; each test should be self-contained.
+- Tests may not use shared constants; generate values within each test.
+- Test function names must be descriptive sentences using `snake_case`.
+- Tests may not test functionality irrelevant to their stated purpose.
+- Tests must properly handle resource cleanup using RAII or explicit cleanup.
+- Code must not provide functionality used only by tests.
+- Tests may not assert on logging output; test behavior, not side effects.
+- Tests should not test simple field access or basic constructors.
+- Tests must prepare clean state at the start, not clean up afterward.
+- Prefer real objects over mocks; use test doubles sparingly.
+- Aim for single-statement tests when possible.
+- Use standard Rust assertion macros (`assert!`, `assert_eq!`, `assert_ne!`).
+- Each test must verify only one specific behavioral pattern.
+- Tests should use generated random values as inputs where appropriate.
+- Tests should use `tempfile` crate for temporary files and directories.
+- Tests must not produce log output during normal execution.
+- Configure test logging appropriately using `env_logger` or similar.
+- Tests must not wait indefinitely; use timeouts with `tokio::time::timeout` or similar.
+- Tests must verify behavior in concurrent environments using appropriate tools.
+- Tests should retry flaky operations with exponential backoff.
+- Tests must not assume network connectivity; mock external services.
+- Tests may not assert on specific error messages, only error types and behavior.
+- Tests must provide explicit configuration rather than relying on defaults.
+- Tests should not mock fundamental system resources like filesystem or memory.
+- Tests must use ephemeral ports from `std::net::TcpListener::bind("127.0.0.1:0")`.
+- Tests should inline small test data rather than loading from files.
+- Tests should generate large fixtures at runtime using appropriate libraries.
+- Tests may create helper functions to reduce duplication while maintaining clarity.
+- Test function names should spell “cannot” and “dont” without apostrophes, following Rust naming conventions.
+
+## Additional Rust-Specific Recommendations
+
+- Use `clippy` for additional code quality checks.
+- Follow `rustfmt` formatting standards.
+- Leverage Rust’s ownership system to prevent common bugs.
+- Use `Result<T, E>` for recoverable errors and `panic!` for unrecoverable ones.
+- Prefer `&str` over `String` for function parameters when possible.
+- Use appropriate collection types (`Vec`, `HashMap`, `BTreeMap`) for specific use cases.
+- Implement `Debug`, `Clone`, and other standard traits as needed.
+- Use feature flags for optional functionality.
+- Follow semantic versioning for public APIs.​​​​​​​​​​​​​​​​
