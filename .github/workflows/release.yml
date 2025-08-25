@@ -1,0 +1,100 @@
+name: Release Binary Assets
+
+# This workflow handles automated binary releases for the my-little-soda project
+# It will be triggered by version tags and will build cross-platform binaries
+
+on:
+  # Placeholder for trigger conditions - will be configured in A1b
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run without creating actual release'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Permissions required for creating releases and uploading assets
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Binary name from Cargo.toml
+  BINARY_NAME: my-little-soda
+
+jobs:
+  # Placeholder job structure - will be expanded in subsequent tasks
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract-version.outputs.version }}
+      release-name: ${{ steps.extract-version.outputs.release-name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version information
+        id: extract-version
+        run: |
+          # Extract version from Cargo.toml
+          VERSION=$(grep '^version = ' Cargo.toml | head -n1 | cut -d'"' -f2)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "release-name=my-little-soda-v${VERSION}" >> $GITHUB_OUTPUT
+          echo "Extracted version: ${VERSION}"
+
+  # Placeholder for build jobs - will be implemented in A2x tasks
+  build-linux:
+    name: Build Linux x86_64
+    runs-on: ubuntu-latest
+    needs: prepare-release
+    steps:
+      - name: Placeholder for Linux build
+        run: echo "Linux x86_64 build will be implemented in A2a"
+
+  build-macos:
+    name: Build macOS (Intel and ARM)
+    runs-on: macos-latest
+    needs: prepare-release
+    steps:
+      - name: Placeholder for macOS builds
+        run: echo "macOS builds will be implemented in A2b"
+
+  build-windows:
+    name: Build Windows x64
+    runs-on: windows-latest
+    needs: prepare-release
+    steps:
+      - name: Placeholder for Windows build
+        run: echo "Windows x64 build will be implemented in A2c"
+
+  # Placeholder for release creation - will be implemented in A3x tasks
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [prepare-release, build-linux, build-macos, build-windows]
+    steps:
+      - name: Placeholder for release creation
+        run: echo "Release creation will be implemented in A3a"
+
+  # Placeholder for asset uploads - will be implemented in A3b
+  upload-assets:
+    name: Upload Release Assets
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Placeholder for asset uploads
+        run: echo "Asset uploads will be implemented in A3b"
+
+  # Placeholder for release notes - will be implemented in A3c
+  generate-release-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Placeholder for release notes
+        run: echo "Release notes generation will be implemented in A3c"
