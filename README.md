@@ -18,6 +18,26 @@ My Little Soda enables a single autonomous AI coding assistant to work on your G
 
 **In simple terms:** Scale your productivity with an autonomous AI assistant that works unattended on your repository.
 
+## Quick Start
+
+**Already have it installed?** Here's the 30-second workflow:
+
+```bash
+# Get your next task
+./target/debug/my-little-soda pop
+
+# Work on it (make changes, commit)
+git add . && git commit -m "Fix the bug"
+
+# Submit your work
+./target/debug/my-little-soda bottle
+
+# System automatically gives you the next task
+./target/debug/my-little-soda pop
+```
+
+**New to My Little Soda?** → [Installation Guide](#installation)
+
 ## Platform Support
 
 ✅ **Linux** (x86_64, aarch64)  
@@ -99,8 +119,8 @@ $ .\target\debug\my-little-soda.exe bottle
 ## Table of Contents
 
 🚀 **Getting Started**
-- [Platform Support](#platform-support) - Linux, macOS, Windows compatibility
 - [Quick Start](#quick-start) - See it working in 30 seconds
+- [Platform Support](#platform-support) - Linux, macOS, Windows compatibility
 - [Installation](#installation) - Get it running on your system
 
 ⚙️ **Using My Little Soda**  
@@ -327,50 +347,6 @@ $ ./target/debug/my-little-soda pop
 ## Project Status
 
 **Early Alpha** - Not recommended for production use. See [detailed status information](docs/README.md#project-status) for current capabilities and limitations.
-
-## Quick Start
-
-**Already installed?** Here's the essential workflow:
-
-1. **Check status:** `./target/debug/my-little-soda status` (Windows: `.\target\debug\my-little-soda.exe status`)
-2. **Get a task:** `./target/debug/my-little-soda pop` (Windows: `.\target\debug\my-little-soda.exe pop`)
-3. **Work on it:** Make your changes and commit
-4. **Submit work:** `./target/debug/my-little-soda bottle` (Windows: `.\target\debug\my-little-soda.exe bottle`)
-5. **Repeat:** System automatically assigns next task
-
-### System Status Example
-
-```bash
-$ ./target/debug/my-little-soda status
-🤖 MY LITTLE SODA STATUS - Repository: my-little-soda
-==========================================
-
-🔧 AGENT STATUS:
-────────────────
-🔴 Busy - Currently working on assigned task
-📍 Current branch: agent001/271-add-visual-demonstrations-to-r
-🚀 Mode: Manual (use 'my-little-soda spawn --autonomous' for unattended)
-
-📋 ISSUE QUEUE (7 waiting):
-────────────────────────────
-🟢 #278 Improve Table of Contents organization and navigation
-   📝 Priority: Normal | Labels: none
-
-🟢 #277 Improve platform support visibility and Windows-specific guidance
-   📝 Priority: Normal | Labels: none
-
-🟢 #275 Move detailed configuration and autonomous features to separate documentation
-   📝 Priority: Normal | Labels: none
-
-   ... and 4 more tasks
-
-🎯 NEXT ACTIONS:
-   → my-little-soda pop       # Get highest priority task
-   → my-little-soda peek      # Preview task details
-   → my-little-soda spawn --autonomous  # Start unattended mode
-```
-
-See [Usage Examples](#usage-examples) for detailed commands.
 
 ## Usage Examples
 
