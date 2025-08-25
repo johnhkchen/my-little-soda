@@ -43,6 +43,7 @@ strip = true          # Strip symbols from binary
 lto = true           # Enable Link Time Optimization
 codegen-units = 1    # Reduce parallel code generation for better optimization
 panic = "abort"      # Reduce binary size by not including unwinding code
+opt-level = "z"      # Optimize for size over speed
 
 [features]
 default = []
