@@ -38,29 +38,6 @@ git add . && git commit -m "Fix the bug"
 
 **New to My Little Soda?** → [Installation Guide](#installation)
 
-## Platform Support
-
-✅ **Linux** (x86_64, aarch64)  
-✅ **macOS** (Intel, Apple Silicon)  
-✅ **Windows** (Windows 10/11)
-
-### Platform-Specific Notes
-
-**Windows Users:**
-- Use `.\target\release\my-little-soda.exe` instead of `./target/release/my-little-soda`
-- Use `.\target\debug\my-little-soda.exe` for development builds
-- PowerShell and Command Prompt both supported
-- Git Bash recommended for best experience with git operations
-
-**macOS Users:**
-- Both Intel and Apple Silicon supported natively
-- No additional setup required beyond standard prerequisites
-- Works with all popular terminal applications (Terminal, iTerm2, etc.)
-
-**Linux Users:**
-- All major distributions supported (Ubuntu, Debian, RHEL, Arch, etc.)
-- Works with any shell (bash, zsh, fish)
-- No distribution-specific packages required
 
 ## See It In Action
 
@@ -120,8 +97,7 @@ $ .\target\debug\my-little-soda.exe bottle
 
 🚀 **Getting Started**
 - [Quick Start](#quick-start) - See it working in 30 seconds
-- [Platform Support](#platform-support) - Linux, macOS, Windows compatibility
-- [Installation](#installation) - Get it running on your system
+- [Installation](#installation) - Get it running on your system (includes platform support)
 
 ⚙️ **Using My Little Soda**  
 - [Basic Workflow](#basic-agent-workflow) - pop → work → bottle cycle
@@ -139,103 +115,86 @@ $ .\target\debug\my-little-soda.exe bottle
 
 ## Installation
 
-### Prerequisites
+### Platform Support
 
-Before installing My Little Soda, ensure you have the following:
+✅ **Linux** (x86_64, aarch64) | ✅ **macOS** (Intel, Apple Silicon) | ✅ **Windows** (Windows 10/11)
 
-#### Required
-- **GitHub CLI**: `gh auth login` (for GitHub API access)
-  - Install: https://cli.github.com/
-  - Authenticate: `gh auth login` (required for repository operations)
-  - Verify: `gh auth status`
-- **Git**: Standard git installation
-- **Rust**: 1.75+ (for building from source)
-- **GitHub Personal Access Token**: Required for API operations
-  - Create at: https://github.com/settings/tokens
-  - Required scopes: `repo`, `read:org` (for private repos)
-  - Can be set via `GITHUB_TOKEN` or `MY_LITTLE_SODA_GITHUB_TOKEN` environment variable
+**Windows Users:** Use `.\target\release\my-little-soda.exe` instead of `./target/release/my-little-soda`  
+**All Platforms:** PowerShell, Command Prompt, and terminal applications supported
 
-#### Repository Permissions
-- **Write access** to the target repository (for creating branches, PRs, and labels)
-- **Issues permission** (to read, create, and modify issues)
-- **Pull requests permission** (to create and manage PRs)
+### Quick Install
 
-#### Optional Dependencies
-- **Database** (SQLite): For persistent state storage and metrics
-  - Auto-created at `.my-little-soda/my-little-soda.db` if enabled
-  - Enable in `my-little-soda.toml` or via `MY_LITTLE_SODA_DATABASE_URL`
-- **OpenTelemetry Endpoint**: For distributed tracing and observability
-  - Defaults to stdout export if not configured
-  - Set via `MY_LITTLE_SODA_OBSERVABILITY_OTLP_ENDPOINT`
-
-> **Note**: My Little Soda is a coordination tool for GitHub repositories. It does not require API keys for AI services (OpenAI, Anthropic, etc.) as it manages workflows for an external autonomous AI agent that handles its own authentication.
-
-
-### Option 1: Build from Source
+**Get running in 60 seconds:**
 
 ```bash
 git clone https://github.com/johnhkchen/my-little-soda.git
 cd my-little-soda
 cargo build --release
+
+# Test it works
+./target/release/my-little-soda --help
+# Windows: .\target\release\my-little-soda.exe --help
 ```
 
 **Executable location:**
 - **Linux/macOS**: `./target/release/my-little-soda`
 - **Windows**: `.\target\release\my-little-soda.exe`
 
-### Feature Flags
+### Prerequisites
 
-```bash
-# Default build (minimal ~15MB)
-cargo build --release
+**Essential requirements:**
+- **Git** - Standard git installation
+- **Rust** - Version 1.75+ (for building from source)
+- **GitHub CLI** - `gh auth login` (install from https://cli.github.com/)
+- **GitHub Personal Access Token** - With `repo` scope ([create here](https://github.com/settings/tokens))
 
-# With specific features
-cargo build --release --features metrics
-cargo build --release --features autonomous
+**Repository permissions needed:**
+- Write access to your target repository
+- Issues and Pull requests permissions
 
-# All features (~17MB)
-cargo build --release --all-features
-```
-
-**Available features:** `autonomous`, `metrics`, `observability`, `database`
-
-**Need details?** → [Complete Configuration Guide](docs/configuration.md#feature-flags)
-
-### Option 2: Pre-built Binaries
+### Pre-built Binaries
 Pre-built binaries are planned for future releases.
 
-### Configuration
+### Optional: Build with Features
 
-**Quick Setup:**
+**Default build (recommended):**
+```bash
+cargo build --release  # ~15MB, all core functionality
+```
+
+**With additional features:**
+```bash
+cargo build --release --features metrics      # Performance tracking
+cargo build --release --features autonomous   # Advanced recovery
+cargo build --release --all-features          # Everything (~17MB)
+```
+
+Available features: `autonomous`, `metrics`, `observability`, `database`
+
+### Basic Configuration
+
+**Set these environment variables:**
 ```bash
 export GITHUB_TOKEN="ghp_xxxxxxxxxxxxx"
 export MY_LITTLE_SODA_GITHUB_OWNER="your-username"
 export MY_LITTLE_SODA_GITHUB_REPO="your-repo"
 ```
 
-**Need more options?** → [Complete Configuration Guide](docs/configuration.md)
-
-### Setup Your Repository
-
-**Quick Setup (Manual - Required for now):**
-
+**Create a few required labels:**
 ```bash
-# 1. Create required labels
 gh label create "route:ready" --color "0052cc" --description "Available for agent assignment"
 gh label create "route:priority-high" --color "ff6b6b" --description "Priority: 3"
-# ... (see complete setup guide for all labels)
-
-# 2. Test connectivity
-./target/debug/my-little-soda status
-
-# 3. Start working
-gh issue edit 278 --add-label "route:ready"
-./target/debug/my-little-soda pop
 ```
 
-**Need complete setup instructions?** → [Complete Configuration Guide](docs/configuration.md#repository-setup)
+**Test it works:**
+```bash
+./target/release/my-little-soda status
+# Windows: .\target\release\my-little-soda.exe status
+```
 
-> 📖 **Need help?** See the [complete installation guide](docs/README.md#installation) for troubleshooting and advanced configuration.
+**That's it!** You're ready to start using My Little Soda.
+
+**Need more setup details?** → See [Complete Configuration Guide](docs/configuration.md) for advanced configuration, all labels, and troubleshooting.
 
 ## Project Status
 
