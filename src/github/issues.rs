@@ -28,15 +28,36 @@ impl IssueHandler {
         &self,
         state: Option<octocrab::params::State>,
     ) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
-        let issues = self
-            .octocrab
-            .issues(&self.owner, &self.repo)
-            .list()
-            .state(state.unwrap_or(octocrab::params::State::Open))
-            .send()
-            .await?;
+        let mut all_issues = Vec::new();
+        let mut page = 1u32;
+        let per_page = 100u8; // GitHub allows up to 100 items per page
 
-        Ok(issues.items)
+        loop {
+            let response = self
+                .octocrab
+                .issues(&self.owner, &self.repo)
+                .list()
+                .state(state.unwrap_or(octocrab::params::State::Open))
+                .page(page)
+                .per_page(per_page)
+                .send()
+                .await?;
+
+            if response.items.is_empty() {
+                break; // No more items, we've fetched all pages
+            }
+
+            all_issues.extend(response.items);
+
+            // Check if there are more pages
+            if response.next.is_none() {
+                break; // No more pages
+            }
+
+            page += 1;
+        }
+
+        Ok(all_issues)
     }
 
     /// Fetch a specific issue by number
