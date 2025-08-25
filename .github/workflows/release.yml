@@ -159,14 +159,57 @@ jobs:
           echo "ARTIFACT_NAME=${{ matrix.artifact_name }}" >> $GITHUB_ENV
           echo "EXECUTABLE_SUFFIX=${{ matrix.executable_suffix }}" >> $GITHUB_ENV
 
-      - name: Placeholder for platform-specific build
+      # Linux-specific build configuration
+      - name: Configure Linux build environment
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Install musl target for static linking (more portable)
+          rustup target add x86_64-unknown-linux-musl
+          # Install musl-tools for static linking
+          sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build binary for ${{ matrix.platform }}
         run: |
           echo "Building for platform: ${{ matrix.platform }}"
           echo "Rust target: ${{ matrix.target }}"
           echo "Runner OS: ${{ matrix.os }}"
           echo "Artifact name: ${{ matrix.artifact_name }}"
           echo "Version: ${{ needs.prepare-release.outputs.version }}"
-          echo "Build will be implemented in A2x tasks"
+          
+          # Build the binary with release optimizations
+          if [[ "${{ matrix.platform }}" == "linux-x86_64" ]]; then
+            # Use musl target for static linking on Linux
+            echo "Building statically linked Linux binary..."
+            cargo build --release --target x86_64-unknown-linux-musl
+            
+            # Copy binary to expected location with platform suffix
+            mkdir -p target/release-artifacts/
+            cp target/x86_64-unknown-linux-musl/release/my-little-soda target/release-artifacts/${{ matrix.artifact_name }}
+            
+            # Verify binary is statically linked
+            echo "Verifying static linking..."
+            file target/release-artifacts/${{ matrix.artifact_name }}
+            ldd target/release-artifacts/${{ matrix.artifact_name }} || echo "Binary is statically linked (good!)"
+          else
+            # Standard build for other platforms (will be implemented in subsequent tasks)
+            echo "Standard build for ${{ matrix.platform }} - to be implemented in A2b/A2c"
+            cargo build --release --target ${{ matrix.target }}
+            
+            # Copy binary to expected location
+            mkdir -p target/release-artifacts/
+            cp target/${{ matrix.target }}/release/my-little-soda${{ matrix.executable_suffix }} target/release-artifacts/${{ matrix.artifact_name }}${{ matrix.executable_suffix }}
+          fi
+          
+          # Verify the binary was created
+          ls -la target/release-artifacts/
+          echo "Binary size: $(du -h target/release-artifacts/${{ matrix.artifact_name }}${{ matrix.executable_suffix }})"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: target/release-artifacts/${{ matrix.artifact_name }}${{ matrix.executable_suffix }}
+          retention-days: 30
 
   # Placeholder for release creation - will be implemented in A3x tasks
   create-release:
