@@ -168,7 +168,19 @@ jobs:
           # Install musl-tools for static linking
           sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - name: Build binary for ${{ matrix.platform }}
+      # Windows-specific build configuration
+      - name: Configure Windows build environment
+        if: matrix.os == 'windows-latest'
+        run: |
+          # Verify Windows MSVC toolchain is available
+          echo "Windows MSVC target: ${{ matrix.target }}"
+          echo "Visual Studio components:"
+          # List installed VS components for debugging
+          Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*Visual Studio*" } | Select-Object Name, Version
+
+      # Linux/macOS build
+      - name: Build binary for Linux/macOS
+        if: matrix.os != 'windows-latest'
         run: |
           echo "Building for platform: ${{ matrix.platform }}"
           echo "Rust target: ${{ matrix.target }}"
@@ -191,8 +203,8 @@ jobs:
             file target/release-artifacts/${{ matrix.artifact_name }}
             ldd target/release-artifacts/${{ matrix.artifact_name }} || echo "Binary is statically linked (good!)"
           else
-            # Standard build for other platforms (will be implemented in subsequent tasks)
-            echo "Standard build for ${{ matrix.platform }} - to be implemented in A2b/A2c"
+            # Standard build for other platforms (macOS)
+            echo "Standard build for ${{ matrix.platform }}"
             cargo build --release --target ${{ matrix.target }}
             
             # Copy binary to expected location
@@ -203,6 +215,35 @@ jobs:
           # Verify the binary was created
           ls -la target/release-artifacts/
           echo "Binary size: $(du -h target/release-artifacts/${{ matrix.artifact_name }}${{ matrix.executable_suffix }})"
+
+      # Windows build
+      - name: Build binary for Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          Write-Host "Building for platform: ${{ matrix.platform }}"
+          Write-Host "Rust target: ${{ matrix.target }}"
+          Write-Host "Runner OS: ${{ matrix.os }}"
+          Write-Host "Artifact name: ${{ matrix.artifact_name }}"
+          Write-Host "Version: ${{ needs.prepare-release.outputs.version }}"
+          
+          # Windows MSVC build with optimizations
+          Write-Host "Building Windows x64 binary with MSVC..."
+          cargo build --release --target ${{ matrix.target }}
+          
+          # Create artifacts directory
+          New-Item -ItemType Directory -Force -Path target/release-artifacts/
+          
+          # Copy Windows binary with .exe extension
+          Copy-Item "target/${{ matrix.target }}/release/my-little-soda.exe" "target/release-artifacts/${{ matrix.artifact_name }}.exe"
+          
+          # Verify Windows binary properties
+          Write-Host "Verifying Windows binary..."
+          Get-ItemProperty "target/release-artifacts/${{ matrix.artifact_name }}.exe" | Select-Object Name, Length, VersionInfo
+          
+          # Verify the binary was created
+          Get-ChildItem target/release-artifacts/ | Format-Table
+          $fileSize = (Get-Item "target/release-artifacts/${{ matrix.artifact_name }}.exe").Length / 1MB
+          Write-Host "Binary size: $([math]::Round($fileSize, 2)) MB"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
