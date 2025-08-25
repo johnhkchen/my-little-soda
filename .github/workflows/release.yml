@@ -165,8 +165,12 @@ jobs:
         run: |
           # Install musl target for static linking (more portable)
           rustup target add x86_64-unknown-linux-musl
-          # Install musl-tools for static linking
-          sudo apt-get update && sudo apt-get install -y musl-tools
+          # Install musl-tools and static libraries for musl builds
+          sudo apt-get update && sudo apt-get install -y musl-tools musl-dev libssl-dev pkg-config
+          
+          # Set environment variables for static OpenSSL linking with musl
+          echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
 
       # Windows-specific build configuration
       - name: Configure Windows build environment
