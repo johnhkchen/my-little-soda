@@ -67,11 +67,25 @@ $ ./target/debug/my-little-soda bottle
 **Result**: Your repository gets continuous development while you focus on other work.
 
 ## Table of Contents
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Usage Examples](#usage-examples)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
+
+🚀 **Getting Started**
+- [Quick Start](#quick-start) - See it working in 30 seconds
+- [Installation](#installation) - Get it running on your system
+- [Platform Support](#platform-support) - Linux, macOS, Windows
+
+⚙️ **Using My Little Soda**  
+- [Basic Workflow](#basic-agent-workflow) - pop → work → bottle cycle
+- [Command Reference](#usage-examples) - All available commands
+- [Configuration](#configuration) - Setup and customization
+
+📚 **Documentation & Help**
+- [Troubleshooting](#troubleshooting-autonomous-operation) - Common issues and solutions
+- [Complete Documentation](docs/README.md) - Comprehensive guides
+- [Contributing](#contributing) - How to help improve the project
+
+🏗️ **Advanced**
+- [System Architecture](spec.md) - Technical specifications
+- [Autonomous Features](#autonomous-system-features) - Advanced AI capabilities
 
 ## Installation
 
