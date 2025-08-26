@@ -77,13 +77,16 @@ async fn test_conflicts_fixture() {
 fn test_all_fixtures_loaded_correctly() {
     let fixtures = RepositoryStateFixture::all_fixtures();
     
-    assert_eq!(fixtures.len(), 4);
+    assert_eq!(fixtures.len(), 7);
     
     let names: Vec<String> = fixtures.iter().map(|f| f.name.clone()).collect();
     assert!(names.contains(&"empty_repository".to_string()));
     assert!(names.contains(&"repository_with_existing_files".to_string()));
     assert!(names.contains(&"repository_with_partial_initialization".to_string()));
     assert!(names.contains(&"repository_with_conflicts".to_string()));
+    assert!(names.contains(&"repository_with_complex_directory_structure".to_string()));
+    assert!(names.contains(&"repository_with_existing_issue_templates".to_string()));
+    assert!(names.contains(&"repository_with_existing_cicd_files".to_string()));
     
     // All fixtures should be valid for init testing
     for fixture in &fixtures {
@@ -105,7 +108,7 @@ fn test_fixture_loader_functions() {
     
     // Test loading all fixtures
     let all_fixtures = RepositoryFixtureLoader::load_all_fixtures();
-    assert_eq!(all_fixtures.len(), 4);
+    assert_eq!(all_fixtures.len(), 7);
     
     // Test loading init-specific fixtures
     let init_fixtures = RepositoryFixtureLoader::load_init_command_fixtures();
@@ -227,7 +230,7 @@ fn test_fixture_validation_comprehensive() {
         let behavior = fixture.expected_init_behavior();
         
         match fixture.name.as_str() {
-            "empty_repository" | "repository_with_existing_files" => {
+            "empty_repository" | "repository_with_existing_files" | "repository_with_complex_directory_structure" | "repository_with_existing_issue_templates" | "repository_with_existing_cicd_files" => {
                 assert!(behavior.should_succeed_without_force, 
                         "Clean repos should succeed without force: {}", fixture.name);
                 assert!(behavior.validation_warnings.is_empty(), 
