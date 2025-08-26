@@ -175,10 +175,11 @@ jobs:
           # Install musl target for static linking (more portable)
           rustup target add x86_64-unknown-linux-musl
           # Install musl-tools and static libraries for musl builds
-          sudo apt-get update && sudo apt-get install -y musl-tools musl-dev libssl-dev pkg-config
+          sudo apt-get update && sudo apt-get install -y musl-tools musl-dev pkg-config
           
-          # Set environment variables for static OpenSSL linking with musl
+          # Set environment variables for vendored OpenSSL (avoids cross-compilation issues)
           echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
+          echo "OPENSSL_VENDORED=1" >> $GITHUB_ENV
           echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
 
       # macOS-specific build configuration
@@ -191,26 +192,27 @@ jobs:
           # Ensure Homebrew OpenSSL is available
           brew install openssl@3 pkg-config
           
-          # Set OpenSSL environment variables for both architectures
-          OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
-          PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
-          
-          echo "OPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}" >> $GITHUB_ENV
-          echo "OPENSSL_DIR=${OPENSSL_ROOT_DIR}" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-          
-          # For cross-compilation to x86_64 on ARM64 runner
+          # For cross-compilation to x86_64 on ARM64 runner, use vendored OpenSSL
           if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
-            echo "Configuring cross-compilation for x86_64 on ARM64"
+            echo "Configuring cross-compilation for x86_64 on ARM64 with vendored OpenSSL"
+            # Use vendored OpenSSL to avoid architecture mismatch
+            echo "OPENSSL_VENDORED=1" >> $GITHUB_ENV
             echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
-            echo "MACOSX_DEPLOYMENT_TARGET=10.9" >> $GITHUB_ENV
+            echo "MACOSX_DEPLOYMENT_TARGET=10.12" >> $GITHUB_ENV
+          else
+            # For native ARM64 build, use system OpenSSL
+            OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
+            PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
+            
+            echo "OPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}" >> $GITHUB_ENV
+            echo "OPENSSL_DIR=${OPENSSL_ROOT_DIR}" >> $GITHUB_ENV
+            echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+            
+            # Verify OpenSSL installation
+            echo "OpenSSL version: $(${OPENSSL_ROOT_DIR}/bin/openssl version)"
+            echo "OpenSSL directory: ${OPENSSL_ROOT_DIR}"
+            ls -la ${OPENSSL_ROOT_DIR}/lib/ | head -5
           fi
-          
-          # Verify OpenSSL installation
-          echo "OpenSSL version: $(${OPENSSL_ROOT_DIR}/bin/openssl version)"
-          echo "OpenSSL directory: ${OPENSSL_ROOT_DIR}"
-          ls -la ${OPENSSL_ROOT_DIR}/lib/ | head -10
 
       # Windows-specific build configuration
       - name: Configure Windows build environment
