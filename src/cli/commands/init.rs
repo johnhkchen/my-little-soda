@@ -595,6 +595,7 @@ mod tests {
         std::process::Command::new("false").status().unwrap()
     }
     
+    
     #[tokio::test]
     async fn test_successful_init_clean_repository() {
         let mut mock_fs = MockFileSystemOperations::new();
@@ -641,6 +642,27 @@ mod tests {
             .expect_exists()
             .with(eq("clambake.toml"))
             .return_const(false);
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
         
         let fs_ops = Arc::new(mock_fs);
         let init_command = InitCommand::new(4, Some("default".to_string()), false, true, fs_ops);
@@ -692,6 +714,27 @@ mod tests {
             .expect_exists()
             .with(eq("clambake.toml"))
             .return_const(true);
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
         
         let fs_ops = Arc::new(mock_fs);
         let init_command = InitCommand::new(1, None, true, true, fs_ops); // force = true, dry_run = true
@@ -768,6 +811,27 @@ mod tests {
             .return_const(true)
             .times(2);
         
+        // Mock git commands for fresh project detection (called twice)
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(2)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(2)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
+        
         let fs_ops = Arc::new(mock_fs);
         
         // First init - should succeed (force + dry_run)
@@ -812,6 +876,27 @@ mod tests {
             .expect_exists()
             .with(eq("clambake.toml"))
             .return_const(false);
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
         
         let fs_ops = Arc::new(mock_fs);
         let init_command = InitCommand::new(2, None, false, true, fs_ops).with_ci_mode(true);
@@ -944,6 +1029,27 @@ mod tests {
             .with(eq("gh"), eq(vec!["auth".to_string(), "status".to_string()]))
             .times(1)
             .returning(move |_, _| Ok(auth_success_output.clone()));
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
             
         mock_fs
             .expect_execute_command()
@@ -980,6 +1086,27 @@ mod tests {
             .with(eq("gh"), eq(vec!["auth".to_string(), "status".to_string()]))
             .times(1)
             .returning(move |_, _| Ok(auth_success_output.clone()));
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
             
         mock_fs
             .expect_execute_command()
@@ -1009,6 +1136,27 @@ mod tests {
             .with(eq("gh"), eq(vec!["auth".to_string(), "status".to_string()]))
             .times(1)
             .returning(move |_, _| Ok(auth_success_output.clone()));
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
             
         mock_fs
             .expect_execute_command()
@@ -1071,6 +1219,27 @@ mod tests {
             .with(eq("clambake.toml"))
             .return_const(true);
         
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
+        
         let fs_ops = Arc::new(mock_fs);
         let init_command = InitCommand::new(2, None, true, true, fs_ops); // force = true, dry_run = true
         
@@ -1086,6 +1255,27 @@ mod tests {
             .expect_exists()
             .with(eq("clambake.toml"))
             .return_const(false);
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
         
         let fs_ops = Arc::new(mock_fs);
         let init_command = InitCommand::new(12, None, false, true, fs_ops); // max agents, dry_run
@@ -1104,6 +1294,27 @@ mod tests {
             .return_const(false)
             .times(2);
         
+        // Mock git commands for fresh project detection (called twice)
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(2)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(2)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
+        
         let fs_ops = Arc::new(mock_fs);
         
         // Test minimum valid agent count
@@ -1121,12 +1332,32 @@ mod tests {
     async fn test_init_dry_run_does_not_execute_commands() {
         let mut mock_fs = MockFileSystemOperations::new();
         
-        // In dry run mode, no file system operations should be called
-        // Only exists() might be called for validation
+        // Even in dry run mode, validation phase still executes git commands
         mock_fs
             .expect_exists()
             .with(eq("clambake.toml"))
             .return_const(false);
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
         
         let fs_ops = Arc::new(mock_fs);
         let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry_run = true
@@ -1154,5 +1385,136 @@ mod tests {
         let ready_label = ready_label.unwrap();
         assert_eq!(ready_label.color, "0052cc");
         assert!(!ready_label.description.is_empty());
+    }
+    
+    #[tokio::test]
+    async fn test_file_system_mock_write_operations() {
+        let mut mock_fs = MockFileSystemOperations::new();
+        
+        // Test successful write operation
+        mock_fs
+            .expect_write()
+            .with(eq("test.txt"), eq(b"test content".as_slice()))
+            .times(1)
+            .returning(|_, _| Ok(()));
+        
+        let fs_ops = Arc::new(mock_fs);
+        let result = fs_ops.write("test.txt", b"test content").await;
+        assert!(result.is_ok(), "Mock write should succeed");
+    }
+    
+    #[tokio::test]
+    async fn test_file_system_mock_create_dir_operations() {
+        let mut mock_fs = MockFileSystemOperations::new();
+        
+        // Test successful directory creation
+        mock_fs
+            .expect_create_dir_all()
+            .with(eq(".clambake/test"))
+            .times(1)
+            .returning(|_| Ok(()));
+        
+        let fs_ops = Arc::new(mock_fs);
+        let result = fs_ops.create_dir_all(".clambake/test").await;
+        assert!(result.is_ok(), "Mock directory creation should succeed");
+    }
+    
+    #[tokio::test]
+    async fn test_file_system_mock_exists_operations() {
+        let mut mock_fs = MockFileSystemOperations::new();
+        
+        // Test file existence checks
+        mock_fs
+            .expect_exists()
+            .with(eq("existing_file.toml"))
+            .return_const(true);
+        
+        mock_fs
+            .expect_exists()
+            .with(eq("missing_file.toml"))
+            .return_const(false);
+        
+        let fs_ops = Arc::new(mock_fs);
+        assert!(fs_ops.exists("existing_file.toml"), "Should detect existing file");
+        assert!(!fs_ops.exists("missing_file.toml"), "Should detect missing file");
+    }
+    
+    #[tokio::test]
+    async fn test_fresh_project_detection_with_various_git_states() {
+        // Test 1: No git repository (fresh project)
+        {
+            let mut mock_fs = MockFileSystemOperations::new();
+            mock_fs
+                .expect_execute_command()
+                .with(eq("git"), eq(vec!["status".to_string()]))
+                .times(1)
+                .returning(|_, _| Err(anyhow::anyhow!("not a git repository")));
+            
+            let fs_ops = Arc::new(mock_fs);
+            let init_command = InitCommand::new(1, None, false, false, fs_ops);
+            
+            let result = init_command.detect_fresh_project().await;
+            assert!(result, "Should detect fresh project when no git repo");
+        }
+        
+        // Test 2: Git repository but no remote (fresh project)
+        {
+            let mut mock_fs = MockFileSystemOperations::new();
+            mock_fs
+                .expect_execute_command()
+                .with(eq("git"), eq(vec!["status".to_string()]))
+                .times(1)
+                .returning(|_, _| Ok(Output {
+                    status: create_successful_exit_status(),
+                    stdout: vec![],
+                    stderr: vec![],
+                }));
+            
+            mock_fs
+                .expect_execute_command()
+                .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+                .times(1)
+                .returning(|_, _| Ok(Output {
+                    status: create_failed_exit_status(),
+                    stdout: vec![],
+                    stderr: b"fatal: no such remote 'origin'".to_vec(),
+                }));
+            
+            let fs_ops = Arc::new(mock_fs);
+            let init_command = InitCommand::new(1, None, false, false, fs_ops);
+            
+            let result = init_command.detect_fresh_project().await;
+            assert!(result, "Should detect fresh project when no remote");
+        }
+        
+        // Test 3: Full git repository with remote (not fresh)
+        {
+            let mut mock_fs = MockFileSystemOperations::new();
+            mock_fs
+                .expect_execute_command()
+                .with(eq("git"), eq(vec!["status".to_string()]))
+                .times(1)
+                .returning(|_, _| Ok(Output {
+                    status: create_successful_exit_status(),
+                    stdout: vec![],
+                    stderr: vec![],
+                }));
+            
+            mock_fs
+                .expect_execute_command()
+                .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+                .times(1)
+                .returning(|_, _| Ok(Output {
+                    status: create_successful_exit_status(),
+                    stdout: b"https://github.com/existing/repo.git\n".to_vec(),
+                    stderr: vec![],
+                }));
+            
+            let fs_ops = Arc::new(mock_fs);
+            let init_command = InitCommand::new(1, None, false, false, fs_ops);
+            
+            let result = init_command.detect_fresh_project().await;
+            assert!(!result, "Should not detect fresh project when git repo with remote exists");
+        }
     }
 }
