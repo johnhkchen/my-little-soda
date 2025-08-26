@@ -181,6 +181,37 @@ jobs:
           echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
           echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
 
+      # macOS-specific build configuration
+      - name: Configure macOS build environment
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Install and configure OpenSSL for cross-compilation
+          echo "Setting up macOS build environment for ${{ matrix.target }}"
+          
+          # Ensure Homebrew OpenSSL is available
+          brew install openssl@3 pkg-config
+          
+          # Set OpenSSL environment variables for both architectures
+          OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)
+          PKG_CONFIG_PATH=$(brew --prefix openssl@3)/lib/pkgconfig
+          
+          echo "OPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}" >> $GITHUB_ENV
+          echo "OPENSSL_DIR=${OPENSSL_ROOT_DIR}" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
+          
+          # For cross-compilation to x86_64 on ARM64 runner
+          if [[ "${{ matrix.target }}" == "x86_64-apple-darwin" ]]; then
+            echo "Configuring cross-compilation for x86_64 on ARM64"
+            echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+            echo "MACOSX_DEPLOYMENT_TARGET=10.9" >> $GITHUB_ENV
+          fi
+          
+          # Verify OpenSSL installation
+          echo "OpenSSL version: $(${OPENSSL_ROOT_DIR}/bin/openssl version)"
+          echo "OpenSSL directory: ${OPENSSL_ROOT_DIR}"
+          ls -la ${OPENSSL_ROOT_DIR}/lib/ | head -10
+
       # Windows-specific build configuration
       - name: Configure Windows build environment
         if: matrix.os == 'windows-latest'
@@ -423,12 +454,12 @@ jobs:
 
       - name: Create GitHub Release
         id: create-release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag-name }}
-          release_name: "${{ needs.prepare-release.outputs.release-name }}"
+          name: "${{ needs.prepare-release.outputs.release-name }}"
           body: ${{ steps.generate-notes.outputs.release_notes }}
           draft: false
           prerelease: ${{ contains(needs.prepare-release.outputs.tag-name, '-') }}
@@ -437,94 +468,46 @@ jobs:
   upload-assets:
     name: Upload Release Assets
     runs-on: ubuntu-latest
-    needs: [prepare-release, create-release, build-matrix]
-    strategy:
-      matrix:
-        include:
-          - artifact_name: my-little-soda-linux-x86_64
-            asset_name: my-little-soda-linux-x86_64
-            executable_suffix: ""
-          - artifact_name: my-little-soda-macos-x86_64
-            asset_name: my-little-soda-macos-x86_64
-            executable_suffix: ""
-          - artifact_name: my-little-soda-macos-arm64
-            asset_name: my-little-soda-macos-arm64
-            executable_suffix: ""
-          - artifact_name: my-little-soda-windows-x64
-            asset_name: my-little-soda-windows-x64
-            executable_suffix: ".exe"
+    needs: [prepare-release, build-matrix]
     steps:
-      - name: Download build artifact
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
           path: ./artifacts/
+          merge-multiple: true
 
-      - name: Generate checksums
-        id: checksums
+      - name: Generate checksums for all binaries
         run: |
           cd artifacts/
-          BINARY_FILE="${{ matrix.asset_name }}${{ matrix.executable_suffix }}"
+          echo "Generating checksums for all binaries..."
           
-          # Generate SHA256 checksum
-          sha256sum "${BINARY_FILE}" > "${BINARY_FILE}.sha256"
+          for binary in my-little-soda-*; do
+            if [[ -f "$binary" && "$binary" != *.sha256 && "$binary" != *.md5 ]]; then
+              echo "Processing $binary"
+              
+              # Generate SHA256 checksum
+              sha256sum "$binary" > "$binary.sha256"
+              
+              # Generate MD5 checksum
+              md5sum "$binary" > "$binary.md5"
+              
+              # Display checksums
+              SHA256_CHECKSUM=$(sha256sum "$binary" | cut -d' ' -f1)
+              MD5_CHECKSUM=$(md5sum "$binary" | cut -d' ' -f1)
+              echo "  SHA256: ${SHA256_CHECKSUM}"
+              echo "  MD5: ${MD5_CHECKSUM}"
+            fi
+          done
           
-          # Generate MD5 checksum for additional verification
-          md5sum "${BINARY_FILE}" > "${BINARY_FILE}.md5"
-          
-          # Set checksums as outputs for later use
-          SHA256_CHECKSUM=$(sha256sum "${BINARY_FILE}" | cut -d' ' -f1)
-          MD5_CHECKSUM=$(md5sum "${BINARY_FILE}" | cut -d' ' -f1)
-          
-          echo "sha256=${SHA256_CHECKSUM}" >> $GITHUB_OUTPUT
-          echo "md5=${MD5_CHECKSUM}" >> $GITHUB_OUTPUT
-          
-          # Display checksums
-          echo "Generated checksums for ${BINARY_FILE}:"
-          echo "SHA256: ${SHA256_CHECKSUM}"
-          echo "MD5: ${MD5_CHECKSUM}"
-          
-          # Verify files exist
+          echo "All checksums generated:"
           ls -la
 
-      - name: Upload binary asset
-        uses: actions/upload-release-asset@v1
+      - name: Upload all assets to release
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/${{ matrix.asset_name }}${{ matrix.executable_suffix }}
-          asset_name: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}
-          asset_content_type: application/octet-stream
-        continue-on-error: false
-
-      - name: Upload SHA256 checksum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/${{ matrix.asset_name }}${{ matrix.executable_suffix }}.sha256
-          asset_name: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}.sha256
-          asset_content_type: text/plain
-        continue-on-error: false
-
-      - name: Upload MD5 checksum
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./artifacts/${{ matrix.asset_name }}${{ matrix.executable_suffix }}.md5
-          asset_name: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}.md5
-          asset_content_type: text/plain
-        continue-on-error: false
-
-      - name: Verify asset uploads completed successfully
-        run: |
-          echo "Asset upload verification for ${{ matrix.asset_name }}"
-          echo "Binary: ${{ matrix.asset_name }}${{ matrix.executable_suffix }}"
-          echo "SHA256: ${{ steps.checksums.outputs.sha256 }}"
-          echo "MD5: ${{ steps.checksums.outputs.md5 }}"
-          echo "All assets uploaded successfully for ${{ matrix.asset_name }}"
+          tag_name: ${{ needs.prepare-release.outputs.tag-name }}
+          files: ./artifacts/*
+          fail_on_unmatched_files: true
 
