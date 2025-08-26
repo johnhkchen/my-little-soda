@@ -7,7 +7,7 @@
 use super::repository_states::{RepositoryStateFixture, RepositoryFixtureLoader, InitBehaviorExpectation};
 use super::test_harness::TestHarness;
 use my_little_soda::cli::commands::init::InitCommand;
-use my_little_soda::fs::{FileSystemOperations, RealFileSystemOperations};
+use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
 use anyhow::Result;
 use std::path::Path;
 use std::sync::Arc;
@@ -419,6 +419,7 @@ pub mod assertions {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(test)]
     use my_little_soda::fs::MockFileSystemOperations;
     use mockall::predicate::*;
     use std::process::Output;

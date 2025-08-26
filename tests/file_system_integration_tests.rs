@@ -13,7 +13,7 @@ use fixtures::repository_states::*;
 
 #[test]
 fn test_real_file_creation_with_content_validation() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     let file_content = "# Test File\n\nThis is a real file with actual content.\n\n## Features\n- Feature 1\n- Feature 2\n";
     let file_path = harness.create_file("docs/README.md", file_content).unwrap();
@@ -32,7 +32,7 @@ fn test_real_file_creation_with_content_validation() {
 
 #[test]
 fn test_complex_directory_structure_creation() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     let structure = vec![
         ("src/main.rs", "fn main() { println!(\"Hello, world!\"); }"),
@@ -120,7 +120,7 @@ fn test_generated_file_contents_validation() {
 
 #[test]
 fn test_real_git_operations_integration() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     let output = Command::new("git")
         .args(["status"])
@@ -187,7 +187,7 @@ fn test_git_remote_and_branch_operations() {
 
 #[test]
 fn test_multiple_commits_and_history() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     let commits = vec![
         ("first.txt", "First file content", "Add first file"),
@@ -261,7 +261,7 @@ fn test_conflicted_repository_file_system_state() {
 
 #[test]
 fn test_file_permissions_and_attributes() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     harness.create_file("executable.sh", "#!/bin/bash\necho 'Hello World'").unwrap();
     harness.create_file("data.json", "{\"test\": true}").unwrap();
@@ -283,7 +283,7 @@ fn test_file_permissions_and_attributes() {
 
 #[test]
 fn test_large_file_creation_and_validation() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     let large_content = "0123456789\n".repeat(1000); // ~11KB file
     harness.create_file("large_file.txt", &large_content).unwrap();
@@ -317,7 +317,7 @@ fn test_binary_file_handling() {
 #[test]
 fn test_proper_cleanup_verification() {
     let temp_paths: Vec<_> = (0..3).map(|i| {
-        let harness = simple_harness().unwrap();
+        let mut harness = simple_harness().unwrap();
         let path = harness.path().to_path_buf();
         
         harness.create_file(&format!("cleanup_test_{}.txt", i), "cleanup test").unwrap();
@@ -333,8 +333,8 @@ fn test_proper_cleanup_verification() {
 
 #[test]
 fn test_isolation_between_test_environments() {
-    let harness1 = rust_project_harness("isolation-test-1").unwrap();
-    let harness2 = rust_project_harness("isolation-test-2").unwrap();
+    let mut harness1 = rust_project_harness("isolation-test-1").unwrap();
+    let mut harness2 = rust_project_harness("isolation-test-2").unwrap();
     
     harness1.create_file("unique_file_1.txt", "content from harness 1").unwrap();
     harness2.create_file("unique_file_2.txt", "content from harness 2").unwrap();
@@ -350,7 +350,7 @@ fn test_isolation_between_test_environments() {
 
 #[test]
 fn test_concurrent_file_operations() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     let files_data = vec![
         ("concurrent_1.txt", "Concurrent file 1 content"),
@@ -373,7 +373,7 @@ fn test_concurrent_file_operations() {
 
 #[test]
 fn test_git_operations_in_test_environment() {
-    let harness = TestHarnessBuilder::new()
+    let mut harness = TestHarnessBuilder::new()
         .with_rust_project("git-ops-test")
         .with_git()
         .with_git_remote("origin", "https://github.com/test/git-ops-test.git")

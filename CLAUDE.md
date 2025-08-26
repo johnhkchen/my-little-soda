@@ -32,6 +32,77 @@
 
 **Remember**: Documentation debt is technical debt. Fix it promptly when discovered.
 
+## Testing Infrastructure Guidelines
+
+### B2c - Enhanced Cleanup and Isolation Mechanisms
+
+The init command testing infrastructure includes comprehensive cleanup and isolation mechanisms to prevent resource leaks and test interference.
+
+#### Enhanced Test Harness Features:
+- **Resource Tracking**: Monitors temp directories, files, and processes
+- **Leak Detection**: Automatically detects resource leaks outside system temp directories  
+- **Cross-Test Isolation**: Verifies test environments don't interfere with each other
+- **Cleanup Strategies**: Multiple cleanup approaches (immediate, deferred, force, graceful retry)
+- **Error Recovery**: Handles cleanup failures and provides detailed error reports
+
+#### Running Enhanced Cleanup Tests:
+```bash
+# Run enhanced cleanup and isolation tests
+cargo test --test enhanced_cleanup_isolation_tests -- --test-threads=1
+
+# Generate coverage for enhanced cleanup tests  
+cargo llvm-cov --test enhanced_cleanup_isolation_tests --lcov --output-path target/coverage-enhanced-cleanup.lcov
+```
+
+#### Test Guidelines:
+- **Isolation Required**: All init tests must use enhanced test harnesses
+- **Resource Cleanup**: Tests must properly clean up temporary resources
+- **Thread Safety**: Use `--test-threads=1` for isolation tests to prevent race conditions
+- **Leak Detection**: Tests automatically detect and report resource leaks
+- **CI Integration**: Enhanced cleanup tests run in all CI environments
+
+### File System Integration Test Requirements:
+
+#### Test Structure:
+- **Real File Operations**: Tests create actual files and directories
+- **Git Integration**: Tests validate Git repository operations
+- **Content Verification**: Tests verify file contents and metadata
+- **Cleanup Verification**: Tests ensure proper cleanup after completion
+
+#### Test Patterns:
+```rust
+// Use mutable harnesses for file operations
+let mut harness = simple_harness().unwrap();
+
+// Create files with proper error handling
+let file_path = harness.create_file("test.txt", "content").unwrap();
+assert!(file_path.exists());
+
+// Verify isolation
+harness.verify_isolation().unwrap();
+```
+
+### CI/CD Integration:
+
+The CI pipeline includes comprehensive testing across multiple environments:
+- **Unit Tests**: Core functionality with coverage reporting
+- **Integration Tests**: File system, Git, and workflow integration
+- **Enhanced Cleanup Tests**: Resource management and isolation verification  
+- **Property-Based Tests**: Configuration validation
+- **Cross-Platform Testing**: Windows, macOS, Linux compatibility
+
+#### Test Execution Order:
+1. Unit tests with coverage generation
+2. Enhanced cleanup and isolation tests (thread-isolated)
+3. File system integration tests (thread-isolated) 
+4. General workflow integration tests
+5. Property-based tests
+
+#### Coverage Requirements:
+- **Library Coverage**: 70% line coverage minimum
+- **Test Coverage**: Enhanced cleanup tests included in coverage reports
+- **Artifact Upload**: Coverage reports uploaded for analysis
+
 ## Architectural Constraints
 
 🏗️ **CRITICAL ARCHITECTURAL CONSTRAINT** - This section defines the fundamental architecture that MUST be followed throughout development.

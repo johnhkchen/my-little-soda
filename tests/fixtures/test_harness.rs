@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     fn test_file_creation() {
-        let harness = TestHarness::new().unwrap();
+        let mut harness = TestHarness::new().unwrap();
         let file_path = harness.create_file("test.txt", "Hello, world!").unwrap();
         
         assert!(file_path.exists());
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_directory_creation() {
-        let harness = TestHarness::new().unwrap();
+        let mut harness = TestHarness::new().unwrap();
         let dir_path = harness.create_dir("test_dir").unwrap();
         
         assert!(dir_path.exists());
@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_nested_directory_creation() {
-        let harness = TestHarness::new().unwrap();
+        let mut harness = TestHarness::new().unwrap();
         let file_path = harness.create_file("nested/dir/test.txt", "nested content").unwrap();
         
         assert!(file_path.exists());
@@ -657,7 +657,7 @@ mod tests {
 
     #[test]
     fn test_rust_project_creation() {
-        let harness = TestHarness::new().unwrap();
+        let mut harness = TestHarness::new().unwrap();
         harness.create_rust_project("test-project").unwrap();
         
         assert!(harness.path().join("Cargo.toml").exists());
@@ -669,7 +669,7 @@ mod tests {
 
     #[test]
     fn test_git_commit() {
-        let harness = TestHarness::new().unwrap();
+        let mut harness = TestHarness::new().unwrap();
         harness.init_git_repository().unwrap();
         harness.create_file("test.txt", "content").unwrap();
         harness.commit_all("Test commit").unwrap();
@@ -686,7 +686,7 @@ mod tests {
 
     #[test]
     fn test_isolation_verification() {
-        let harness = TestHarness::new().unwrap();
+        let mut harness = TestHarness::new().unwrap();
         harness.verify_isolation().unwrap();
     }
 
@@ -715,10 +715,10 @@ mod tests {
 
     #[test]
     fn test_parallel_harnesses() {
-        let harnesses = helpers::parallel_harnesses(3).unwrap();
+        let mut harnesses = helpers::parallel_harnesses(3).unwrap();
         assert_eq!(harnesses.len(), 3);
         
-        for (i, harness) in harnesses.iter().enumerate() {
+        for (i, harness) in harnesses.iter_mut().enumerate() {
             let test_file = format!("test_{}.txt", i);
             harness.create_file(&test_file, &format!("content {}", i)).unwrap();
             assert!(harness.path().join(&test_file).exists());
