@@ -1,0 +1,1 @@
+Add issue covering undone work. merge/commit these updates to main, then clean up branches such that main is the only one left. If 'my-little-soda status' reports the agent as busy, you may have to close the issue and de-assign the agent001 label.
