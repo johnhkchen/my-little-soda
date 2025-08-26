@@ -1,6 +1,8 @@
 /// Test fixtures with real GitHub API response data for consistent testing
 use octocrab::models::issues::Issue;
 
+pub mod repository_states;
+
 /// Load test issues from cached GitHub API responses
 pub fn load_test_issues() -> Vec<Issue> {
     let json_data = include_str!("github_issues.json");
