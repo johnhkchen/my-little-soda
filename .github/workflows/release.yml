@@ -141,6 +141,7 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
           cache: false
+          rustflags: ""
 
       - name: Configure Rust caching
         uses: Swatinem/rust-cache@v2
