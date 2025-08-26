@@ -1,3 +1,32 @@
+/// Init command implementation with graceful conflict resolution
+/// 
+/// # Conflict Resolution Strategy
+/// 
+/// The init command follows a non-destructive approach when handling existing files:
+/// 
+/// ## 1. Existing Project Files
+/// - **README.md, src/, Cargo.toml, etc.**: Completely preserved without modification
+/// - **No overwriting**: Existing project files are never touched or modified
+/// - **No data loss**: All user content remains intact
+/// 
+/// ## 2. Configuration Files
+/// - **clambake.toml**: Only created if it doesn't exist, otherwise requires `--force` flag
+/// - **Explicit user consent**: User must use `--force` to overwrite existing configuration
+/// - **Clear error messages**: Informative errors when conflicts would occur
+/// 
+/// ## 3. Directory Structure
+/// - **.clambake/ directory**: Created alongside existing directories
+/// - **No conflicts**: Clambake directories don't interfere with existing project structure
+/// - **Isolated setup**: All clambake-specific files are contained in dedicated directories
+/// 
+/// ## 4. Git Repository State
+/// - **Clean repository required**: Init fails on uncommitted changes unless `--force` is used
+/// - **Branch preservation**: Current branch and git state remain unchanged
+/// - **Remote detection**: Automatically detects GitHub repository information from git remotes
+/// 
+/// This approach ensures that clambake can be initialized in any existing repository
+/// without risk of data loss or conflicts with existing project structure.
+
 use crate::config::{
     AgentConfig, AgentProcessConfig, BundleConfig, CIModeConfig, DatabaseConfig, GitHubConfig,
     MyLittleSodaConfig, ObservabilityConfig, RateLimitConfig, WorkContinuityConfig,
