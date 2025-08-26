@@ -6,8 +6,8 @@
 
 use super::repository_states::{RepositoryStateFixture, RepositoryFixtureLoader, InitBehaviorExpectation};
 use super::test_harness::TestHarness;
-use crate::cli::commands::init::InitCommand;
-use crate::fs::{FileSystemOperations, RealFileSystemOperations};
+use my_little_soda::cli::commands::init::InitCommand;
+use my_little_soda::fs::{FileSystemOperations, RealFileSystemOperations};
 use anyhow::Result;
 use std::path::Path;
 use std::sync::Arc;
@@ -419,7 +419,7 @@ pub mod assertions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fs::MockFileSystemOperations;
+    use my_little_soda::fs::MockFileSystemOperations;
     use mockall::predicate::*;
     use std::process::Output;
     

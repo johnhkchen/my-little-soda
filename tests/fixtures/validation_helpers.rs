@@ -647,7 +647,7 @@ macro_rules! validate_init_result {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::fixtures::repository_states::RepositoryStateFixture;
+    use super::repository_states::RepositoryStateFixture;
     
     #[tokio::test]
     async fn test_fixture_validation() {
