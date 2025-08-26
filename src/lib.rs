@@ -6,6 +6,7 @@ pub mod agents;
 #[cfg(feature = "autonomous")]
 pub mod autonomous;
 pub mod bundling;
+pub mod cli;
 pub mod config;
 pub mod database;
 pub mod fs;
