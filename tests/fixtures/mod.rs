@@ -3,6 +3,8 @@ use octocrab::models::issues::Issue;
 
 pub mod repository_states;
 pub mod test_harness;
+pub mod init_integration;
+pub mod validation_helpers;
 
 /// Load test issues from cached GitHub API responses
 pub fn load_test_issues() -> Vec<Issue> {
