@@ -162,70 +162,119 @@ impl InitCommand {
         }
         println!("✅");
 
-        // Check repository write permissions
-        print!("✅ Checking repository write permissions... ");
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
-
-        if !self.dry_run {
-            let github_client = GitHubClient::new()
-                .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
-
-            // Test permissions by trying to fetch repository info
-            let octocrab = Octocrab::builder()
-                .personal_token(
-                    std::env::var("GITHUB_TOKEN")
-                        .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
-                )
-                .build()?;
-
-            let repo = octocrab
-                .repos(github_client.owner(), github_client.repo())
-                .get()
-                .await
-                .map_err(|e| {
-                    anyhow!(
-                        "Failed to access repository: {}. Check your GitHub token permissions.",
-                        e
-                    )
-                })?;
-
-            if !repo
-                .permissions
-                .as_ref()
-                .map(|p| p.admin || p.push)
-                .unwrap_or(false)
-            {
-                return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
+        // Check if this is a fresh project (no git repo or no remote)
+        let is_fresh_project = self.detect_fresh_project().await;
+        
+        if is_fresh_project && !self.dry_run {
+            println!("🆕 Fresh project detected!");
+            println!();
+            println!("📋 To set up my-little-soda in a fresh project, please:");
+            println!("   1. Initialize git repository:     git init");
+            println!("   2. Create initial commit:         git add . && git commit -m 'Initial commit'");
+            println!("   3. Create GitHub repository:      gh repo create --public");
+            println!("   4. Push to GitHub:                git push -u origin main");
+            println!("   5. Run my-little-soda init again: my-little-soda init");
+            println!();
+            println!("💡 Alternatively, run 'my-little-soda init --force' to create local configuration only");
+            println!("   (GitHub integration can be set up later)");
+            
+            if !self.force {
+                return Err(anyhow!("Fresh project detected. Follow the setup steps above or use --force for local-only setup."));
             }
+            
+            println!();
+            println!("🚀 Proceeding with local-only setup due to --force flag...");
+            return Ok(()); // Skip GitHub validation for fresh projects with --force
         }
-        println!("✅");
 
-        // Ensure git repository is clean
-        print!("✅ Checking git repository status... ");
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        // For existing repositories, validate GitHub permissions
+        if !is_fresh_project {
+            print!("✅ Checking repository write permissions... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        if !self.dry_run {
-            let output = self.fs_ops.execute_command("git", &["status".to_string(), "--porcelain".to_string()])
-                .await
-                .map_err(|e| anyhow!("Failed to check git status: {}", e))?;
+            if !self.dry_run {
+                let github_client = GitHubClient::new()
+                    .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
-            if !output.stdout.is_empty() {
-                println!("⚠️");
-                println!("   Warning: Repository has uncommitted changes.");
-                if !self.force {
-                    return Err(anyhow!(
-                        "Repository has uncommitted changes. Use --force to proceed anyway."
-                    ));
+                // Test permissions by trying to fetch repository info
+                let octocrab = Octocrab::builder()
+                    .personal_token(
+                        std::env::var("GITHUB_TOKEN")
+                            .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
+                    )
+                    .build()?;
+
+                let repo = octocrab
+                    .repos(github_client.owner(), github_client.repo())
+                    .get()
+                    .await
+                    .map_err(|e| {
+                        anyhow!(
+                            "Failed to access repository: {}. Check your GitHub token permissions.",
+                            e
+                        )
+                    })?;
+
+                if !repo
+                    .permissions
+                    .as_ref()
+                    .map(|p| p.admin || p.push)
+                    .unwrap_or(false)
+                {
+                    return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
                 }
-                println!("   Proceeding due to --force flag.");
-            } else {
-                println!("✅");
             }
-        } else {
-            println!("✅ (dry run)");
+            println!("✅");
+        }
+
+        // Check git repository status (only if git repo exists)
+        if !is_fresh_project {
+            print!("✅ Checking git repository status... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+
+            if !self.dry_run {
+                let output = self.fs_ops.execute_command("git", &["status".to_string(), "--porcelain".to_string()])
+                    .await
+                    .map_err(|e| anyhow!("Failed to check git status: {}", e))?;
+
+                if !output.stdout.is_empty() {
+                    println!("⚠️");
+                    println!("   Warning: Repository has uncommitted changes.");
+                    if !self.force {
+                        return Err(anyhow!(
+                            "Repository has uncommitted changes. Use --force to proceed anyway."
+                        ));
+                    }
+                    println!("   Proceeding due to --force flag.");
+                } else {
+                    println!("✅");
+                }
+            } else {
+                println!("✅ (dry run)");
+            }
         }
 
         Ok(())
+    }
+
+    async fn detect_fresh_project(&self) -> bool {
+        // Check if git repository exists
+        let git_status = self.fs_ops.execute_command("git", &["status".to_string()]).await;
+        if git_status.is_err() {
+            return true; // No git repository
+        }
+        
+        // Check if git remote origin exists
+        let git_remote = self.fs_ops.execute_command("git", &["remote".to_string(), "get-url".to_string(), "origin".to_string()]).await;
+        if let Ok(output) = git_remote {
+            if !output.status.success() {
+                return true; // No remote origin
+            }
+        } else {
+            return true; // Command failed
+        }
+        
+        false // Has git repo and remote
     }
 
     async fn setup_labels(&self) -> Result<()> {
@@ -437,7 +486,14 @@ impl InitCommand {
             .map_err(|e| anyhow!("Failed to get git remote URL: {}", e))?;
 
         if !output.status.success() {
-            return Err(anyhow!("No git remote 'origin' found"));
+            // For fresh projects with --force, provide placeholder values
+            if self.force {
+                println!("⚠️  No git remote found, using placeholder repository info");
+                println!("   Update clambake.toml manually after setting up GitHub repository");
+                return Ok(("your-github-username".to_string(), "your-repo-name".to_string()));
+            } else {
+                return Err(anyhow!("No git remote 'origin' found"));
+            }
         }
 
         let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -548,6 +604,27 @@ mod tests {
             .expect_exists()
             .with(eq("clambake.toml"))
             .return_const(false);
+
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
         
         let fs_ops = Arc::new(mock_fs);
         let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry_run = true
