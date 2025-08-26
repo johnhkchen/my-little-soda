@@ -2,6 +2,7 @@
 use octocrab::models::issues::Issue;
 
 pub mod repository_states;
+pub mod test_harness;
 
 /// Load test issues from cached GitHub API responses
 pub fn load_test_issues() -> Vec<Issue> {
