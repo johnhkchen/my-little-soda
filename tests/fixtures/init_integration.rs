@@ -5,7 +5,6 @@
 /// and the actual init command implementation.
 
 use super::repository_states::{RepositoryStateFixture, RepositoryFixtureLoader, InitBehaviorExpectation};
-use super::test_harness::TestHarness;
 use my_little_soda::cli::commands::init::InitCommand;
 use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
 use anyhow::Result;
@@ -419,10 +418,6 @@ pub mod assertions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(test)]
-    use my_little_soda::fs::MockFileSystemOperations;
-    use mockall::predicate::*;
-    use std::process::Output;
     
     fn create_successful_exit_status() -> std::process::ExitStatus {
         std::process::Command::new("true").status().unwrap()
