@@ -14,7 +14,7 @@ fn test_basic_harness_creation() {
 
 #[test]
 fn test_file_creation_and_isolation() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     let file_path = harness.create_file("test.txt", "Hello, test harness!").unwrap();
     assert!(file_path.exists());
@@ -28,7 +28,7 @@ fn test_file_creation_and_isolation() {
 
 #[test]
 fn test_nested_directory_structure() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     harness.create_dir("src/modules").unwrap();
     let nested_file = harness.create_file("src/modules/test.rs", "// Nested Rust file").unwrap();
@@ -156,7 +156,7 @@ fn test_harness_cleanup_on_drop() {
 
 #[test]
 fn test_git_commit_functionality() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("test_commit.txt", "File for commit test").unwrap();
     harness.commit_all("Add test file").unwrap();
@@ -182,7 +182,7 @@ fn test_git_commit_functionality() {
 
 #[test]
 fn test_isolation_verification() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     harness.verify_isolation().unwrap();
     
@@ -192,7 +192,7 @@ fn test_isolation_verification() {
 
 #[test]
 fn test_multiple_git_operations() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.add_git_remote("upstream", "https://github.com/upstream/repo.git").unwrap();
     
@@ -221,7 +221,7 @@ fn test_multiple_git_operations() {
 
 #[test]
 fn test_error_handling() {
-    let harness = simple_harness().unwrap();
+    let mut harness = simple_harness().unwrap();
     
     let result = harness.create_file("", "empty filename");
     assert!(result.is_err(), "Should fail with empty filename");
