@@ -551,7 +551,7 @@ impl GitConfigValidationReport {
 }
 
 /// Comprehensive validation summary
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ValidationSummaryReport {
     pub scenario_name: String,
     pub fixture_name: String,
@@ -564,7 +564,7 @@ pub struct ValidationSummaryReport {
 }
 
 /// Failed validation details
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FailedValidation {
     pub scenario: String,
     pub fixture: String,
@@ -573,7 +573,7 @@ pub struct FailedValidation {
 }
 
 /// Analysis of validation failures across multiple scenarios
-#[derive(Debug)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct FailureAnalysisReport {
     pub total_validations: usize,
     pub successful_validations: usize,
