@@ -2,11 +2,12 @@ use crate::config::{
     AgentConfig, AgentProcessConfig, BundleConfig, CIModeConfig, DatabaseConfig, GitHubConfig,
     MyLittleSodaConfig, ObservabilityConfig, RateLimitConfig, WorkContinuityConfig,
 };
+use crate::fs::FileSystemOperations;
 use crate::github::client::GitHubClient;
 use anyhow::{anyhow, Result};
 use octocrab::Octocrab;
-use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 // GitHubError import removed - unused
 
 pub struct InitCommand {
@@ -15,6 +16,7 @@ pub struct InitCommand {
     pub force: bool,
     pub dry_run: bool,
     pub ci_mode: bool,
+    fs_ops: Arc<dyn FileSystemOperations>,
 }
 
 #[derive(Debug)]
@@ -25,13 +27,14 @@ struct LabelSpec {
 }
 
 impl InitCommand {
-    pub fn new(agents: u32, template: Option<String>, force: bool, dry_run: bool) -> Self {
+    pub fn new(agents: u32, template: Option<String>, force: bool, dry_run: bool, fs_ops: Arc<dyn FileSystemOperations>) -> Self {
         Self {
             agents,
             template,
             force,
             dry_run,
             ci_mode: false,
+            fs_ops,
         }
     }
 
@@ -112,9 +115,7 @@ impl InitCommand {
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         if !self.dry_run {
-            let output = tokio::process::Command::new("gh")
-                .args(["auth", "status"])
-                .output()
+            let output = self.fs_ops.execute_command("gh", &["auth".to_string(), "status".to_string()])
                 .await
                 .map_err(|e| {
                     anyhow!(
@@ -176,9 +177,7 @@ impl InitCommand {
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         if !self.dry_run {
-            let output = tokio::process::Command::new("git")
-                .args(["status", "--porcelain"])
-                .output()
+            let output = self.fs_ops.execute_command("git", &["status".to_string(), "--porcelain".to_string()])
                 .await
                 .map_err(|e| anyhow!("Failed to check git status: {}", e))?;
 
@@ -321,7 +320,7 @@ impl InitCommand {
     async fn generate_configuration(&self) -> Result<()> {
         let config_path = "clambake.toml";
 
-        if Path::new(config_path).exists() && !self.force {
+        if self.fs_ops.exists(config_path) && !self.force {
             return Err(anyhow!(
                 "Configuration file {} already exists. Use --force to overwrite.",
                 config_path
@@ -338,7 +337,7 @@ impl InitCommand {
         print!("📁 Creating .clambake directory... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        fs::create_dir_all(".clambake/credentials")
+        self.fs_ops.create_dir_all(".clambake/credentials").await
             .map_err(|e| anyhow!("Failed to create .clambake directory: {}", e))?;
         println!("✅");
 
@@ -405,9 +404,7 @@ impl InitCommand {
     }
 
     async fn detect_repository_info(&self) -> Result<(String, String)> {
-        let output = tokio::process::Command::new("git")
-            .args(["remote", "get-url", "origin"])
-            .output()
+        let output = self.fs_ops.execute_command("git", &["remote".to_string(), "get-url".to_string(), "origin".to_string()])
             .await
             .map_err(|e| anyhow!("Failed to get git remote URL: {}", e))?;
 
@@ -448,7 +445,7 @@ impl InitCommand {
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         // Create agent working directories
-        fs::create_dir_all(".clambake/agents")
+        self.fs_ops.create_dir_all(".clambake/agents").await
             .map_err(|e| anyhow!("Failed to create agent directories: {}", e))?;
 
         println!("✅");
@@ -496,5 +493,79 @@ impl InitCommand {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fs::MockFileSystemOperations;
+    use mockall::predicate::*;
+    use std::process::Output;
+    
+    #[tokio::test]
+    async fn test_init_command_with_mocked_file_system() {
+        // Create a mock file system
+        let mut mock_fs = MockFileSystemOperations::new();
+        
+        // Set up expectations for file operations
+        mock_fs
+            .expect_exists()
+            .with(eq("clambake.toml"))
+            .return_const(false);
+            
+        mock_fs
+            .expect_create_dir_all()
+            .with(eq(".clambake/credentials"))
+            .times(1)
+            .returning(|_| Ok(()));
+            
+        mock_fs
+            .expect_create_dir_all()
+            .with(eq(".clambake/agents"))
+            .times(1)
+            .returning(|_| Ok(()));
+        
+        // Mock git remote command  
+        use std::process::Command;
+        let mock_status = Command::new("true").status().unwrap();
+        let mock_output = Output {
+            status: mock_status,
+            stdout: b"https://github.com/test-owner/test-repo.git\n".to_vec(),
+            stderr: vec![],
+        };
+        
+        let git_args = vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()];
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(git_args))
+            .times(1)
+            .returning(move |_, _| Ok(mock_output.clone()));
+        
+        // Create init command with mocked file system
+        let fs_ops = Arc::new(mock_fs);
+        let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry_run = true
+        
+        // Execute should succeed without making actual file system calls
+        let result = init_command.execute().await;
+        assert!(result.is_ok(), "Init command should succeed with mocked file system");
+    }
+    
+    #[tokio::test]
+    async fn test_init_command_fails_when_config_exists_without_force() {
+        let mut mock_fs = MockFileSystemOperations::new();
+        
+        // Mock that config file already exists
+        mock_fs
+            .expect_exists()
+            .with(eq("clambake.toml"))
+            .return_const(true);
+        
+        let fs_ops = Arc::new(mock_fs);
+        let init_command = InitCommand::new(1, None, false, true, fs_ops); // force = false, dry_run = true
+        
+        let result = init_command.generate_configuration().await;
+        assert!(result.is_err(), "Should fail when config exists and force is false");
+        assert!(result.unwrap_err().to_string().contains("already exists"));
     }
 }

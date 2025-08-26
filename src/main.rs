@@ -1,5 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
+use std::sync::Arc;
+use fs::StandardFileSystem;
 
 mod agent_lifecycle;
 mod agents;
@@ -9,6 +11,7 @@ mod bundling;
 mod cli;
 mod config;
 mod database;
+mod fs;
 mod git;
 mod github;
 #[cfg(feature = "metrics")]
@@ -102,7 +105,8 @@ async fn main() -> Result<()> {
             force,
             dry_run,
         }) => {
-            InitCommand::new(agents, template, force, dry_run)
+            let fs_ops = Arc::new(StandardFileSystem);
+            InitCommand::new(agents, template, force, dry_run, fs_ops)
                 .with_ci_mode(cli.ci_mode)
                 .execute()
                 .await
