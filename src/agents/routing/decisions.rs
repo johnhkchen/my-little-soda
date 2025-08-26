@@ -114,7 +114,6 @@ mod tests {
     fn test_real_a_series_priority_bug_lexicographic_sorting() {
         // This test recreates the exact bug scenario described in issue #324
         // using the real GitHub issue titles and priorities
-        println!("🧪 Testing: Real A-series lexicographic sorting bug");
         
         let routing_decisions = RoutingDecisions::new();
 
@@ -140,10 +139,6 @@ mod tests {
         routing_decisions.sort_issues_by_priority(&mut sorted_issues);
         
         // Print debug info to see what's happening
-        println!("🔍 Sorted order:");
-        for (i, issue) in sorted_issues.iter().enumerate() {
-            println!("  {}. #{}: {}", i+1, issue.number, issue.title);
-        }
         
         // Expected lexicographic order when priority is equal:
         // 1. A1a - Create GitHub Actions workflow file structure (#288)
@@ -175,8 +170,6 @@ mod tests {
         
         assert_eq!(sorted_issues[6].title, "A2d - Optimize release build settings");
         assert_eq!(sorted_issues[6].number, 294);
-
-        println!("✅ SUCCESS: A-series issues sorted correctly lexicographically!");
     }
 
     #[test] 
@@ -204,8 +197,6 @@ mod tests {
         assert_eq!(sorted_issues[3].title, "B2b - High priority");      // Priority 3
         assert_eq!(sorted_issues[4].title, "M5m - Medium priority");    // Priority 2
         assert_eq!(sorted_issues[5].title, "Z9z - Low priority");       // Priority 1
-
-        println!("✅ SUCCESS: Priority levels correctly override lexicographic ordering!");
     }
     
     #[test]
@@ -228,15 +219,12 @@ mod tests {
         assert_eq!(sorted_issues[1].title, "A1a - Create GitHub Actions workflow file structure");
         assert_eq!(sorted_issues[2].title, "A2d - Optimize release build settings");
         assert_eq!(sorted_issues[3].title, "Z9z - Should be last task");
-
-        println!("✅ SUCCESS: Mixed title lexicographic sorting works correctly!");
     }
     
     #[test]
     fn test_reproduce_real_github_bug_a3d_before_a1a() {
         // This test reproduces the exact bug we see in the real GitHub queue
         // A3d (#298) is being selected before A1a (#288) despite lexicographic ordering
-        println!("🧪 Testing: Reproduce real GitHub A3d before A1a bug");
         
         let routing_decisions = RoutingDecisions::new();
 
@@ -259,10 +247,6 @@ mod tests {
         routing_decisions.sort_issues_by_priority(&mut sorted_issues);
         
         // Print debug info
-        println!("🔍 Sorted order:");
-        for (i, issue) in sorted_issues.iter().enumerate() {
-            println!("  {}. #{}: {}", i+1, issue.number, issue.title);
-        }
         
         // Expected: A1a should be first, then A1b, A1c, A2a, A2b, A2c, A2d, A3a, A3b, A3c, A3d
         assert_eq!(sorted_issues[0].title, "A1a - Create GitHub Actions workflow file structure");
@@ -277,7 +261,5 @@ mod tests {
         // A3d should be last, not first!
         assert_eq!(sorted_issues[10].title, "A3d - Test complete release pipeline");
         assert_eq!(sorted_issues[10].number, 298);
-
-        println!("✅ SUCCESS: Real GitHub ordering reproduced correctly in unit test!");
     }
 }
