@@ -203,6 +203,7 @@ impl StatusCommand {
     }
 }
 
+#[allow(dead_code)]
 fn get_issue_priority_name(issue: &Issue) -> String {
     use crate::priority::Priority;
 
@@ -225,6 +226,7 @@ fn get_issue_priority_name(issue: &Issue) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn get_priority_emoji(priority: &str) -> &'static str {
     if priority.contains("Critical") || priority.contains("Unblocker") {
         "🚨"

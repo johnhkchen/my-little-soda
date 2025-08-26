@@ -14,6 +14,7 @@ pub mod reset;
 pub mod route;
 pub mod status;
 
+#[allow(async_fn_in_trait)]
 pub trait Command {
     async fn execute(&self) -> Result<()>;
 }

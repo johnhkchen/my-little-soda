@@ -14,7 +14,6 @@ use crate::autonomous::ResumeAction;
 use crate::autonomous::WorkContinuityConfig as AutonomousWorkContinuityConfig;
 #[cfg(feature = "autonomous")]
 use crate::autonomous::WorkContinuityManager;
-use crate::config::config;
 use crate::github::{GitHubActions, GitHubClient, GitHubError};
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsTracker;
@@ -189,7 +188,7 @@ impl AgentCoordinator {
         issue_number: u64,
         issue_title: &str,
     ) -> Result<(), GitHubError> {
-        let execution_start = Instant::now();
+        let _execution_start = Instant::now();
         let correlation_id = generate_correlation_id();
         let span = create_coordination_span(
             "assign_agent_to_issue",
@@ -447,7 +446,7 @@ impl AgentCoordinator {
         agent_id: &str,
         issue_number: u64,
     ) -> Result<(), GitHubError> {
-        let execution_start = Instant::now();
+        let _execution_start = Instant::now();
         let correlation_id = generate_correlation_id();
         let span = create_coordination_span(
             "assign_agent_to_issue",

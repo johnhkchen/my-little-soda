@@ -145,7 +145,7 @@ async fn diagnose_single_agent(agent_id: &str, router: &crate::agents::AgentRout
     println!("🔍 Diagnosing Agent: {agent_id}");
     println!();
 
-    let github_client = router.get_github_client();
+    let _github_client = router.get_github_client();
     let state_machine = AgentStateMachine::new(agent_id.to_string());
 
     println!("📋 State Machine Validation:");
@@ -513,7 +513,7 @@ async fn validate_all_agents(_router: &crate::agents::AgentRouter) -> Result<()>
 
     for i in 1..=12 {
         let agent_id = format!("agent{i:03}");
-        let state_machine = AgentStateMachine::new(agent_id.clone());
+        let _state_machine = AgentStateMachine::new(agent_id.clone());
 
         total_agents += 1;
 
