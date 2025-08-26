@@ -48,6 +48,28 @@ Every script here follows VERBOTEN principles: no state files, no manual sync, n
 - Sets up project board
 - Preserves all work (no data loss)
 
+### Coverage Reporting (`run-coverage.sh`)
+```bash
+# Generate HTML coverage report for library tests
+./scripts/run-coverage.sh
+
+# Generate all formats for comprehensive coverage analysis
+./scripts/run-coverage.sh --scope all --format all
+
+# Generate LCOV report with threshold enforcement
+./scripts/run-coverage.sh --format lcov --fail-on-threshold
+
+# Open coverage report in browser
+./scripts/run-coverage.sh --open
+```
+- Generates code coverage reports using cargo-llvm-cov
+- Supports multiple output formats: HTML, LCOV, JSON, Cobertura XML
+- Configurable coverage scopes: lib, integration, all targets
+- Automatic LLVM toolchain detection and configuration
+- Coverage threshold enforcement (70% lines, 75% functions, 65% regions)
+- CI/CD integration with artifact upload
+- Browser integration for HTML reports
+
 ## Script Safety Rules
 
 ### VERBOTEN in Scripts

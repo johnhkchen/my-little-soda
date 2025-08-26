@@ -1,0 +1,37 @@
+# Code Coverage Configuration for My Little Soda
+# This file defines coverage thresholds and reporting preferences
+
+[thresholds]
+# Minimum coverage percentages required
+line_coverage = 70      # Minimum percentage of lines covered
+function_coverage = 75  # Minimum percentage of functions covered  
+region_coverage = 65    # Minimum percentage of regions covered
+
+[reporting]
+# Default output formats to generate
+default_formats = ["html", "lcov"]
+
+# Coverage scope preferences
+default_scope = "lib"   # Options: lib, all, integration
+
+# Directory paths
+output_dir = "target/coverage"
+html_dir = "target/coverage/html"
+
+[goals]
+# Aspirational coverage goals (not enforced)
+target_line_coverage = 85
+target_function_coverage = 90
+target_region_coverage = 80
+
+[exclusions]
+# Files/patterns to exclude from coverage (future use)
+exclude_patterns = [
+    "src/main.rs",         # CLI entry point
+    "*/tests.rs",          # Test files themselves
+    "*/mocks.rs"           # Mock implementations
+]
+
+# Test-specific exclusions
+exclude_test_functions = true
+exclude_generated_code = true

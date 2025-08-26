@@ -178,6 +178,32 @@ jobs:
             cargo test --lib
           fi
           
+      - name: Generate coverage report
+        if: matrix.environment == 'github-actions-standard' && (github.event.inputs.test_scope == 'all' || github.event.inputs.test_scope == 'unit' || github.event.inputs.test_scope == '')
+        run: |
+          echo "📊 Generating coverage report for: ${{ matrix.environment }}"
+          
+          # Install coverage tools
+          cargo install cargo-llvm-cov
+          rustup component add llvm-tools-preview
+          
+          # Generate coverage report for library tests
+          cargo llvm-cov --lib --lcov --output-path target/coverage.lcov
+          cargo llvm-cov --lib --html --output-dir target/coverage-html
+          
+          # Display coverage summary
+          cargo llvm-cov --lib --summary-only
+          
+      - name: Upload coverage report
+        if: matrix.environment == 'github-actions-standard' && (github.event.inputs.test_scope == 'all' || github.event.inputs.test_scope == 'unit' || github.event.inputs.test_scope == '')
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.run_id }}
+          path: |
+            target/coverage.lcov
+            target/coverage-html/
+          retention-days: 30
+          
       - name: Run integration tests
         if: github.event.inputs.test_scope == 'all' || github.event.inputs.test_scope == 'integration' || github.event.inputs.test_scope == ''
         env:
