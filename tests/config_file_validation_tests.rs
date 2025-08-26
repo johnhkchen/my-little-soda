@@ -303,8 +303,8 @@ mod tests {
         
         let loaded_result = MyLittleSodaConfig::load();
         
-        // Clean up
-        std::env::set_current_dir(original_dir).unwrap();
+        // Clean up - ensure this happens even if load() fails
+        let _cleanup_result = std::env::set_current_dir(original_dir);
         
         // Then: Config should load (may fail due to work_continuity field issue)
         match loaded_result {
