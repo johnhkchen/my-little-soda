@@ -245,22 +245,22 @@ impl BundleCommand {
         println!("⚙️  Configuration");
         println!("───────────────");
 
-        // Check for clambake directory
-        if std::path::Path::new(".clambake").exists() {
-            println!("✅ .clambake directory: Present");
+        // Check for my-little-soda directory
+        if std::path::Path::new(".my-little-soda").exists() {
+            println!("✅ .my-little-soda directory: Present");
         } else {
-            println!("⚠️  .clambake directory: Not found (will be created)");
+            println!("⚠️  .my-little-soda directory: Not found (will be created)");
         }
 
         // Check for bundle lock
-        if std::path::Path::new(".clambake/bundle.lock").exists() {
+        if std::path::Path::new(".my-little-soda/bundle.lock").exists() {
             println!("🔒 Bundle lock: Present (another bundler may be running)");
         } else {
             println!("🔓 Bundle lock: Available");
         }
 
         // Check for previous state
-        if std::path::Path::new(".clambake/bundle_state.json").exists() {
+        if std::path::Path::new(".my-little-soda/bundle_state.json").exists() {
             println!("💾 Previous state: Found (may need recovery)");
         } else {
             println!("🆕 Previous state: Clean");

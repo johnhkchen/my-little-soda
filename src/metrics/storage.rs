@@ -16,7 +16,7 @@ impl Default for MetricsStorage {
 
 impl MetricsStorage {
     pub fn new() -> Self {
-        let storage_path = PathBuf::from(".clambake/metrics");
+        let storage_path = PathBuf::from(".my-little-soda/metrics");
         Self { storage_path }
     }
 

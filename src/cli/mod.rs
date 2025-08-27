@@ -78,7 +78,7 @@ pub enum Commands {
             help = "Project template: webapp, api, cli, microservices, library"
         )]
         template: Option<String>,
-        /// Force initialization even if .clambake exists
+        /// Force initialization even if .my-little-soda exists
         #[arg(
             long,
             help = "Force initialization, overwriting existing configuration"

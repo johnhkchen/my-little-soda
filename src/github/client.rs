@@ -68,7 +68,7 @@ impl GitHubClient {
         }
 
         // Fall back to file-based configuration
-        let token_path = ".clambake/credentials/github_token";
+        let token_path = ".my-little-soda/credentials/github_token";
         if !Path::new(token_path).exists() {
             return Err(GitHubError::TokenNotFound(format!(
                 "GitHub token not found. Please set MY_LITTLE_SODA_GITHUB_TOKEN environment variable or create {token_path} with your GitHub personal access token."
@@ -100,8 +100,8 @@ impl GitHubClient {
         }
 
         // Fall back to file-based configuration
-        let owner_path = ".clambake/credentials/github_owner";
-        let repo_path = ".clambake/credentials/github_repo";
+        let owner_path = ".my-little-soda/credentials/github_owner";
+        let repo_path = ".my-little-soda/credentials/github_repo";
 
         if !Path::new(owner_path).exists() {
             return Err(GitHubError::ConfigNotFound(format!(

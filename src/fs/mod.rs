@@ -14,7 +14,7 @@
 ///     let fs_ops: Arc<dyn FileSystemOperations> = Arc::new(StandardFileSystem);
 ///     
 ///     // Create a directory
-///     fs_ops.create_dir_all(".clambake/test").await?;
+///     fs_ops.create_dir_all(".my-little-soda/test").await?;
 ///     
 ///     // Write a file
 ///     fs_ops.write("test.txt", b"Hello, world!").await?;
@@ -86,7 +86,7 @@ pub trait FileSystemOperations: Send + Sync {
     /// # #[tokio::main]
     /// # async fn main() -> anyhow::Result<()> {
     /// let fs_ops = StandardFileSystem;
-    /// fs_ops.create_dir_all(".clambake/data").await?;
+    /// fs_ops.create_dir_all(".my-little-soda/data").await?;
     /// # Ok(())
     /// # }
     /// ```

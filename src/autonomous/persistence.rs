@@ -85,7 +85,7 @@ impl Default for PersistenceConfig {
     fn default() -> Self {
         Self {
             enable_persistence: true,
-            persistence_directory: PathBuf::from(".clambake/autonomous_state"),
+            persistence_directory: PathBuf::from(".my-little-soda/autonomous_state"),
             auto_save_interval_minutes: 5,
             max_state_history_entries: 1000,
             max_recovery_history_entries: 500,

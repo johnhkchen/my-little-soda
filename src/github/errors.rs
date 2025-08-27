@@ -59,7 +59,7 @@ impl std::fmt::Display for GitHubError {
                 writeln!(f, "🔧 QUICK FIXES:")?;
                 writeln!(f, "   → Set environment variables: export GITHUB_OWNER=username GITHUB_REPO=reponame")?;
                 writeln!(f, "   → Use GitHub CLI in repo: gh repo view")?;
-                write!(f, "   → Run setup: clambake init")
+                write!(f, "   → Run setup: my-little-soda init")
             }
             GitHubError::ApiError(octocrab_err) => {
                 writeln!(f, "GitHub API Error")?;

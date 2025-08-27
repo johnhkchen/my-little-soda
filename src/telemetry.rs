@@ -20,7 +20,7 @@ pub fn init_telemetry() -> Result<()> {
         )
         .init();
 
-    tracing::info!("Clambake telemetry initialized with structured logging and span support");
+    tracing::info!("My Little Soda telemetry initialized with structured logging and span support");
     Ok(())
 }
 
@@ -53,5 +53,5 @@ pub fn shutdown_telemetry() {
     // For basic structured logging, no special shutdown needed
     // In the future, this would flush OpenTelemetry spans
 
-    tracing::info!("Clambake telemetry shutdown complete");
+    tracing::info!("My Little Soda telemetry shutdown complete");
 }

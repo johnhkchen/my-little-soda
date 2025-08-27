@@ -22,11 +22,11 @@ pub struct BundleManager {
 impl BundleManager {
     /// Create new bundle manager with singleton protection
     pub fn new() -> Result<Self> {
-        // Ensure .clambake directory exists
-        std::fs::create_dir_all(".clambake")?;
+        // Ensure .my-little-soda directory exists
+        std::fs::create_dir_all(".my-little-soda")?;
 
         // Acquire singleton lock
-        let lock_file = File::create(".clambake/bundle.lock")?;
+        let lock_file = File::create(".my-little-soda/bundle.lock")?;
         let lock = Box::leak(Box::new(RwLock::new(lock_file)));
         let guard = lock.try_write().map_err(|_| {
             anyhow!("Another bundler is already running. Only one bundler can run at a time.")
@@ -50,7 +50,7 @@ impl BundleManager {
 
     /// Try to restore previous bundle state
     fn try_restore_state(&self) -> Result<()> {
-        let state_path = ".clambake/bundle_state.json";
+        let state_path = ".my-little-soda/bundle_state.json";
         if std::path::Path::new(state_path).exists() {
             println!("🔄 Found previous bundle state, checking for recovery...");
             // For now, just remove the old state file

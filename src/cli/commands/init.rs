@@ -10,21 +10,21 @@
 /// - **No data loss**: All user content remains intact
 /// 
 /// ## 2. Configuration Files
-/// - **clambake.toml**: Only created if it doesn't exist, otherwise requires `--force` flag
+/// - **my-little-soda.toml**: Only created if it doesn't exist, otherwise requires `--force` flag
 /// - **Explicit user consent**: User must use `--force` to overwrite existing configuration
 /// - **Clear error messages**: Informative errors when conflicts would occur
 /// 
 /// ## 3. Directory Structure
-/// - **.clambake/ directory**: Created alongside existing directories
+/// - **.my-little-soda/ directory**: Created alongside existing directories
 /// - **No conflicts**: Clambake directories don't interfere with existing project structure
-/// - **Isolated setup**: All clambake-specific files are contained in dedicated directories
+/// - **Isolated setup**: All my-little-soda-specific files are contained in dedicated directories
 /// 
 /// ## 4. Git Repository State
 /// - **Clean repository required**: Init fails on uncommitted changes unless `--force` is used
 /// - **Branch preservation**: Current branch and git state remain unchanged
 /// - **Remote detection**: Automatically detects GitHub repository information from git remotes
 /// 
-/// This approach ensures that clambake can be initialized in any existing repository
+/// This approach ensures that my-little-soda can be initialized in any existing repository
 /// without risk of data loss or conflicts with existing project structure.
 
 use crate::config::{
@@ -127,11 +127,11 @@ impl InitCommand {
         self.verify_setup().await?;
         println!();
 
-        println!("✅ Clambake initialization completed successfully!");
+        println!("✅ My Little Soda initialization completed successfully!");
         println!();
         println!("🚀 Next steps:");
         println!("   • my-little-soda pop      # Claim your first task");
-        println!("   • clambake status   # Check system status");
+        println!("   • my-little-soda status   # Check system status");
         println!("   • gh issue create --title 'Your task' --label 'route:ready'");
 
         Ok(())
@@ -167,7 +167,7 @@ impl InitCommand {
                 println!("   2. Create initial commit:         git commit -m 'Initial commit'");
                 println!("   3. Create GitHub repository:      gh repo create --public");
                 println!("   4. Push to GitHub:                git push -u origin main");
-                println!("   5. Update clambake.toml with correct GitHub info");
+                println!("   5. Update my-little-soda.toml with correct GitHub info");
                 println!();
             } else {
                 println!("Would initialize git repository (dry run mode)");
@@ -420,7 +420,7 @@ impl InitCommand {
     }
 
     async fn generate_configuration(&self) -> Result<()> {
-        let config_path = "clambake.toml";
+        let config_path = "my-little-soda.toml";
 
         if self.fs_ops.exists(config_path) && !self.force {
             return Err(anyhow!(
@@ -431,23 +431,23 @@ impl InitCommand {
 
         if self.dry_run {
             println!("Would create configuration file: {config_path}");
-            println!("Would create directory: .clambake/");
+            println!("Would create directory: .my-little-soda/");
             return Ok(());
         }
 
-        // Create .clambake directory
-        print!("📁 Creating .clambake directory... ");
+        // Create .my-little-soda directory
+        print!("📁 Creating .my-little-soda directory... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        self.fs_ops.create_dir_all(".clambake/credentials").await
-            .map_err(|e| anyhow!("Failed to create .clambake directory: {}", e))?;
+        self.fs_ops.create_dir_all(".my-little-soda/credentials").await
+            .map_err(|e| anyhow!("Failed to create .my-little-soda directory: {}", e))?;
         println!("✅");
 
         // Detect repository information
         let (owner, repo) = self.detect_repository_info().await?;
 
         // Generate configuration
-        print!("⚙️  Generating clambake.toml... ");
+        print!("⚙️  Generating my-little-soda.toml... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         let config = MyLittleSodaConfig {
@@ -477,7 +477,7 @@ impl InitCommand {
                     claude_code_path: "claude-code".to_string(),
                     timeout_minutes: 30,
                     cleanup_on_failure: true,
-                    work_dir_prefix: ".clambake/agents".to_string(),
+                    work_dir_prefix: ".my-little-soda/agents".to_string(),
                     enable_real_agents: false,
                 },
                 ci_mode: CIModeConfig {
@@ -491,7 +491,7 @@ impl InitCommand {
                 work_continuity: WorkContinuityConfig::default(),
             },
             database: Some(DatabaseConfig {
-                url: ".clambake/clambake.db".to_string(),
+                url: ".my-little-soda/my-little-soda.db".to_string(),
                 max_connections: 10,
                 auto_migrate: true,
             }),
@@ -513,7 +513,7 @@ impl InitCommand {
         if !output.status.success() {
             // For fresh projects (with or without --force), provide placeholder values
             println!("⚠️  No git remote found, using placeholder repository info");
-            println!("   Update clambake.toml manually after setting up GitHub repository");
+            println!("   Update my-little-soda.toml manually after setting up GitHub repository");
             return Ok(("your-github-username".to_string(), "your-repo-name".to_string()));
         }
 
@@ -550,7 +550,7 @@ impl InitCommand {
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         // Create agent working directories
-        self.fs_ops.create_dir_all(".clambake/agents").await
+        self.fs_ops.create_dir_all(".my-little-soda/agents").await
             .map_err(|e| anyhow!("Failed to create agent directories: {}", e))?;
 
         println!("✅");
@@ -588,7 +588,7 @@ impl InitCommand {
 
         if is_fresh_project {
             println!("⏭️  Skipping configuration validation for fresh project");
-            println!("   Configuration uses placeholder values - update clambake.toml with real GitHub info");
+            println!("   Configuration uses placeholder values - update my-little-soda.toml with real GitHub info");
         } else {
             // Verify configuration is loadable for existing repositories
             print!("✅ Verifying configuration is loadable... ");
@@ -640,7 +640,7 @@ mod tests {
         // Mock file operations for successful init (dry run only checks existence)
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
 
         // Mock git commands for fresh project detection
@@ -677,7 +677,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         // Mock git commands for fresh project detection
@@ -732,7 +732,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(true);
         
         let fs_ops = Arc::new(mock_fs);
@@ -749,7 +749,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(true);
         
         // Mock git commands for fresh project detection
@@ -786,7 +786,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         let failed_output = Output {
@@ -817,7 +817,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         let invalid_url_output = Output {
@@ -846,7 +846,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(true)
             .times(2);
         
@@ -890,12 +890,12 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
             
         mock_fs
             .expect_create_dir_all()
-            .with(eq(".clambake/credentials"))
+            .with(eq(".my-little-soda/credentials"))
             .times(1)
             .returning(|_| Err(anyhow::anyhow!("Permission denied")));
         
@@ -904,7 +904,7 @@ mod tests {
         
         let result = init_command.generate_configuration().await;
         assert!(result.is_err(), "Should fail when directory creation fails");
-        assert!(result.unwrap_err().to_string().contains("Failed to create .clambake directory"));
+        assert!(result.unwrap_err().to_string().contains("Failed to create .my-little-soda directory"));
     }
     
     #[tokio::test]
@@ -913,7 +913,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         // Mock git commands for fresh project detection
@@ -965,7 +965,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         // Test HTTPS URL
@@ -997,7 +997,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         // Test SSH URL
@@ -1280,7 +1280,7 @@ mod tests {
         // Simulate partial config exists
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(true);
         
         let fs_ops = Arc::new(mock_fs);
@@ -1297,7 +1297,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(true);
         
         // Mock git commands for fresh project detection
@@ -1334,7 +1334,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         // Mock git commands for fresh project detection
@@ -1371,7 +1371,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false)
             .times(2);
         
@@ -1416,7 +1416,7 @@ mod tests {
         // Even in dry run mode, validation phase still executes git commands
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         // Mock git commands for fresh project detection
@@ -1491,12 +1491,12 @@ mod tests {
         // Test successful directory creation
         mock_fs
             .expect_create_dir_all()
-            .with(eq(".clambake/test"))
+            .with(eq(".my-little-soda/test"))
             .times(1)
             .returning(|_| Ok(()));
         
         let fs_ops = Arc::new(mock_fs);
-        let result = fs_ops.create_dir_all(".clambake/test").await;
+        let result = fs_ops.create_dir_all(".my-little-soda/test").await;
         assert!(result.is_ok(), "Mock directory creation should succeed");
     }
     
@@ -1605,7 +1605,7 @@ mod tests {
         
         mock_fs
             .expect_exists()
-            .with(eq("clambake.toml"))
+            .with(eq("my-little-soda.toml"))
             .return_const(false);
         
         // Mock git commands for fresh project detection (no git repo initially)

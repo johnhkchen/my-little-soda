@@ -148,7 +148,7 @@ impl Default for MyLittleSodaConfig {
     fn default() -> Self {
         Self {
             github: GitHubConfig {
-                token: None, // Will be read from env var or .clambakerc
+                token: None, // Will be read from env var or .my-little-soda-rc
                 owner: "johnhkchen".to_string(),
                 repo: "my-little-soda".to_string(),
                 rate_limit: RateLimitConfig {
