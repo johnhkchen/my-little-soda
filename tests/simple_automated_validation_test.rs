@@ -23,14 +23,14 @@ async fn test_filesystem_validator_basic_functionality() {
     let repo_path = temp_dir.path();
     
     // Create test files and directories
-    std::fs::write(repo_path.join("clambake.toml"), "[github]\nowner = \"test\"\n").unwrap();
+    std::fs::write(repo_path.join("my-little-soda.toml"), "[github]\nowner = \"test\"\n").unwrap();
     std::fs::write(repo_path.join("README.md"), "# Test Repository\n").unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/credentials")).unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/agents")).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/credentials")).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/agents")).unwrap();
     
     // Define expected files and directories
-    let expected_files = vec!["clambake.toml", "README.md"];
-    let expected_directories = vec![".clambake", ".clambake/credentials", ".clambake/agents"];
+    let expected_files = vec!["my-little-soda.toml", "README.md"];
+    let expected_directories = vec![".my-little-soda", ".my-little-soda/credentials", ".my-little-soda/agents"];
     
     // Run filesystem validation
     let fs_report = FileSystemValidator::validate_file_existence(
@@ -70,12 +70,12 @@ repo = "test-repo"
 [agents]
 max_agents = 4
 "#;
-    std::fs::write(repo_path.join("clambake.toml"), config_content).unwrap();
+    std::fs::write(repo_path.join("my-little-soda.toml"), config_content).unwrap();
     
     // Define content expectations
     let mut content_expectations = HashMap::new();
     content_expectations.insert(
-        "clambake.toml".to_string(),
+        "my-little-soda.toml".to_string(),
         ContentExpectation {
             must_contain: vec![
                 "[github]".to_string(),
@@ -244,9 +244,9 @@ async fn test_validation_result_reporter() {
     // Create mock validation reports
     let fs_report = fixtures::automated_validators::FileSystemValidationReport {
         success: true,
-        files_found: vec!["clambake.toml".to_string()],
+        files_found: vec!["my-little-soda.toml".to_string()],
         files_missing: Vec::new(),
-        directories_found: vec![".clambake".to_string()],
+        directories_found: vec![".my-little-soda".to_string()],
         directories_missing: Vec::new(),
         errors: Vec::new(),
     };
@@ -306,14 +306,14 @@ async fn test_standard_init_expectations() {
     println!("Content expectations for {} files", content_expectations.len());
     
     // Verify standard expectations cover key init command outputs
-    assert!(expected_files.contains(&"clambake.toml".to_string()), 
-            "Should expect clambake.toml file");
-    assert!(expected_directories.contains(&".clambake".to_string()), 
-            "Should expect .clambake directory");
+    assert!(expected_files.contains(&"my-little-soda.toml".to_string()), 
+            "Should expect my-little-soda.toml file");
+    assert!(expected_directories.contains(&".my-little-soda".to_string()), 
+            "Should expect .my-little-soda directory");
     
-    // Verify content expectations for clambake.toml
-    let config_expectation = content_expectations.get("clambake.toml")
-        .expect("Should have content expectations for clambake.toml");
+    // Verify content expectations for my-little-soda.toml
+    let config_expectation = content_expectations.get("my-little-soda.toml")
+        .expect("Should have content expectations for my-little-soda.toml");
     
     assert!(config_expectation.must_contain.contains(&"[github]".to_string()), 
             "Should expect [github] section");
@@ -375,9 +375,9 @@ metrics_enabled = true
 max_agents = 1
 coordination_timeout_seconds = 300
 "#;
-    std::fs::write(repo_path.join("clambake.toml"), config_content).unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/credentials")).unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/agents")).unwrap();
+    std::fs::write(repo_path.join("my-little-soda.toml"), config_content).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/credentials")).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/agents")).unwrap();
     
     // Step 2: Run all validators
     println!("Step 2: Running automated validation checks...");

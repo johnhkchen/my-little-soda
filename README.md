@@ -251,7 +251,7 @@ The init command is designed with safety-first principles:
 
 - **Non-Destructive**: Never modifies existing files or directories
 - **Preservation Guarantee**: Maintains byte-for-byte integrity of existing content
-- **Namespace Isolation**: Uses dedicated `.clambake/` directory and `clambake.toml` configuration
+- **Namespace Isolation**: Uses dedicated `.my-little-soda/` directory and `my-little-soda.toml` configuration
 - **Graceful Integration**: Coexists with existing project structure, templates, and workflows
 - **Comprehensive Validation**: Tested across 80+ scenarios covering real-world repository configurations
 

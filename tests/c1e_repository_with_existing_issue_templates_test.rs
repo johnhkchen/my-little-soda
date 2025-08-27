@@ -130,8 +130,8 @@ async fn test_init_enhances_existing_template_setup() {
     }
     
     // In dry run mode, clambake files should NOT be created
-    assert!(!env.has_file("clambake.toml"), "Clambake config should not be created in dry run");
-    assert!(!env.has_file(".clambake"), "Clambake directory should not be created in dry run");
+    assert!(!env.has_file("my-little-soda.toml"), "Clambake config should not be created in dry run");
+    assert!(!env.has_file(".my-little-soda"), "Clambake directory should not be created in dry run");
     
     // Verify template config maintains expected functionality
     let template_config = env.read_file(".github/ISSUE_TEMPLATE/config.yml")
@@ -262,8 +262,8 @@ async fn test_no_template_metadata_conflicts() {
     assert!(result.success, "Init should succeed without conflicts");
     
     // In dry run mode, clambake files should NOT be created
-    assert!(!env.has_file("clambake.toml"), "Clambake config should not be created in dry run");
-    assert!(!env.has_file(".clambake"), "Clambake directory should not be created in dry run");
+    assert!(!env.has_file("my-little-soda.toml"), "Clambake config should not be created in dry run");
+    assert!(!env.has_file(".my-little-soda"), "Clambake directory should not be created in dry run");
     
     // Verify existing template infrastructure is preserved
     assert!(env.has_file(".github/ISSUE_TEMPLATE/bug_report.md"), "Bug report template preserved");
@@ -271,8 +271,8 @@ async fn test_no_template_metadata_conflicts() {
     assert!(env.has_file(".github/pull_request_template.md"), "PR template preserved");
     
     // Verify no template naming conflicts
-    assert!(!env.has_file(".clambake/ISSUE_TEMPLATE"), "No issue template directory conflict");
-    assert!(!env.has_file(".clambake/pull_request_template.md"), "No PR template naming conflict");
+    assert!(!env.has_file(".my-little-soda/ISSUE_TEMPLATE"), "No issue template directory conflict");
+    assert!(!env.has_file(".my-little-soda/pull_request_template.md"), "No PR template naming conflict");
     
     // Read and verify bug report template doesn't have clambake interference
     let bug_report = env.read_file(".github/ISSUE_TEMPLATE/bug_report.md")
@@ -343,8 +343,8 @@ async fn test_complete_c1e_scenario() {
     }
     
     // In dry run mode, clambake files should NOT be created
-    assert!(!env.has_file("clambake.toml"), "Clambake config should not be created in dry run");
-    assert!(!env.has_file(".clambake"), "Clambake directory should not be created in dry run");
+    assert!(!env.has_file("my-little-soda.toml"), "Clambake config should not be created in dry run");
+    assert!(!env.has_file(".my-little-soda"), "Clambake directory should not be created in dry run");
     
     println!("✅ Template preservation validated");
     

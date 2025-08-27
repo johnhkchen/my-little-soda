@@ -88,12 +88,12 @@ impl ExistingReadmeTestHarness {
     
     /// Check if clambake config was created
     fn has_clambake_config(&self) -> bool {
-        self.temp_dir.path().join("clambake.toml").exists()
+        self.temp_dir.path().join("my-little-soda.toml").exists()
     }
     
     /// Check if clambake directory was created
     fn has_clambake_directory(&self) -> bool {
-        self.temp_dir.path().join(".clambake").exists()
+        self.temp_dir.path().join(".my-little-soda").exists()
     }
 }
 

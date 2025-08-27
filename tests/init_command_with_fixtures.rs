@@ -32,7 +32,7 @@ async fn test_init_on_empty_repository_with_fixture() {
     
     // Verify fixture is correctly set up
     assert!(env.has_file("README.md"), "Empty repository should have README");
-    assert!(!env.has_file("clambake.toml"), "Should not have config initially");
+    assert!(!env.has_file("my-little-soda.toml"), "Should not have config initially");
     
     // Run init command (dry run for test safety)
     let result = env.run_and_validate_init(1, false, true).await
@@ -56,8 +56,8 @@ async fn test_init_with_existing_config_using_fixtures() {
         .expect("Failed to create test environment");
     
     // Verify existing configuration
-    assert!(env.has_file("clambake.toml"), "Should have existing config");
-    let existing_config = env.read_file("clambake.toml")
+    assert!(env.has_file("my-little-soda.toml"), "Should have existing config");
+    let existing_config = env.read_file("my-little-soda.toml")
         .expect("Failed to read existing config");
     assert!(existing_config.contains("old-owner"), "Should contain old owner");
     
@@ -206,7 +206,7 @@ async fn test_migration_example_old_vs_new_pattern() {
     let mut mock_fs = MockFileSystemOperations::new();
     mock_fs
         .expect_exists()
-        .with(eq("clambake.toml"))
+        .with(eq("my-little-soda.toml"))
         .return_const(false);
     
     let fs_ops = Arc::new(mock_fs);

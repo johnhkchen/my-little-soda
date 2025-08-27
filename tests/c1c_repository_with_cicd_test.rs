@@ -109,8 +109,8 @@ async fn test_init_enhances_existing_cicd_setup() {
     }
     
     // Verify clambake integration files are created
-    assert!(env.has_file("clambake.toml"), "Clambake config should be created");
-    assert!(env.has_file(".clambake"), "Clambake directory should be created");
+    assert!(env.has_file("my-little-soda.toml"), "Clambake config should be created");
+    assert!(env.has_file(".my-little-soda"), "Clambake directory should be created");
     
     // Verify Docker Compose has expected services that won't conflict
     let docker_compose = env.read_file("docker-compose.yml")
@@ -236,15 +236,15 @@ async fn test_no_automation_conflicts() {
     assert!(result.success, "Init should succeed without conflicts");
     
     // Verify no file conflicts - clambake should use its own namespace
-    assert!(env.has_file("clambake.toml"), "Clambake config created");
-    assert!(env.has_file(".clambake"), "Clambake directory created");
+    assert!(env.has_file("my-little-soda.toml"), "Clambake config created");
+    assert!(env.has_file(".my-little-soda"), "Clambake directory created");
     
     // Verify existing CI/CD automation is preserved
     assert!(env.has_file(".github/workflows/ci.yml"), "CI workflow preserved");
     assert!(env.has_file(".pre-commit-config.yaml"), "Pre-commit hooks preserved");
     
     // Verify no file naming conflicts
-    assert!(!env.has_file(".clambake/workflows"), "No workflow directory conflict");
+    assert!(!env.has_file(".my-little-soda/workflows"), "No workflow directory conflict");
     assert!(!env.has_file("clambake.yml"), "No YAML config naming conflict");
     
     // Read and verify CI workflow doesn't have clambake interference
@@ -318,8 +318,8 @@ async fn test_complete_c1c_scenario() {
     }
     
     // Verify clambake integration
-    assert!(env.has_file("clambake.toml"), "Clambake config should be created");
-    assert!(env.has_file(".clambake"), "Clambake directory should be created");
+    assert!(env.has_file("my-little-soda.toml"), "Clambake config should be created");
+    assert!(env.has_file(".my-little-soda"), "Clambake directory should be created");
     
     println!("✅ Workflow preservation validated");
     

@@ -78,7 +78,7 @@ impl CliTestEnvironment {
 
     fn setup_clambake_config(&self) -> Result<(), Box<dyn std::error::Error>> {
         let repo_path = Path::new(&self.git_repo_path);
-        let clambake_dir = repo_path.join(".clambake");
+        let clambake_dir = repo_path.join(".my-little-soda");
         create_dir_all(&clambake_dir)?;
 
         // Create mock configuration
@@ -326,7 +326,7 @@ mod tests {
         let env = CliTestEnvironment::new().unwrap();
 
         // Create lock file to simulate running bundler
-        let lock_dir = Path::new(env.repo_path()).join(".clambake");
+        let lock_dir = Path::new(env.repo_path()).join(".my-little-soda");
         create_dir_all(&lock_dir).unwrap();
         let _lock_file = File::create(lock_dir.join("bundle.lock")).unwrap();
 

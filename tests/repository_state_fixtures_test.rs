@@ -48,8 +48,8 @@ async fn test_partial_initialization_fixture() {
     assert_eq!(fixture.name, "repository_with_partial_initialization");
     assert!(fixture.is_valid_for_init_testing());
     assert!(fixture.existing_clambake_config.is_some());
-    assert!(fixture.files.contains_key("clambake.toml"));
-    assert!(fixture.files.contains_key(".clambake/partial_setup"));
+    assert!(fixture.files.contains_key("my-little-soda.toml"));
+    assert!(fixture.files.contains_key(".my-little-soda/partial_setup"));
     
     let behavior = fixture.expected_init_behavior();
     assert!(!behavior.should_succeed_without_force); // Should fail without --force
@@ -186,11 +186,11 @@ async fn test_partial_initialization_temp_creation() {
     let temp_repo = fixture.create_temp_repository().unwrap();
     
     // Verify partial clambake setup exists
-    assert!(temp_repo.path().join("clambake.toml").exists());
-    assert!(temp_repo.path().join(".clambake/partial_setup").exists());
+    assert!(temp_repo.path().join("my-little-soda.toml").exists());
+    assert!(temp_repo.path().join(".my-little-soda/partial_setup").exists());
     
     // Verify existing config content
-    let config_content = fs::read_to_string(temp_repo.path().join("clambake.toml")).unwrap();
+    let config_content = fs::read_to_string(temp_repo.path().join("my-little-soda.toml")).unwrap();
     assert!(config_content.contains("old-owner"));
     assert!(config_content.contains("old-repo"));
     assert!(config_content.contains("tracing_enabled = false"));

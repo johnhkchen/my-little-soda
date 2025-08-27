@@ -63,7 +63,7 @@ Located in `repository_states.rs`, these fixtures simulate different repository 
 
 #### 3. Partial Initialization (`repository_with_partial_initialization`)
 - **Use Case**: Testing init behavior when clambake config already exists
-- **Characteristics**: Existing partial clambake.toml, incomplete setup
+- **Characteristics**: Existing partial my-little-soda.toml, incomplete setup
 - **Expected Behavior**: Should fail without force, require --force to proceed
 - **Example**:
   ```rust
@@ -151,8 +151,8 @@ async fn test_post_init_state_changes() {
     let env = InitCommandTestEnvironment::from_fixture_name("empty_repository").unwrap();
     
     // Verify initial state
-    assert!(!env.has_file("clambake.toml"));
-    assert!(!env.has_file(".clambake"));
+    assert!(!env.has_file("my-little-soda.toml"));
+    assert!(!env.has_file(".my-little-soda"));
     
     // Run init (not dry run)
     let _result = env.run_and_validate_init(1, false, false).await.unwrap();
@@ -379,7 +379,7 @@ async fn debug_fixture_behavior() {
     
     // Inspect repository state
     println!("Repository path: {:?}", env.path());
-    println!("Has clambake.toml: {}", env.has_file("clambake.toml"));
+    println!("Has my-little-soda.toml: {}", env.has_file("my-little-soda.toml"));
     
     // Run and inspect results
     let result = env.run_and_validate_init(1, false, true).await.unwrap();

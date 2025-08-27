@@ -175,14 +175,14 @@ async fn test_automated_validation_file_existence() {
     let repo_path = temp_dir.path();
     
     // Create expected files and directories (simulating init command output)
-    std::fs::write(repo_path.join("clambake.toml"), "[github]\nowner = \"test\"\n").unwrap();
+    std::fs::write(repo_path.join("my-little-soda.toml"), "[github]\nowner = \"test\"\n").unwrap();
     std::fs::write(repo_path.join("README.md"), "# Test Repository\n").unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/credentials")).unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/agents")).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/credentials")).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/agents")).unwrap();
     
     // Define expectations
-    let expected_files = vec!["clambake.toml", "README.md"];
-    let expected_directories = vec![".clambake", ".clambake/credentials", ".clambake/agents"];
+    let expected_files = vec!["my-little-soda.toml", "README.md"];
+    let expected_directories = vec![".my-little-soda", ".my-little-soda/credentials", ".my-little-soda/agents"];
     
     // Run validation
     let fs_report = SimpleFileSystemValidator::validate_file_existence(
@@ -232,12 +232,12 @@ metrics_enabled = true
 max_agents = 1
 coordination_timeout_seconds = 300
 "#;
-    std::fs::write(repo_path.join("clambake.toml"), config_content).unwrap();
+    std::fs::write(repo_path.join("my-little-soda.toml"), config_content).unwrap();
     
     // Define content expectations (matching what init command should produce)
     let mut content_expectations = HashMap::new();
     content_expectations.insert(
-        "clambake.toml".to_string(),
+        "my-little-soda.toml".to_string(),
         ContentExpectation {
             must_contain: vec![
                 "[github]".to_string(),
@@ -286,12 +286,12 @@ async fn test_automated_validation_error_detection() {
 TODO: Complete this configuration
 PLACEHOLDER = "replace_me"
 "#;
-    std::fs::write(repo_path.join("clambake.toml"), bad_config_content).unwrap();
+    std::fs::write(repo_path.join("my-little-soda.toml"), bad_config_content).unwrap();
     
     // Define expectations that should fail
     let mut content_expectations = HashMap::new();
     content_expectations.insert(
-        "clambake.toml".to_string(),
+        "my-little-soda.toml".to_string(),
         ContentExpectation {
             must_contain: vec![
                 "[github]".to_string(),  // Missing
@@ -364,19 +364,19 @@ max_queue_size = 50
 processing_timeout_seconds = 1800
 "#;
     
-    std::fs::write(repo_path.join("clambake.toml"), complete_config).unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/credentials")).unwrap();
-    std::fs::create_dir_all(repo_path.join(".clambake/agents")).unwrap();
+    std::fs::write(repo_path.join("my-little-soda.toml"), complete_config).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/credentials")).unwrap();
+    std::fs::create_dir_all(repo_path.join(".my-little-soda/agents")).unwrap();
     
     // Step 2: Define comprehensive validation expectations
     println!("Step 2: Setting up validation expectations...");
     
-    let expected_files = vec!["clambake.toml"];
-    let expected_directories = vec![".clambake", ".clambake/credentials", ".clambake/agents"];
+    let expected_files = vec!["my-little-soda.toml"];
+    let expected_directories = vec![".my-little-soda", ".my-little-soda/credentials", ".my-little-soda/agents"];
     
     let mut content_expectations = HashMap::new();
     content_expectations.insert(
-        "clambake.toml".to_string(),
+        "my-little-soda.toml".to_string(),
         ContentExpectation {
             must_contain: vec![
                 "[github]".to_string(),
@@ -448,11 +448,11 @@ async fn test_automated_validation_clear_error_messages() {
     let repo_path = temp_dir.path();
     
     // Test missing file scenario
-    // (Don't create clambake.toml)
+    // (Don't create my-little-soda.toml)
     
     // Test 1: Missing files
-    let expected_files = vec!["clambake.toml", "nonexistent.txt"];
-    let expected_directories = vec![".clambake"];
+    let expected_files = vec!["my-little-soda.toml", "nonexistent.txt"];
+    let expected_directories = vec![".my-little-soda"];
     
     let fs_report = SimpleFileSystemValidator::validate_file_existence(
         repo_path,
@@ -469,8 +469,8 @@ async fn test_automated_validation_clear_error_messages() {
     
     // Verify error message clarity
     let error_text = fs_report.errors.join(" ");
-    assert!(error_text.contains("Expected file not found: clambake.toml"));
-    assert!(error_text.contains("Expected directory not found: .clambake"));
+    assert!(error_text.contains("Expected file not found: my-little-soda.toml"));
+    assert!(error_text.contains("Expected directory not found: .my-little-soda"));
     
     println!("✅ Clear error messages validation PASSED");
 }

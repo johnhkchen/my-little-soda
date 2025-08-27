@@ -593,18 +593,18 @@ impl FailureAnalysisReport {
 /// Utility function to create standard init command validation expectations
 pub fn create_standard_init_expectations() -> (Vec<String>, Vec<String>, HashMap<String, ContentExpectation>, GitConfigExpectations) {
     let expected_files = vec![
-        "clambake.toml".to_string(),
+        "my-little-soda.toml".to_string(),
     ];
     
     let expected_directories = vec![
-        ".clambake".to_string(),
-        ".clambake/credentials".to_string(),
-        ".clambake/agents".to_string(),
+        ".my-little-soda".to_string(),
+        ".my-little-soda/credentials".to_string(),
+        ".my-little-soda/agents".to_string(),
     ];
     
     let mut content_expectations = HashMap::new();
     content_expectations.insert(
-        "clambake.toml".to_string(),
+        "my-little-soda.toml".to_string(),
         ContentExpectation {
             must_contain: vec![
                 "[github]".to_string(),
