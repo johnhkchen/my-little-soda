@@ -185,7 +185,7 @@ async fn example_custom_fixture_validation() {
     
     // Validate fixture properties
     assert_eq!(fixture.name, "repository_with_partial_initialization");
-    assert!(fixture.existing_clambake_config.is_some(), "Should have existing config");
+    assert!(fixture.existing_my_little_soda_config.is_some(), "Should have existing config");
     assert!(fixture.files.contains_key("my-little-soda.toml"), "Should contain my-little-soda.toml file");
     
     let expected_behavior = fixture.expected_init_behavior();
@@ -325,7 +325,7 @@ fn demonstrate_fixture_inspection() {
         println!("    - Should create config: {}", behavior.should_create_config);
         println!("    - Warnings: {}", behavior.validation_warnings.len());
         
-        if let Some(config) = fixture.existing_clambake_config {
+        if let Some(config) = fixture.existing_my_little_soda_config {
             println!("    - Has existing config ({} chars)", config.len());
         }
         println!();

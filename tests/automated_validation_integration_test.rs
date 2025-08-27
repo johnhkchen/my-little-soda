@@ -364,7 +364,7 @@ fn create_test_fixture_with_content() -> RepositoryStateFixture {
         description: "Test fixture with specific content for validation".to_string(),
         files,
         git_config: fixtures::repository_states::GitConfig::default(),
-        existing_clambake_config: None,
+        existing_my_little_soda_config: None,
     }
 }
 

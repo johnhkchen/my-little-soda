@@ -15,7 +15,7 @@ async fn test_empty_repository_fixture_creation() {
     
     assert_eq!(fixture.name, "empty_repository");
     assert!(fixture.is_valid_for_init_testing());
-    assert!(fixture.existing_clambake_config.is_none());
+    assert!(fixture.existing_my_little_soda_config.is_none());
     assert!(fixture.files.contains_key("README.md"));
     assert!(fixture.files.contains_key(".gitignore"));
     
@@ -31,7 +31,7 @@ async fn test_repository_with_existing_files_fixture() {
     
     assert_eq!(fixture.name, "repository_with_existing_files");
     assert!(fixture.is_valid_for_init_testing());
-    assert!(fixture.existing_clambake_config.is_none());
+    assert!(fixture.existing_my_little_soda_config.is_none());
     assert!(fixture.files.contains_key("Cargo.toml"));
     assert!(fixture.files.contains_key("src/main.rs"));
     assert!(fixture.files.contains_key("src/lib.rs"));
@@ -47,7 +47,7 @@ async fn test_partial_initialization_fixture() {
     
     assert_eq!(fixture.name, "repository_with_partial_initialization");
     assert!(fixture.is_valid_for_init_testing());
-    assert!(fixture.existing_clambake_config.is_some());
+    assert!(fixture.existing_my_little_soda_config.is_some());
     assert!(fixture.files.contains_key("my-little-soda.toml"));
     assert!(fixture.files.contains_key(".my-little-soda/partial_setup"));
     
