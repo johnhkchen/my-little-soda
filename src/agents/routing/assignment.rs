@@ -210,8 +210,6 @@ impl AssignmentOperations {
                         if branch_name.starts_with(&pattern) {
                             let commits_ahead = self.get_commits_ahead_count(branch_name);
                             if commits_ahead > 0 {
-                                // TODO: Trigger StartWork event in state machine
-                                // coordinator.start_work(agent_id, commits_ahead).await?;
                                 return Ok(());
                             }
                         }
@@ -219,8 +217,6 @@ impl AssignmentOperations {
                 }
             }
         } else if commits_ahead > 0 {
-            // TODO: Trigger StartWork event in state machine
-            // coordinator.start_work(agent_id, commits_ahead).await?;
         }
 
         Ok(())

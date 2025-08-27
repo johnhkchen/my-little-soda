@@ -24,7 +24,7 @@ impl RoutingDecisions {
         Priority::from_labels(&label_names).value()
     }
 
-    pub fn sort_issues_by_priority(&self, issues: &mut Vec<Issue>) {
+    pub fn sort_issues_by_priority(&self, issues: &mut [Issue]) {
         issues.sort_by(|a, b| {
             let a_priority = self.get_issue_priority(a);
             let b_priority = self.get_issue_priority(b);

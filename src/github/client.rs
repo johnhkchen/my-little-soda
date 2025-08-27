@@ -78,7 +78,7 @@ impl GitHubClient {
                 match &octocrab_err {
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 401 => {
                         Err(GitHubError::TokenNotFound(
-                            format!("GitHub API authentication failed (HTTP 401). Token may be invalid or expired.\n  → Run 'gh auth login' to refresh authentication\n  → Or set valid MY_LITTLE_SODA_GITHUB_TOKEN environment variable")
+                            "GitHub API authentication failed (HTTP 401). Token may be invalid or expired.\n  → Run 'gh auth login' to refresh authentication\n  → Or set valid MY_LITTLE_SODA_GITHUB_TOKEN environment variable".to_string()
                         ))
                     },
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
@@ -86,7 +86,7 @@ impl GitHubClient {
                     },
                     octocrab::Error::Http { .. } => {
                         Err(GitHubError::NetworkError(
-                            format!("Unable to connect to GitHub API. Check your internet connection and try again.")
+                            "Unable to connect to GitHub API. Check your internet connection and try again.".to_string()
                         ))
                     },
                     _ => Err(GitHubError::ApiError(octocrab_err))
@@ -131,7 +131,7 @@ impl GitHubClient {
             .args(["auth", "status"])
             .output()
             .map_err(|e| GitHubError::TokenNotFound(
-                format!("GitHub CLI (gh) not available: {}. Install from https://cli.github.com/", e)
+                format!("GitHub CLI (gh) not available: {e}. Install from https://cli.github.com/")
             ))?;
 
         if !auth_status.status.success() {
@@ -145,7 +145,7 @@ impl GitHubClient {
             .args(["auth", "token"])
             .output()
             .map_err(|e| GitHubError::TokenNotFound(
-                format!("Failed to get token from GitHub CLI: {}", e)
+                format!("Failed to get token from GitHub CLI: {e}")
             ))?;
 
         if !token_output.status.success() {
@@ -156,7 +156,7 @@ impl GitHubClient {
 
         let token = String::from_utf8(token_output.stdout)
             .map_err(|e| GitHubError::TokenNotFound(
-                format!("Invalid UTF-8 in GitHub CLI token: {}", e)
+                format!("Invalid UTF-8 in GitHub CLI token: {e}")
             ))?
             .trim()
             .to_string();

@@ -157,7 +157,7 @@ impl AgentCoordinator {
         // Fetch issue to get title for descriptive branch name
         let issue_title = match self.github_client.fetch_issue(issue_number).await {
             Ok(issue) => issue.title,
-            Err(_) => format!("issue-{}", issue_number), // Fallback title
+            Err(_) => format!("issue-{issue_number}"), // Fallback title
         };
 
         self.assign_agent_to_issue_with_title(agent_id, issue_number, &issue_title)
@@ -292,8 +292,7 @@ impl AgentCoordinator {
             // Reserve the assignment
             *current_assignment = Some(issue_number);
 
-            println!("✅ Reserved assignment: agent {} -> issue #{}",
-                    agent_id, issue_number);
+            println!("✅ Reserved assignment: agent {agent_id} -> issue #{issue_number}");
         }
 
         // GITHUB OPERATIONS: Perform actual GitHub API calls

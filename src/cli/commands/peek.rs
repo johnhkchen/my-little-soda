@@ -8,6 +8,12 @@ pub struct PeekCommand {
     pub ci_mode: bool,
 }
 
+impl Default for PeekCommand {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PeekCommand {
     pub fn new() -> Self {
         Self { ci_mode: false }

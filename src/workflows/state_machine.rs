@@ -139,10 +139,6 @@ impl StateMachine {
             .await
         {
             Ok(_) => {
-                // TODO: Update agent state
-                // self.coordinator
-                //     .update_agent_state(agent_id, new_state.clone())
-                //     .await?;
                 Ok(TransitionResult::Success {
                     previous_state,
                     new_state,
@@ -175,10 +171,6 @@ impl StateMachine {
         // 3. Set agent status
         // All in a single atomic GitHub transaction
 
-        // TODO: Update agent state
-        // self.coordinator
-        //     .update_agent_state(agent_id, new_state.clone())
-        //     .await?;
         Ok(TransitionResult::Success {
             previous_state,
             new_state,
@@ -203,10 +195,6 @@ impl StateMachine {
         // 4. Set agent status
         // All atomically
 
-        // TODO: Update agent state
-        // self.coordinator
-        //     .update_agent_state(agent_id, new_state.clone())
-        //     .await?;
         Ok(TransitionResult::Success {
             previous_state,
             new_state,
@@ -235,10 +223,6 @@ impl StateMachine {
             Ok(_) => {
                 println!("✅ Removed route:ready label from issue #{issue_number}");
                 // Agent is now freed for new work
-                // TODO: Update agent state to available
-                // self.coordinator
-                //     .update_agent_state(agent_id, AgentState::Available)
-                //     .await?;
                 Ok(TransitionResult::Success {
                     previous_state,
                     new_state: AgentState::Available, // Agent is freed immediately
@@ -262,10 +246,6 @@ impl StateMachine {
         // Phase 2: Agent picks up route:ready_to_merge task to complete final merge
         println!("🔄 Phase 2: Starting landing for agent {agent_id} issue {issue_url}");
 
-        // TODO: Update agent state
-        // self.coordinator
-        //     .update_agent_state(agent_id, new_state.clone())
-        //     .await?;
         Ok(TransitionResult::Success {
             previous_state,
             new_state,
@@ -295,10 +275,6 @@ impl StateMachine {
 
         match self.complete_final_integration(issue_number).await {
             Ok(_) => {
-                // TODO: Update agent state
-                // self.coordinator
-                //     .update_agent_state(agent_id, new_state.clone())
-                //     .await?;
                 Ok(TransitionResult::Success {
                     previous_state,
                     new_state,

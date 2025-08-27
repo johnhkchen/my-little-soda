@@ -5,6 +5,12 @@ pub struct ResetCommand {
     pub ci_mode: bool,
 }
 
+impl Default for ResetCommand {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResetCommand {
     pub fn new() -> Self {
         Self { ci_mode: false }
