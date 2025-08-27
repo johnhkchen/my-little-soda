@@ -1,5 +1,6 @@
 /// Analysis result for merge conflicts
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - conflict analysis types for future merge safety features
 pub struct ConflictAnalysis {
     pub has_conflicts: bool,
     pub is_mergeable: bool,
@@ -12,6 +13,7 @@ pub struct ConflictAnalysis {
 
 /// Data structure for conflict recovery operations
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - conflict recovery for future merge safety features
 pub struct ConflictRecoveryData {
     pub agent_id: String,
     pub issue_number: u64,
@@ -23,6 +25,7 @@ pub struct ConflictRecoveryData {
 
 /// Result of a safe merge operation
 #[derive(Debug)]
+#[allow(dead_code)] // Architectural - safe merge results for future merge safety features
 pub enum SafeMergeResult {
     SuccessfulMerge {
         pr_number: u64,

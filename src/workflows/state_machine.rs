@@ -5,6 +5,7 @@ use crate::agents::{AgentCoordinator, AgentState};
 use crate::github::{GitHubClient, GitHubError};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - state transitions for future workflow management
 pub enum StateTransition {
     AssignToAgent {
         agent_id: String,
@@ -37,6 +38,7 @@ pub enum StateTransition {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - transition results for future workflow management
 pub enum TransitionResult {
     Success {
         previous_state: AgentState,
@@ -49,11 +51,13 @@ pub enum TransitionResult {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // Architectural - state machine for future workflow management
 pub struct StateMachine {
     github_client: GitHubClient,
     coordinator: AgentCoordinator,
 }
 
+#[allow(dead_code)] // State machine functionality for future workflow management
 impl StateMachine {
     pub async fn new() -> Result<Self, GitHubError> {
         let github_client = GitHubClient::new()?;

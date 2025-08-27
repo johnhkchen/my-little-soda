@@ -101,6 +101,7 @@ pub trait AutomaticRecovery {
     ) -> Result<RecoveryAttempt, RecoveryError>;
 
     /// Rollback a failed recovery attempt
+    #[allow(dead_code)] // Architectural - rollback functionality for future recovery management
     async fn rollback_recovery(&self, rollback_info: &RollbackInfo) -> Result<(), RecoveryError>;
 
     /// Check if recovery can be attempted without data loss

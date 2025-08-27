@@ -81,6 +81,7 @@ impl AgentRouter {
         })
     }
 
+    #[allow(dead_code)] // Used in tests and future routing features
     pub async fn create_agent_branch(
         &self,
         agent_id: &str,
@@ -121,11 +122,13 @@ impl AgentRouter {
     }
 
     // Legacy method - keeping for backward compatibility
+    #[allow(dead_code)] // Used in tests - keeping for backward compatibility
     pub async fn pop_next_task(&self) -> Result<Option<RoutingAssignment>, GitHubError> {
         // Delegate to the broader "any available task" method
         self.pop_any_available_task().await
     }
 
+    #[allow(dead_code)] // Used in routing coordinator - future routing features
     pub async fn route_specific_issue(
         &self,
         issue_number: u64,
@@ -141,6 +144,7 @@ impl AgentRouter {
     }
 
     // Get state machine status for all agents
+    #[allow(dead_code)] // Future agent state monitoring features
     pub async fn get_agent_state_machine_status(
         &self,
     ) -> Result<Vec<(String, String)>, GitHubError> {

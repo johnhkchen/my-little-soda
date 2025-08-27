@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 /// Strategy for handling merge conflicts during bundling
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural design - conflict resolution strategies
 pub enum ConflictStrategy {
     /// Abort bundle and create individual PRs
     IndividualFallback,
@@ -51,6 +52,7 @@ impl ConflictCompatibilityReport {
 
 /// Prediction for cherry-pick conflicts
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - conflict prediction fields for future bundling safety
 pub struct ConflictPrediction {
     pub source_branch: String,
     pub target_branch: String,
@@ -104,6 +106,7 @@ impl GitOperations {
     }
 
     /// Get audit trail
+    #[allow(dead_code)] // Used by bundler for audit trail functionality
     pub fn get_audit_trail(&self) -> &[BundleAuditEntry] {
         &self.audit_trail
     }
@@ -540,6 +543,7 @@ impl GitOperations {
     }
 
     /// Simulate cherry-pick to detect conflicts without making changes
+    #[allow(dead_code)] // Future conflict prediction functionality
     pub fn simulate_cherry_pick(
         &self,
         source_branch: &str,

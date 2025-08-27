@@ -70,6 +70,7 @@ pub trait GitHubActions {
     ) -> Result<Vec<WorkflowRun>, GitHubError>;
 
     /// Wait for workflow completion with timeout
+    #[allow(dead_code)] // Future workflow monitoring functionality
     async fn wait_for_workflow_completion(
         &self,
         run_id: u64,

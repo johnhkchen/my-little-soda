@@ -155,6 +155,7 @@ impl AssignmentOperations {
     }
 
     /// Get number of commits ahead of main for a branch - used for state machine StartWork event
+    #[allow(dead_code)] // Used by state machine for future work progress tracking
     pub fn get_commits_ahead_count(&self, branch_name: &str) -> u32 {
         let git_ops = match Git2Operations::new(".") {
             Ok(ops) => ops,
@@ -182,6 +183,7 @@ impl AssignmentOperations {
     }
 
     /// Check agent work progress and trigger state machine transitions
+    #[allow(dead_code)] // Future work progress monitoring features
     pub async fn check_and_update_work_progress(
         &self,
         _coordinator: &AgentCoordinator,

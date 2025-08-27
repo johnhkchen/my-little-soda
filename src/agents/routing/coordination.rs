@@ -308,6 +308,7 @@ impl RoutingCoordinator {
         .await
     }
 
+    #[allow(dead_code)] // Used by router for specific issue routing
     pub async fn route_specific_issue(
         &self,
         coordinator: &AgentCoordinator,
