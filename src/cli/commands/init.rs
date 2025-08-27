@@ -183,6 +183,7 @@ impl InitCommand {
         }
 
         // Enhanced authentication validation with verbose debugging
+        self.diagnose_authentication_environment().await?;
         self.validate_github_authentication().await?;
         self.validate_github_api_access().await?;
 
@@ -194,6 +195,63 @@ impl InitCommand {
             println!();
         }
 
+        Ok(())
+    }
+
+    /// Proactive authentication environment diagnostics
+    async fn diagnose_authentication_environment(&self) -> Result<()> {
+        if self.verbose {
+            println!("🔍 VERBOSE: Diagnosing authentication environment...");
+            
+            // Check for common environment variables
+            let env_vars = [
+                "MY_LITTLE_SODA_GITHUB_TOKEN",
+                "GITHUB_TOKEN",
+                "GH_TOKEN",
+                "GITHUB_OWNER",
+                "GITHUB_REPO"
+            ];
+            
+            for var in env_vars {
+                match std::env::var(var) {
+                    Ok(val) if !val.is_empty() && !val.contains("YOUR_") && !val.contains("your-") => {
+                        let display_val = if var.contains("TOKEN") {
+                            format!("{}...{}", &val[..4.min(val.len())], &val[val.len()-4.min(val.len())..])
+                        } else {
+                            val
+                        };
+                        println!("   ✅ VERBOSE: {} = {}", var, display_val);
+                    },
+                    Ok(val) if val.contains("YOUR_") || val.contains("your-") => {
+                        println!("   ⚠️  VERBOSE: {} = {} (placeholder value - needs to be set)", var, val);
+                    },
+                    Ok(_) => {
+                        println!("   ⚠️  VERBOSE: {} = (empty)", var);
+                    },
+                    Err(_) => {
+                        println!("   ℹ️  VERBOSE: {} = (not set)", var);
+                    }
+                }
+            }
+            
+            // Check for credential files
+            let cred_files = [
+                ".my-little-soda/credentials/github_token",
+                ".my-little-soda/credentials/github_owner",
+                ".my-little-soda/credentials/github_repo"
+            ];
+            
+            for file in cred_files {
+                if std::path::Path::new(file).exists() {
+                    println!("   ✅ VERBOSE: {} exists", file);
+                } else {
+                    println!("   ℹ️  VERBOSE: {} not found", file);
+                }
+            }
+            
+            println!();
+        }
+        
         Ok(())
     }
 
@@ -249,11 +307,44 @@ impl InitCommand {
             let stderr = String::from_utf8_lossy(&gh_status_output.stderr);
             if self.verbose {
                 println!("   ❌ VERBOSE: GitHub CLI not authenticated");
+                println!("   🔍 VERBOSE: Authentication failure details:");
+                println!("      Exit code: {}", gh_status_output.status.code().unwrap_or(-1));
+                if !stderr.is_empty() {
+                    println!("      Error output: {}", stderr.trim());
+                }
             }
-            return Err(anyhow!(
-                "GitHub CLI not authenticated: {}. Run 'gh auth login' first.",
-                stderr
-            ));
+            
+            // Provide enhanced error message with multiple authentication options
+            let enhanced_error = if stderr.contains("Not logged in") || stderr.contains("not authenticated") {
+                format!(
+                    "GitHub CLI not authenticated. Please authenticate using one of these methods:\n\
+                     💡 Recommended: Run 'gh auth login' and follow the prompts\n\
+                     💡 Alternative: Set MY_LITTLE_SODA_GITHUB_TOKEN environment variable\n\
+                     💡 Manual setup: Create .my-little-soda/credentials/github_token file\n\
+                     \n\
+                     GitHub CLI error: {}", 
+                    stderr.trim()
+                )
+            } else if stderr.contains("command not found") || stderr.contains("No such file") {
+                format!(
+                    "GitHub CLI (gh) is not installed or not in PATH.\n\
+                     💡 Install from: https://cli.github.com/\n\
+                     💡 Alternative: Set MY_LITTLE_SODA_GITHUB_TOKEN environment variable\n\
+                     \n\
+                     System error: {}", 
+                    stderr.trim()
+                )
+            } else {
+                format!(
+                    "GitHub authentication failed: {}\n\
+                     💡 Try: gh auth login\n\
+                     💡 Check: gh auth status\n\
+                     💡 Alternative: Set MY_LITTLE_SODA_GITHUB_TOKEN environment variable", 
+                    stderr.trim()
+                )
+            };
+            
+            return Err(anyhow!(enhanced_error));
         }
 
         if self.verbose {
@@ -338,11 +429,61 @@ impl InitCommand {
             .map_err(|e| {
                 if self.verbose {
                     println!("   ❌ VERBOSE: Repository access failed: {}", e);
+                    println!("   🔍 VERBOSE: Repository: {}/{}", github_client.owner(), github_client.repo());
                 }
-                anyhow!(
-                    "Failed to access repository: {}. Check your GitHub token permissions.",
-                    e
-                )
+                
+                // Provide enhanced error message based on error type
+                let enhanced_error = match &e {
+                    octocrab::Error::GitHub { source, .. } => {
+                        match source.status_code.as_u16() {
+                            401 => format!(
+                                "GitHub API authentication failed (HTTP 401).\n\
+                                 💡 Token is invalid or expired\n\
+                                 💡 Try: gh auth login\n\
+                                 💡 Or refresh token: gh auth refresh\n\
+                                 💡 Check token: gh auth token"
+                            ),
+                            403 => format!(
+                                "GitHub API access forbidden (HTTP 403).\n\
+                                 💡 Token lacks required permissions\n\
+                                 💡 Repository: {}/{}\n\
+                                 💡 Required: 'repo' scope for private repositories\n\
+                                 💡 Create token: https://github.com/settings/tokens",
+                                github_client.owner(), github_client.repo()
+                            ),
+                            404 => format!(
+                                "GitHub repository not found (HTTP 404).\n\
+                                 💡 Repository: {}/{}\n\
+                                 💡 Check if repository exists and is accessible\n\
+                                 💡 Verify GITHUB_OWNER and GITHUB_REPO settings\n\
+                                 💡 Check if repository is private and token has access",
+                                github_client.owner(), github_client.repo()
+                            ),
+                            _ => format!(
+                                "GitHub API error (HTTP {}).\n\
+                                 💡 Message: {}\n\
+                                 💡 Repository: {}/{}\n\
+                                 💡 Check GitHub status: https://status.github.com",
+                                source.status_code, source.message, github_client.owner(), github_client.repo()
+                            )
+                        }
+                    },
+                    octocrab::Error::Http { .. } => format!(
+                        "Network error connecting to GitHub API.\n\
+                         💡 Check internet connectivity\n\
+                         💡 Test: curl -I https://api.github.com\n\
+                         💡 Check firewall/proxy settings"
+                    ),
+                    _ => format!(
+                        "Failed to access repository {}/{}.\n\
+                         💡 Check your GitHub token permissions\n\
+                         💡 Verify repository exists and is accessible\n\
+                         💡 Error: {}",
+                        github_client.owner(), github_client.repo(), e
+                    )
+                };
+                
+                anyhow!(enhanced_error)
             })?;
 
         let has_write_permissions = repo
@@ -364,8 +505,29 @@ impl InitCommand {
         if !has_write_permissions {
             if self.verbose {
                 println!("   ❌ VERBOSE: Insufficient repository permissions");
+                if let Some(permissions) = &repo.permissions {
+                    println!("   🔍 VERBOSE: Current permissions - Admin: {}, Push: {}, Pull: {}", 
+                             permissions.admin, permissions.push, permissions.pull);
+                }
             }
-            return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
+            
+            let permission_error = format!(
+                "Insufficient repository permissions for {}/{}.\n\
+                 💡 Required: 'push' (write) access to manage labels and issues\n\
+                 💡 Current permissions: Admin={}, Push={}, Pull={}\n\
+                 💡 Solutions:\n\
+                    - Ask repository owner to grant write access\n\
+                    - Use personal access token with 'repo' scope\n\
+                    - Fork repository and use your fork\n\
+                 💡 Token settings: https://github.com/settings/tokens",
+                github_client.owner(),
+                github_client.repo(),
+                repo.permissions.as_ref().map(|p| p.admin).unwrap_or(false),
+                repo.permissions.as_ref().map(|p| p.push).unwrap_or(false),
+                repo.permissions.as_ref().map(|p| p.pull).unwrap_or(false)
+            );
+            
+            return Err(anyhow!(permission_error));
         }
 
         if self.verbose {
