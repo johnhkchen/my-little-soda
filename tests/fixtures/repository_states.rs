@@ -11,7 +11,7 @@ pub struct RepositoryStateFixture {
     pub description: String,
     pub files: HashMap<String, String>,
     pub git_config: GitConfig,
-    pub existing_clambake_config: Option<String>,
+    pub existing_my_little_soda_config: Option<String>,
 }
 
 /// Git repository configuration for fixtures
@@ -49,7 +49,7 @@ impl RepositoryStateFixture {
                 (".gitignore".to_string(), "target/\n*.log\n".to_string()),
             ]),
             git_config: GitConfig::default(),
-            existing_clambake_config: None,
+            existing_my_little_soda_config: None,
         }
     }
 
@@ -90,7 +90,7 @@ mod tests {
             description: "Repository with substantial existing codebase".to_string(),
             files,
             git_config: GitConfig::default(),
-            existing_clambake_config: None,
+            existing_my_little_soda_config: None,
         }
     }
 
@@ -113,15 +113,15 @@ repo = "old-repo"
 tracing_enabled = false
 "#.to_string();
 
-        files.insert("clambake.toml".to_string(), partial_config.clone());
-        files.insert(".clambake/partial_setup".to_string(), "This indicates partial setup\n".to_string());
+        files.insert("my-little-soda.toml".to_string(), partial_config.clone());
+        files.insert(".my-little-soda/partial_setup".to_string(), "This indicates partial setup\n".to_string());
 
         Self {
             name: "repository_with_partial_initialization".to_string(),
             description: "Repository with incomplete clambake setup".to_string(),
             files,
             git_config: GitConfig::default(),
-            existing_clambake_config: Some(partial_config),
+            existing_my_little_soda_config: Some(partial_config),
         }
     }
 
@@ -165,7 +165,7 @@ tokio = "1.0"
             description: "Repository with merge conflicts and uncommitted changes".to_string(),
             files,
             git_config,
-            existing_clambake_config: None,
+            existing_my_little_soda_config: None,
         }
     }
 
@@ -299,7 +299,7 @@ debug = false
             description: "Repository with nested directories, workspace structure, and multiple modules".to_string(),
             files,
             git_config: GitConfig::default(),
-            existing_clambake_config: None,
+            existing_my_little_soda_config: None,
         }
     }
 
@@ -425,7 +425,7 @@ Please follow the existing code style and run tests before submitting.
             description: "Repository with comprehensive GitHub issue templates and contribution guidelines".to_string(),
             files,
             git_config: GitConfig::default(),
-            existing_clambake_config: None,
+            existing_my_little_soda_config: None,
         }
     }
 
@@ -722,7 +722,7 @@ async fn test_basic_functionality() {
             description: "Repository with comprehensive CI/CD setup including GitHub Actions, Docker, and security scanning".to_string(),
             files,
             git_config: GitConfig::default(),
-            existing_clambake_config: None,
+            existing_my_little_soda_config: None,
         }
     }
 
@@ -835,13 +835,13 @@ async fn test_basic_functionality() {
     /// Check if this fixture represents a valid state for init command testing
     pub fn is_valid_for_init_testing(&self) -> bool {
         match self.name.as_str() {
-            "empty_repository" => self.existing_clambake_config.is_none(),
-            "repository_with_existing_files" => self.existing_clambake_config.is_none(),
-            "repository_with_partial_initialization" => self.existing_clambake_config.is_some(),
+            "empty_repository" => self.existing_my_little_soda_config.is_none(),
+            "repository_with_existing_files" => self.existing_my_little_soda_config.is_none(),
+            "repository_with_partial_initialization" => self.existing_my_little_soda_config.is_some(),
             "repository_with_conflicts" => self.git_config.uncommitted_changes,
-            "repository_with_complex_directory_structure" => self.existing_clambake_config.is_none(),
-            "repository_with_existing_issue_templates" => self.existing_clambake_config.is_none(),
-            "repository_with_existing_cicd_files" => self.existing_clambake_config.is_none(),
+            "repository_with_complex_directory_structure" => self.existing_my_little_soda_config.is_none(),
+            "repository_with_existing_issue_templates" => self.existing_my_little_soda_config.is_none(),
+            "repository_with_existing_cicd_files" => self.existing_my_little_soda_config.is_none(),
             _ => false,
         }
     }
@@ -968,7 +968,7 @@ mod tests {
         let fixture = RepositoryStateFixture::empty_repository();
         assert_eq!(fixture.name, "empty_repository");
         assert!(fixture.is_valid_for_init_testing());
-        assert!(fixture.existing_clambake_config.is_none());
+        assert!(fixture.existing_my_little_soda_config.is_none());
         assert!(fixture.files.contains_key("README.md"));
         assert!(fixture.files.contains_key(".gitignore"));
     }
@@ -978,7 +978,7 @@ mod tests {
         let fixture = RepositoryStateFixture::repository_with_existing_files();
         assert_eq!(fixture.name, "repository_with_existing_files");
         assert!(fixture.is_valid_for_init_testing());
-        assert!(fixture.existing_clambake_config.is_none());
+        assert!(fixture.existing_my_little_soda_config.is_none());
         assert!(fixture.files.contains_key("Cargo.toml"));
         assert!(fixture.files.contains_key("src/main.rs"));
     }
@@ -988,8 +988,8 @@ mod tests {
         let fixture = RepositoryStateFixture::repository_with_partial_initialization();
         assert_eq!(fixture.name, "repository_with_partial_initialization");
         assert!(fixture.is_valid_for_init_testing());
-        assert!(fixture.existing_clambake_config.is_some());
-        assert!(fixture.files.contains_key("clambake.toml"));
+        assert!(fixture.existing_my_little_soda_config.is_some());
+        assert!(fixture.files.contains_key("my-little-soda.toml"));
         
         let behavior = fixture.expected_init_behavior();
         assert!(!behavior.should_succeed_without_force);
@@ -1047,7 +1047,7 @@ mod tests {
         let fixture = RepositoryStateFixture::repository_with_complex_directory_structure();
         assert_eq!(fixture.name, "repository_with_complex_directory_structure");
         assert!(fixture.is_valid_for_init_testing());
-        assert!(fixture.existing_clambake_config.is_none());
+        assert!(fixture.existing_my_little_soda_config.is_none());
         
         // Verify workspace structure
         assert!(fixture.files.contains_key("Cargo.toml"));
@@ -1075,7 +1075,7 @@ mod tests {
         let fixture = RepositoryStateFixture::repository_with_existing_issue_templates();
         assert_eq!(fixture.name, "repository_with_existing_issue_templates");
         assert!(fixture.is_valid_for_init_testing());
-        assert!(fixture.existing_clambake_config.is_none());
+        assert!(fixture.existing_my_little_soda_config.is_none());
         
         // Verify issue templates
         assert!(fixture.files.contains_key(".github/ISSUE_TEMPLATE/bug_report.md"));
@@ -1102,7 +1102,7 @@ mod tests {
         let fixture = RepositoryStateFixture::repository_with_existing_cicd_files();
         assert_eq!(fixture.name, "repository_with_existing_cicd_files");
         assert!(fixture.is_valid_for_init_testing());
-        assert!(fixture.existing_clambake_config.is_none());
+        assert!(fixture.existing_my_little_soda_config.is_none());
         
         // Verify GitHub Actions workflows
         assert!(fixture.files.contains_key(".github/workflows/ci.yml"));

@@ -64,9 +64,9 @@ async fn test_init_dry_run_idempotency() {
         assert!(result.is_ok(), "Dry run iteration {} should succeed: {:?}", i, result.err());
         
         // Verify state hasn't changed (no config should exist after dry run)
-        assert!(!std::path::Path::new("clambake.toml").exists(),
+        assert!(!std::path::Path::new("my-little-soda.toml").exists(),
                 "Config should not exist after dry run iteration {}", i);
-        assert!(!std::path::Path::new(".clambake/credentials").exists(),
+        assert!(!std::path::Path::new(".my-little-soda/credentials").exists(),
                 "Credentials dir should not exist after dry run iteration {}", i);
     }
     
@@ -96,7 +96,7 @@ async fn test_init_with_existing_config_fails_without_force() {
         .expect("Failed to add git remote");
 
     // Create existing config file
-    std::fs::write("clambake.toml", r#"
+    std::fs::write("my-little-soda.toml", r#"
 [github]
 owner = "existing-owner"
 repo = "existing-repo"
@@ -138,7 +138,7 @@ async fn test_init_with_force_succeeds_when_config_exists() {
         .expect("Failed to add git remote");
 
     // Create existing config file
-    std::fs::write("clambake.toml", r#"
+    std::fs::write("my-little-soda.toml", r#"
 [github]
 owner = "existing-owner"  
 repo = "existing-repo"

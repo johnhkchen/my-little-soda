@@ -16,7 +16,7 @@ struct EmptyRepositoryTestResult {
     init_success: bool,
     error_message: Option<String>,
     config_created: bool,
-    clambake_dir_created: bool,
+    my_little_soda_dir_created: bool,
     agents_dir_created: bool,
     files_created: Vec<String>,
 }
@@ -24,15 +24,15 @@ struct EmptyRepositoryTestResult {
 impl EmptyRepositoryTestResult {
     /// Check if all expected files and directories were created
     fn validate_expected_files(&self) -> bool {
-        self.config_created && self.clambake_dir_created && self.agents_dir_created
+        self.config_created && self.my-little-soda_dir_created && self.agents_dir_created
     }
     
     /// Get a summary of what was created
     fn creation_summary(&self) -> String {
         let mut summary = Vec::new();
-        if self.config_created { summary.push("clambake.toml"); }
-        if self.clambake_dir_created { summary.push(".clambake/"); }
-        if self.agents_dir_created { summary.push(".clambake/agents/"); }
+        if self.config_created { summary.push("my-little-soda.toml"); }
+        if self.my-little-soda_dir_created { summary.push(".my-little-soda/"); }
+        if self.agents_dir_created { summary.push(".my-little-soda/agents/"); }
         summary.join(", ")
     }
 }
@@ -95,22 +95,22 @@ async fn run_init_on_empty_repository(dry_run: bool) -> Result<EmptyRepositoryTe
     std::env::set_current_dir(original_dir)?;
     
     // Check what files were created
-    let config_created = temp_dir.path().join("clambake.toml").exists();
-    let clambake_dir_created = temp_dir.path().join(".clambake").exists();
-    let agents_dir_created = temp_dir.path().join(".clambake/agents").exists();
+    let config_created = temp_dir.path().join("my-little-soda.toml").exists();
+    let my_little_soda_dir_created = temp_dir.path().join(".my-little-soda").exists();
+    let agents_dir_created = temp_dir.path().join(".my-little-soda/agents").exists();
     
     // List all files that were created
     let mut files_created = Vec::new();
-    if config_created { files_created.push("clambake.toml".to_string()); }
-    if clambake_dir_created { files_created.push(".clambake/".to_string()); }
-    if agents_dir_created { files_created.push(".clambake/agents/".to_string()); }
+    if config_created { files_created.push("my-little-soda.toml".to_string()); }
+    if my_little_soda_dir_created { files_created.push(".my-little-soda/".to_string()); }
+    if agents_dir_created { files_created.push(".my-little-soda/agents/".to_string()); }
     
     Ok(EmptyRepositoryTestResult {
         temp_dir,
         init_success: init_result.is_ok(),
         error_message: init_result.err().map(|e| e.to_string()),
         config_created,
-        clambake_dir_created,
+        my_little_soda_dir_created,
         agents_dir_created,
         files_created,
     })
@@ -128,9 +128,9 @@ async fn test_c1a_init_on_empty_repository() {
            result.error_message.unwrap_or_default());
     
     // For dry run, no files should be created, but the command should succeed
-    assert!(!result.config_created, "clambake.toml should not be created in dry run");
-    assert!(!result.clambake_dir_created, ".clambake directory should not be created in dry run");
-    assert!(!result.agents_dir_created, ".clambake/agents directory should not be created in dry run");
+    assert!(!result.config_created, "my-little-soda.toml should not be created in dry run");
+    assert!(!result.my-little-soda_dir_created, ".my-little-soda directory should not be created in dry run");
+    assert!(!result.agents_dir_created, ".my-little-soda/agents directory should not be created in dry run");
     
     println!("✅ C1a Test PASSED: Init dry run works correctly on empty repository");
     println!("   No files created during dry run (as expected)");
@@ -148,9 +148,9 @@ async fn test_c1a_init_dry_run_on_empty_repository() {
            result.error_message.unwrap_or_default());
     
     // Validate no files were created during dry run
-    assert!(!result.config_created, "clambake.toml should not be created in dry run");
-    assert!(!result.clambake_dir_created, ".clambake directory should not be created in dry run");
-    assert!(!result.agents_dir_created, ".clambake/agents directory should not be created in dry run");
+    assert!(!result.config_created, "my-little-soda.toml should not be created in dry run");
+    assert!(!result.my-little-soda_dir_created, ".my-little-soda directory should not be created in dry run");
+    assert!(!result.agents_dir_created, ".my-little-soda/agents directory should not be created in dry run");
     
     println!("✅ C1a Dry Run Test PASSED: Init dry run works correctly on empty repository");
     println!("   No files created (as expected for dry run)");
@@ -209,8 +209,8 @@ async fn test_c1a_init_validation_empty_repository() {
     if result.config_created {
         assert!(!status_output.trim().is_empty(), 
                "Repository should have uncommitted changes after init (config files created)");
-        assert!(status_output.contains("clambake.toml"), 
-               "Git status should show clambake.toml as uncommitted");
+        assert!(status_output.contains("my-little-soda.toml"), 
+               "Git status should show my-little-soda.toml as uncommitted");
     }
     
     println!("✅ C1a Validation Test PASSED: Repository state is correct after init on empty repository");
@@ -258,10 +258,10 @@ async fn test_c1a_complete_empty_repository_workflow() {
     // Step 4: Verify that no files were created during dry run (as expected)
     println!("📋 Step 4: Verifying dry run behavior (no files created)...");
     let should_not_exist_files = [
-        "clambake.toml",
-        ".clambake/",
-        ".clambake/agents/",
-        ".clambake/credentials/",
+        "my-little-soda.toml",
+        ".my-little-soda/",
+        ".my-little-soda/agents/",
+        ".my-little-soda/credentials/",
     ];
     
     for file_path in &should_not_exist_files {

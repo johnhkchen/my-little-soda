@@ -4,13 +4,13 @@
 /// with correct structure, permissions, and content across all test scenarios.
 /// 
 /// Expected Files/Directories Created by Init Command:
-/// - `clambake.toml` - Main configuration file at repository root
-/// - `.clambake/` - Main clambake directory
-/// - `.clambake/credentials/` - Directory for credential storage
-/// - `.clambake/agents/` - Directory for agent working directories
-/// - `.clambake/clambake.db` - Database file (referenced in config)
-/// - `.clambake/autonomous_state/` - Directory for autonomous agent state (created on demand)
-/// - `.clambake/metrics/` - Directory for metrics storage (created on demand)
+/// - `my-little-soda.toml` - Main configuration file at repository root
+/// - `.my-little-soda/` - Main clambake directory
+/// - `.my-little-soda/credentials/` - Directory for credential storage
+/// - `.my-little-soda/agents/` - Directory for agent working directories
+/// - `.my-little-soda/clambake.db` - Database file (referenced in config)
+/// - `.my-little-soda/autonomous_state/` - Directory for autonomous agent state (created on demand)
+/// - `.my-little-soda/metrics/` - Directory for metrics storage (created on demand)
 
 use anyhow::Result;
 use std::fs;
@@ -34,21 +34,21 @@ impl ExpectedFilesAndDirectories {
     fn standard_init_expectations() -> Self {
         Self {
             required_files: vec![
-                "clambake.toml".to_string(),
+                "my-little-soda.toml".to_string(),
             ],
             required_directories: vec![
-                ".clambake".to_string(),
-                ".clambake/credentials".to_string(),
-                ".clambake/agents".to_string(),
+                ".my-little-soda".to_string(),
+                ".my-little-soda/credentials".to_string(),
+                ".my-little-soda/agents".to_string(),
             ],
             on_demand_files: vec![
-                ".clambake/clambake.db".to_string(), // Database file
-                ".clambake/bundle.lock".to_string(),  // Bundle lock file
-                ".clambake/bundle_state.json".to_string(), // Bundle state
+                ".my-little-soda/clambake.db".to_string(), // Database file
+                ".my-little-soda/bundle.lock".to_string(),  // Bundle lock file
+                ".my-little-soda/bundle_state.json".to_string(), // Bundle state
             ],
             on_demand_directories: vec![
-                ".clambake/autonomous_state".to_string(), // Autonomous agent state
-                ".clambake/metrics".to_string(),          // Metrics storage
+                ".my-little-soda/autonomous_state".to_string(), // Autonomous agent state
+                ".my-little-soda/metrics".to_string(),          // Metrics storage
             ],
         }
     }
@@ -159,7 +159,7 @@ impl FileSystemValidator {
         let metadata = fs::metadata(file_path)?;
         
         // Check file is readable
-        if metadata.permissions().readonly() && file_path.file_name().unwrap() != "clambake.toml" {
+        if metadata.permissions().readonly() && file_path.file_name().unwrap() != "my-little-soda.toml" {
             return Err(anyhow::anyhow!("File is readonly when it should be writable"));
         }
         
@@ -188,28 +188,28 @@ impl FileSystemValidator {
     
     /// Validate directory hierarchy is correct
     fn validate_directory_hierarchy(repo_path: &Path, report: &mut ValidationReport) -> Result<()> {
-        let clambake_dir = repo_path.join(".clambake");
+        let clambake_dir = repo_path.join(".my-little-soda");
         
         if !clambake_dir.exists() {
-            report.add_error("Root .clambake directory missing".to_string());
+            report.add_error("Root .my-little-soda directory missing".to_string());
             return Ok(());
         }
         
-        // Check that .clambake is at repository root level, not nested
+        // Check that .my-little-soda is at repository root level, not nested
         if clambake_dir.parent() != Some(repo_path) {
             report.add_error("clambake directory not at repository root level".to_string());
         }
         
-        // Check credentials directory is under .clambake
+        // Check credentials directory is under .my-little-soda
         let credentials_dir = clambake_dir.join("credentials");
         if credentials_dir.exists() && credentials_dir.parent() != Some(&clambake_dir) {
-            report.add_error("credentials directory not properly nested under .clambake".to_string());
+            report.add_error("credentials directory not properly nested under .my-little-soda".to_string());
         }
         
-        // Check agents directory is under .clambake
+        // Check agents directory is under .my-little-soda
         let agents_dir = clambake_dir.join("agents");
         if agents_dir.exists() && agents_dir.parent() != Some(&clambake_dir) {
-            report.add_error("agents directory not properly nested under .clambake".to_string());
+            report.add_error("agents directory not properly nested under .my-little-soda".to_string());
         }
         
         Ok(())
@@ -218,10 +218,10 @@ impl FileSystemValidator {
     /// Validate configuration file content is correctly generated
     fn validate_config_file_content(repo_path: &Path) -> Result<ValidationReport> {
         let mut report = ValidationReport::new();
-        let config_path = repo_path.join("clambake.toml");
+        let config_path = repo_path.join("my-little-soda.toml");
         
         if !config_path.exists() {
-            report.add_error("clambake.toml file not found".to_string());
+            report.add_error("my-little-soda.toml file not found".to_string());
             return Ok(report);
         }
         
@@ -244,10 +244,10 @@ impl FileSystemValidator {
         }
         
         // Check database URL points to correct location
-        if config_content.contains("url = \".clambake/clambake.db\"") {
+        if config_content.contains("url = \".my-little-soda/clambake.db\"") {
             // Good - database path is correct
         } else {
-            report.add_error("Database URL not set to .clambake/clambake.db".to_string());
+            report.add_error("Database URL not set to .my-little-soda/clambake.db".to_string());
         }
         
         // Validate TOML syntax by parsing
@@ -364,9 +364,9 @@ async fn test_init_directory_structure_validation() {
     let repo_path = temp_dir.path();
     
     // Manually create the expected directory structure for testing
-    fs::create_dir_all(repo_path.join(".clambake/credentials")).unwrap();
-    fs::create_dir_all(repo_path.join(".clambake/agents")).unwrap();
-    fs::write(repo_path.join("clambake.toml"), r#"
+    fs::create_dir_all(repo_path.join(".my-little-soda/credentials")).unwrap();
+    fs::create_dir_all(repo_path.join(".my-little-soda/agents")).unwrap();
+    fs::write(repo_path.join("my-little-soda.toml"), r#"
 [github]
 owner = "test"
 repo = "test"
@@ -378,7 +378,7 @@ log_level = "info"
 max_agents = 2
 
 [database]
-url = ".clambake/clambake.db"
+url = ".my-little-soda/clambake.db"
 "#).unwrap();
     
     // Validate the structure
@@ -396,7 +396,7 @@ async fn test_config_file_content_validation() {
     let repo_path = temp_dir.path();
     
     // Create a valid configuration file
-    fs::write(repo_path.join("clambake.toml"), r#"
+    fs::write(repo_path.join("my-little-soda.toml"), r#"
 [github]
 owner = "testowner"
 repo = "testrepo"
@@ -410,7 +410,7 @@ max_agents = 4
 coordination_timeout_seconds = 300
 
 [database]
-url = ".clambake/clambake.db"
+url = ".my-little-soda/clambake.db"
 max_connections = 10
 auto_migrate = true
 "#).unwrap();
@@ -428,7 +428,7 @@ async fn test_config_file_content_validation_with_missing_sections() {
     let repo_path = temp_dir.path();
     
     // Create an invalid configuration file missing sections
-    fs::write(repo_path.join("clambake.toml"), r#"
+    fs::write(repo_path.join("my-little-soda.toml"), r#"
 [github]
 owner = "testowner"
 # Missing repo, observability, agents, database sections
@@ -449,9 +449,9 @@ async fn test_permission_validation() {
     let repo_path = temp_dir.path();
     
     // Create files and directories with proper permissions
-    fs::create_dir_all(repo_path.join(".clambake/credentials")).unwrap();
-    fs::create_dir_all(repo_path.join(".clambake/agents")).unwrap();
-    fs::write(repo_path.join("clambake.toml"), "[github]\nowner = \"test\"\n").unwrap();
+    fs::create_dir_all(repo_path.join(".my-little-soda/credentials")).unwrap();
+    fs::create_dir_all(repo_path.join(".my-little-soda/agents")).unwrap();
+    fs::write(repo_path.join("my-little-soda.toml"), "[github]\nowner = \"test\"\n").unwrap();
     
     // Validate permissions (this mainly tests that the validation doesn't fail)
     let validation_report = FileSystemValidator::validate_init_file_creation(repo_path, false)
@@ -473,14 +473,14 @@ async fn test_comprehensive_file_directory_validation_checklist() {
     assert!(!expectations.required_directories.is_empty(), "Should have required directories");
     
     // Verify specific requirements
-    assert!(expectations.required_files.contains(&"clambake.toml".to_string()), 
-           "Should expect clambake.toml file");
-    assert!(expectations.required_directories.contains(&".clambake".to_string()), 
-           "Should expect .clambake directory");
-    assert!(expectations.required_directories.contains(&".clambake/credentials".to_string()), 
-           "Should expect .clambake/credentials directory");
-    assert!(expectations.required_directories.contains(&".clambake/agents".to_string()), 
-           "Should expect .clambake/agents directory");
+    assert!(expectations.required_files.contains(&"my-little-soda.toml".to_string()), 
+           "Should expect my-little-soda.toml file");
+    assert!(expectations.required_directories.contains(&".my-little-soda".to_string()), 
+           "Should expect .my-little-soda directory");
+    assert!(expectations.required_directories.contains(&".my-little-soda/credentials".to_string()), 
+           "Should expect .my-little-soda/credentials directory");
+    assert!(expectations.required_directories.contains(&".my-little-soda/agents".to_string()), 
+           "Should expect .my-little-soda/agents directory");
     
     println!("✅ Complete file/directory validation checklist:");
     println!("Required files: {:?}", expectations.required_files);

@@ -223,9 +223,9 @@ async fn test_validation_result_reporting_detailed() {
     // Create mock validation reports for testing
     let fs_report = fixtures::automated_validators::FileSystemValidationReport {
         success: true,
-        files_found: vec!["clambake.toml".to_string()],
+        files_found: vec!["my-little-soda.toml".to_string()],
         files_missing: Vec::new(),
-        directories_found: vec![".clambake".to_string()],
+        directories_found: vec![".my-little-soda".to_string()],
         directories_missing: Vec::new(),
         errors: Vec::new(),
     };
@@ -434,18 +434,18 @@ async fn test_standard_init_expectations_coverage() {
     println!("Git expectations: should_be_git_repo = {}", git_expectations.should_be_git_repo);
     
     // Verify standard expectations cover key init command outputs
-    assert!(expected_files.contains(&"clambake.toml".to_string()), 
-            "Should expect clambake.toml file");
-    assert!(expected_directories.contains(&".clambake".to_string()), 
-            "Should expect .clambake directory");
-    assert!(expected_directories.contains(&".clambake/credentials".to_string()), 
-            "Should expect .clambake/credentials directory");
-    assert!(expected_directories.contains(&".clambake/agents".to_string()), 
-            "Should expect .clambake/agents directory");
+    assert!(expected_files.contains(&"my-little-soda.toml".to_string()), 
+            "Should expect my-little-soda.toml file");
+    assert!(expected_directories.contains(&".my-little-soda".to_string()), 
+            "Should expect .my-little-soda directory");
+    assert!(expected_directories.contains(&".my-little-soda/credentials".to_string()), 
+            "Should expect .my-little-soda/credentials directory");
+    assert!(expected_directories.contains(&".my-little-soda/agents".to_string()), 
+            "Should expect .my-little-soda/agents directory");
     
-    // Verify content expectations for clambake.toml
-    let config_expectation = content_expectations.get("clambake.toml")
-        .expect("Should have content expectations for clambake.toml");
+    // Verify content expectations for my-little-soda.toml
+    let config_expectation = content_expectations.get("my-little-soda.toml")
+        .expect("Should have content expectations for my-little-soda.toml");
     
     assert!(config_expectation.must_contain.contains(&"[github]".to_string()), 
             "Should expect [github] section");

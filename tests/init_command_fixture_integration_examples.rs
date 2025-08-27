@@ -17,8 +17,8 @@ async fn example_init_on_empty_repository() {
     
     // Verify initial state  
     assert!(env.has_file("README.md"), "Empty repository should have README.md");
-    assert!(!env.has_file("clambake.toml"), "Should not have clambake config initially");
-    assert!(!env.has_file(".clambake"), "Should not have .clambake directory initially");
+    assert!(!env.has_file("my-little-soda.toml"), "Should not have clambake config initially");
+    assert!(!env.has_file(".my-little-soda"), "Should not have .my-little-soda directory initially");
     
     // Run init command (dry run for safety)
     let result = env.run_and_validate_init(1, false, true).await
@@ -122,7 +122,7 @@ async fn example_post_init_state_validation() {
     // Verify initial state
     assert!(env.has_file("Cargo.toml"), "Should have existing Cargo.toml");
     assert!(env.has_file("src/main.rs"), "Should have existing main.rs");
-    assert!(!env.has_file("clambake.toml"), "Should not have clambake config initially");
+    assert!(!env.has_file("my-little-soda.toml"), "Should not have clambake config initially");
     
     // Run actual init command (not dry run)
     let command_result = env.run_and_validate_init(1, false, false).await
@@ -140,8 +140,8 @@ async fn example_post_init_state_validation() {
     assert!(env.has_file("src/main.rs"), "Existing main.rs should be preserved");
     
     // Verify new files were created
-    assert!(env.has_file("clambake.toml"), "clambake.toml should be created");
-    assert!(env.has_file(".clambake"), ".clambake directory should be created");
+    assert!(env.has_file("my-little-soda.toml"), "my-little-soda.toml should be created");
+    assert!(env.has_file(".my-little-soda"), ".my-little-soda directory should be created");
     
     println!("✅ Example 5 passed: Post-init validation works correctly");
 }
@@ -186,7 +186,7 @@ async fn example_custom_fixture_validation() {
     // Validate fixture properties
     assert_eq!(fixture.name, "repository_with_partial_initialization");
     assert!(fixture.existing_clambake_config.is_some(), "Should have existing config");
-    assert!(fixture.files.contains_key("clambake.toml"), "Should contain clambake.toml file");
+    assert!(fixture.files.contains_key("my-little-soda.toml"), "Should contain my-little-soda.toml file");
     
     let expected_behavior = fixture.expected_init_behavior();
     assert!(!expected_behavior.should_succeed_without_force, "Should require force flag");
@@ -197,7 +197,7 @@ async fn example_custom_fixture_validation() {
         .expect("Failed to create environment from fixture");
     
     // Verify the existing config content
-    let config_content = env.read_file("clambake.toml")
+    let config_content = env.read_file("my-little-soda.toml")
         .expect("Failed to read existing config");
     assert!(config_content.contains("old-owner"), "Should contain old owner in config");
     assert!(config_content.contains("tracing_enabled = false"), "Should have existing settings");
@@ -286,8 +286,8 @@ async fn example_advanced_validation() {
     assertions::assert_result_matches_expectation(&result, "repository_with_existing_files");
     
     // Custom post-init validation
-    if env.has_file("clambake.toml") {
-        let clambake_content = env.read_file("clambake.toml")
+    if env.has_file("my-little-soda.toml") {
+        let clambake_content = env.read_file("my-little-soda.toml")
             .expect("Failed to read clambake config");
         
         // Verify agent count was set correctly
@@ -304,7 +304,7 @@ async fn example_advanced_validation() {
     assert!(env.has_file("src/lib.rs"), "Original lib.rs should be preserved");
     
     // Custom directory structure check
-    let clambake_agents_dir = env.path().join(".clambake/agents");
+    let clambake_agents_dir = env.path().join(".my-little-soda/agents");
     assert!(clambake_agents_dir.exists(), "Agent working directory should be created");
     
     println!("✅ Example 10 passed: Advanced validation completed");

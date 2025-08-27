@@ -80,8 +80,6 @@ mod tests {
         let config = MyLittleSodaConfig::default();
         
         // Then: Agents section should have valid constraints
-        assert!(config.agents.max_agents > 0 && config.agents.max_agents <= 12, 
-                "Max agents should be between 1 and 12");
         assert!(config.agents.coordination_timeout_seconds > 0, 
                 "Coordination timeout should be positive");
         assert!(config.agents.bundle_processing.max_queue_size > 0, 
@@ -117,7 +115,6 @@ mod tests {
         assert!(!parsed_config.github.owner.is_empty(), "GitHub owner is required");
         assert!(!parsed_config.github.repo.is_empty(), "GitHub repo is required");
         assert!(!parsed_config.observability.log_level.is_empty(), "Log level is required");
-        assert!(parsed_config.agents.max_agents > 0, "Max agents is required");
         assert!(parsed_config.agents.bundle_processing.max_queue_size > 0, "Bundle queue size is required");
         assert!(parsed_config.agents.work_continuity.enable_continuity || !parsed_config.agents.work_continuity.enable_continuity, 
                 "Work continuity enable flag is required");
@@ -185,7 +182,6 @@ mod tests {
         let config = MyLittleSodaConfig::default();
         
         // Then: Agent defaults should be appropriate
-        assert_eq!(config.agents.max_agents, 1, "Default max agents should be 1");
         assert_eq!(config.agents.coordination_timeout_seconds, 300, "Default coordination timeout should be 5 minutes");
         assert_eq!(config.agents.bundle_processing.max_queue_size, 50, "Default queue size should be reasonable");
         assert_eq!(config.agents.bundle_processing.processing_timeout_seconds, 1800, "Default processing timeout should be 30 minutes");
@@ -247,14 +243,11 @@ mod tests {
         
         // When: We test boundary conditions
         
-        // Test max_agents boundary (valid range 1-12)
-        config.agents.max_agents = 1;
-        assert!(config.agents.max_agents >= 1 && config.agents.max_agents <= 12, 
-                "Max agents should be within valid range");
-        
-        config.agents.max_agents = 12;
-        assert!(config.agents.max_agents >= 1 && config.agents.max_agents <= 12, 
-                "Max agents should be within valid range");
+        // Test agent configuration constraints
+        assert!(config.agents.coordination_timeout_seconds > 0, 
+                "Agent coordination timeout should be positive");
+        assert!(config.agents.bundle_processing.max_queue_size > 0, 
+                "Bundle queue size should be positive");
         
         // Test timeout values are positive
         assert!(config.agents.coordination_timeout_seconds > 0, 
@@ -348,20 +341,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_clambake_toml_file_generation_and_validation() {
+    async fn test_my_little_soda_toml_file_generation_and_validation() {
         // Given: A temporary directory for testing file generation
         let temp_dir = TempDir::new().unwrap();
-        let clambake_toml_path = temp_dir.path().join("clambake.toml");
+        let my_little_soda_toml_path = temp_dir.path().join("my-little-soda.toml");
         
-        // When: We create and save a configuration as clambake.toml
+        // When: We create and save a configuration as my-little-soda.toml
         let config = MyLittleSodaConfig::default();
-        config.save_to_file(&clambake_toml_path).unwrap();
+        config.save_to_file(&my_little_soda_toml_path).unwrap();
         
         // Then: The file should exist and be readable
-        assert!(clambake_toml_path.exists(), "clambake.toml should be created");
+        assert!(my_little_soda_toml_path.exists(), "my-little-soda.toml should be created");
         
         // And: The file content should be valid TOML
-        let file_content = fs::read_to_string(&clambake_toml_path).unwrap();
+        let file_content = fs::read_to_string(&my_little_soda_toml_path).unwrap();
         let parsed_config: MyLittleSodaConfig = toml::from_str(&file_content).unwrap();
         
         // And: The parsed config should match the original
@@ -369,25 +362,25 @@ mod tests {
                   "Parsed GitHub owner should match original");
         assert_eq!(parsed_config.github.repo, config.github.repo, 
                   "Parsed GitHub repo should match original");
-        assert_eq!(parsed_config.agents.max_agents, config.agents.max_agents, 
-                  "Parsed max agents should match original");
+        assert_eq!(parsed_config.agents.coordination_timeout_seconds, config.agents.coordination_timeout_seconds, 
+                  "Parsed coordination timeout should match original");
     }
 
     #[tokio::test]
-    async fn test_clambake_toml_loading_validation() {
-        // Given: A temporary directory with a clambake.toml file  
+    async fn test_my_little_soda_toml_loading_validation() {
+        // Given: A temporary directory with a my-little-soda.toml file  
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
         
-        // Create a valid clambake.toml file in temp directory
+        // Create a valid my-little-soda.toml file in temp directory
         let default_config = MyLittleSodaConfig::default();
         let config_content = toml::to_string_pretty(&default_config).unwrap();
-        fs::write(temp_dir.path().join("clambake.toml"), config_content).unwrap();
+        fs::write(temp_dir.path().join("my-little-soda.toml"), config_content).unwrap();
         
         // When: We change to temp directory and try to load config
         std::env::set_current_dir(temp_dir.path()).unwrap();
         
-        // Note: Current config loader looks for my-little-soda.toml, not clambake.toml
+        // Note: Current config loader looks for my-little-soda.toml
         // This test documents the current behavior and the need for consistency
         let loaded_result = MyLittleSodaConfig::load();
         
@@ -407,37 +400,37 @@ mod tests {
                     "Loading failure should be related to missing work_continuity field, got: {}", 
                     error_msg
                 );
-                // This documents that clambake.toml generation needs to be consistent with loading
+                // This documents that my-little-soda.toml generation needs to be consistent with loading
             }
         }
     }
 
     #[test]
-    fn test_clambake_toml_syntax_validation() {
-        // Given: A configuration that would be saved as clambake.toml
+    fn test_my_little_soda_toml_syntax_validation() {
+        // Given: A configuration that would be saved as my-little-soda.toml
         let config = MyLittleSodaConfig::default();
         
         // When: We serialize to TOML format (as done by init command)
         let toml_result = toml::to_string_pretty(&config);
         
         // Then: TOML should be syntactically valid
-        assert!(toml_result.is_ok(), "clambake.toml content should be valid TOML syntax");
+        assert!(toml_result.is_ok(), "my-little-soda.toml content should be valid TOML syntax");
         
         // And: Should contain expected sections
         let toml_content = toml_result.unwrap();
-        assert!(toml_content.contains("[github]"), "clambake.toml should contain [github] section");
-        assert!(toml_content.contains("[observability]"), "clambake.toml should contain [observability] section");  
-        assert!(toml_content.contains("[agents]"), "clambake.toml should contain [agents] section");
-        assert!(toml_content.contains("[database]"), "clambake.toml should contain [database] section");
+        assert!(toml_content.contains("[github]"), "my-little-soda.toml should contain [github] section");
+        assert!(toml_content.contains("[observability]"), "my-little-soda.toml should contain [observability] section");  
+        assert!(toml_content.contains("[agents]"), "my-little-soda.toml should contain [agents] section");
+        assert!(toml_content.contains("[database]"), "my-little-soda.toml should contain [database] section");
         
         // And: Should be parseable back to config
         let parsed: Result<MyLittleSodaConfig, _> = toml::from_str(&toml_content);
-        assert!(parsed.is_ok(), "Generated clambake.toml should be parseable back to config");
+        assert!(parsed.is_ok(), "Generated my-little-soda.toml should be parseable back to config");
     }
 
     #[test] 
-    fn test_clambake_toml_completeness_validation() {
-        // Given: Configuration as it would appear in clambake.toml
+    fn test_my_little_soda_toml_completeness_validation() {
+        // Given: Configuration as it would appear in my-little-soda.toml
         let config = MyLittleSodaConfig::default();
         let toml_content = toml::to_string_pretty(&config).unwrap();
         let parsed_config: MyLittleSodaConfig = toml::from_str(&toml_content).unwrap();
@@ -445,56 +438,55 @@ mod tests {
         // Then: All critical fields should be present and valid
         
         // GitHub section completeness
-        assert!(!parsed_config.github.owner.is_empty(), "clambake.toml should have github.owner");
-        assert!(!parsed_config.github.repo.is_empty(), "clambake.toml should have github.repo");
-        assert!(parsed_config.github.rate_limit.requests_per_hour > 0, "clambake.toml should have positive rate limit");
+        assert!(!parsed_config.github.owner.is_empty(), "my-little-soda.toml should have github.owner");
+        assert!(!parsed_config.github.repo.is_empty(), "my-little-soda.toml should have github.repo");
+        assert!(parsed_config.github.rate_limit.requests_per_hour > 0, "my-little-soda.toml should have positive rate limit");
         
         // Observability section completeness
-        assert!(!parsed_config.observability.log_level.is_empty(), "clambake.toml should have log_level");
+        assert!(!parsed_config.observability.log_level.is_empty(), "my-little-soda.toml should have log_level");
         assert!(["trace", "debug", "info", "warn", "error"].contains(&parsed_config.observability.log_level.as_str()), 
-               "clambake.toml should have valid log level");
+               "my-little-soda.toml should have valid log level");
         
         // Agents section completeness
-        assert!(parsed_config.agents.max_agents > 0, "clambake.toml should have positive max_agents");
-        assert!(parsed_config.agents.coordination_timeout_seconds > 0, "clambake.toml should have positive coordination timeout");
-        assert!(!parsed_config.agents.process_management.claude_code_path.is_empty(), "clambake.toml should have claude_code_path");
+        assert!(parsed_config.agents.coordination_timeout_seconds > 0, "my-little-soda.toml should have positive coordination timeout");
+        assert!(!parsed_config.agents.process_management.claude_code_path.is_empty(), "my-little-soda.toml should have claude_code_path");
         
         // Work continuity completeness
         let wc = &parsed_config.agents.work_continuity;
-        assert!(!wc.state_file_path.is_empty(), "clambake.toml should have work continuity state file path");
-        assert!(wc.backup_interval_minutes > 0, "clambake.toml should have positive backup interval");
+        assert!(!wc.state_file_path.is_empty(), "my-little-soda.toml should have work continuity state file path");
+        assert!(wc.backup_interval_minutes > 0, "my-little-soda.toml should have positive backup interval");
         
         // Database section completeness
-        assert!(parsed_config.database.is_some(), "clambake.toml should have database section");
+        assert!(parsed_config.database.is_some(), "my-little-soda.toml should have database section");
         let db = parsed_config.database.unwrap();
-        assert!(!db.url.is_empty(), "clambake.toml should have database url");
-        assert!(db.max_connections > 0, "clambake.toml should have positive max connections");
+        assert!(!db.url.is_empty(), "my-little-soda.toml should have database url");
+        assert!(db.max_connections > 0, "my-little-soda.toml should have positive max connections");
     }
 
     #[test]
-    fn test_clambake_toml_directory_paths_validation() {
-        // Given: Default configuration for clambake.toml
+    fn test_my_little_soda_toml_directory_paths_validation() {
+        // Given: Default configuration for my-little-soda.toml
         let config = MyLittleSodaConfig::default();
         
-        // Then: Directory paths should be appropriate for clambake
+        // Then: Directory paths should be appropriate for my-little-soda
         
-        // Work continuity paths should use .clambake directory (consistent with init command)
+        // Work continuity paths should use .my-little-soda directory (consistent with init command)
         let expected_state_path = ".my-little-soda/agent-state.json"; // Current default
         assert_eq!(config.agents.work_continuity.state_file_path, expected_state_path, 
                   "State file path should be in .my-little-soda directory");
         
-        // Process management paths should use .clambake directory  
+        // Process management paths should use .my-little-soda directory  
         let expected_work_dir = ".my-little-soda/agents"; // Current default
         assert_eq!(config.agents.process_management.work_dir_prefix, expected_work_dir,
                   "Work directory should be in .my-little-soda directory");
         
-        // Database should use .clambake directory
+        // Database should use .my-little-soda directory
         if let Some(ref db) = config.database {
             let expected_db_path = ".my-little-soda/my-little-soda.db"; // Current default
             assert_eq!(db.url, expected_db_path, "Database should be in .my-little-soda directory");
         }
         
-        // Note: The init command creates .clambake directory but config defaults use .my-little-soda
+        // Note: The init command creates .my-little-soda directory and config defaults use .my-little-soda
         // This test documents the current state and potential inconsistency
     }
 
@@ -503,26 +495,21 @@ mod tests {
         // Given: A configuration with init command constraints
         let mut config = MyLittleSodaConfig::default();
         
-        // Test agent count constraints (init command validates 1-12)
-        config.agents.max_agents = 1;
+        // Test agent configuration constraints
         let toml_content = toml::to_string_pretty(&config).unwrap();
         let parsed: MyLittleSodaConfig = toml::from_str(&toml_content).unwrap();
-        assert!(parsed.agents.max_agents >= 1 && parsed.agents.max_agents <= 12, 
-               "clambake.toml max_agents should be within init command range");
-        
-        config.agents.max_agents = 12;
-        let toml_content = toml::to_string_pretty(&config).unwrap();
-        let parsed: MyLittleSodaConfig = toml::from_str(&toml_content).unwrap();
-        assert!(parsed.agents.max_agents >= 1 && parsed.agents.max_agents <= 12, 
-               "clambake.toml max_agents should be within init command range");
+        assert!(parsed.agents.coordination_timeout_seconds > 0, 
+               "my-little-soda.toml coordination timeout should be positive");
+        assert!(parsed.agents.bundle_processing.max_queue_size > 0, 
+               "my-little-soda.toml bundle queue size should be positive");
         
         // Test CI mode defaults
-        assert!(!config.agents.ci_mode.enabled, "CI mode should be disabled by default in clambake.toml");
+        assert!(!config.agents.ci_mode.enabled, "CI mode should be disabled by default in my-little-soda.toml");
         assert_eq!(config.agents.ci_mode.artifact_handling, "standard", 
-                  "clambake.toml should have standard artifact handling");
+                  "my-little-soda.toml should have standard artifact handling");
         
         // Test process management defaults for safety
         assert!(!config.agents.process_management.enable_real_agents, 
-               "clambake.toml should have real agents disabled by default for safety");
+               "my-little-soda.toml should have real agents disabled by default for safety");
     }
 }

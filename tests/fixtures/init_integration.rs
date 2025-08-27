@@ -85,12 +85,12 @@ impl InitCommandTestEnvironment {
         let mut validation = PostInitValidationResult::new();
         
         // Check if config file was created (unless dry run)
-        let config_exists = self.path().join("clambake.toml").exists();
+        let config_exists = self.path().join("my-little-soda.toml").exists();
         validation.config_created = config_exists;
         validation.expected_config_creation = self.expected_behavior.should_create_config && !dry_run;
         
-        // Check if .clambake directory was created (unless dry run)
-        let clambake_dir_exists = self.path().join(".clambake").exists();
+        // Check if .my-little-soda directory was created (unless dry run)
+        let clambake_dir_exists = self.path().join(".my-little-soda").exists();
         validation.directories_created = clambake_dir_exists;
         validation.expected_directory_creation = self.expected_behavior.should_create_directories && !dry_run;
         

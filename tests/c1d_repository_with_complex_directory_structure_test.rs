@@ -9,8 +9,8 @@
 /// The init command is designed to respect existing project organization:
 /// 
 /// ### File Placement Strategy
-/// - **clambake.toml**: Placed at repository root level
-/// - **.clambake/** directory: Created at repository root level
+/// - **my-little-soda.toml**: Placed at repository root level
+/// - **.my-little-soda/** directory: Created at repository root level
 /// - **No interference**: Clambake files never created within existing project directories
 /// 
 /// ### Directory Structure Preservation
@@ -135,15 +135,15 @@ async fn test_init_file_placement_respects_structure() {
     assert!(result.success, "Init should succeed: {:?}", result.error_message);
     
     // In dry run mode, files should NOT be created, but command should succeed
-    assert!(!env.has_file("clambake.toml"), "Clambake config should not be created in dry run");
-    assert!(!env.has_file(".clambake"), "Clambake directory should not be created in dry run");
+    assert!(!env.has_file("my-little-soda.toml"), "Clambake config should not be created in dry run");
+    assert!(!env.has_file(".my-little-soda"), "Clambake directory should not be created in dry run");
     
     // Verify clambake files don't interfere with existing structure (checked during dry run validation)
-    assert!(!env.has_file("src/.clambake"), "Clambake should not create files in src/");
-    assert!(!env.has_file("crates/.clambake"), "Clambake should not create files in crates/");
-    assert!(!env.has_file("services/.clambake"), "Clambake should not create files in services/");
-    assert!(!env.has_file("docs/.clambake"), "Clambake should not create files in docs/");
-    assert!(!env.has_file("config/.clambake"), "Clambake should not create files in config/");
+    assert!(!env.has_file("src/.my-little-soda"), "Clambake should not create files in src/");
+    assert!(!env.has_file("crates/.my-little-soda"), "Clambake should not create files in crates/");
+    assert!(!env.has_file("services/.my-little-soda"), "Clambake should not create files in services/");
+    assert!(!env.has_file("docs/.my-little-soda"), "Clambake should not create files in docs/");
+    assert!(!env.has_file("config/.my-little-soda"), "Clambake should not create files in config/");
     
     // Verify all original directories and files are still present
     for dir in &original_directories {
@@ -294,8 +294,8 @@ async fn test_no_directory_structure_conflicts() {
     assert!(result.success, "Init should succeed without directory conflicts");
     
     // In dry run mode, files should NOT be created, but we verify behavior
-    assert!(!env.has_file("clambake.toml"), "Clambake config should not be created in dry run");
-    assert!(!env.has_file(".clambake"), "Clambake directory should not be created in dry run");
+    assert!(!env.has_file("my-little-soda.toml"), "Clambake config should not be created in dry run");
+    assert!(!env.has_file(".my-little-soda"), "Clambake directory should not be created in dry run");
     
     // Verify existing directory structure is preserved
     assert!(env.has_file("src/config/mod.rs"), "Source structure preserved");
@@ -305,11 +305,11 @@ async fn test_no_directory_structure_conflicts() {
     assert!(env.has_file("config/development.toml"), "Configuration structure preserved");
     
     // Verify no directory naming conflicts
-    assert!(!env.has_file(".clambake/src"), "No src directory conflict");
-    assert!(!env.has_file(".clambake/crates"), "No crates directory conflict");  
-    assert!(!env.has_file(".clambake/services"), "No services directory conflict");
-    assert!(!env.has_file(".clambake/docs"), "No docs directory conflict");
-    assert!(!env.has_file(".clambake/config"), "No config directory conflict");
+    assert!(!env.has_file(".my-little-soda/src"), "No src directory conflict");
+    assert!(!env.has_file(".my-little-soda/crates"), "No crates directory conflict");  
+    assert!(!env.has_file(".my-little-soda/services"), "No services directory conflict");
+    assert!(!env.has_file(".my-little-soda/docs"), "No docs directory conflict");
+    assert!(!env.has_file(".my-little-soda/config"), "No config directory conflict");
     
     // Read and verify workspace configuration doesn't have clambake interference
     let workspace_config = env.read_file("Cargo.toml")
@@ -390,8 +390,8 @@ async fn test_complete_c1d_scenario() {
     }
     
     // In dry run mode, clambake files should NOT be created
-    assert!(!env.has_file("clambake.toml"), "Clambake config should not be created in dry run");
-    assert!(!env.has_file(".clambake"), "Clambake directory should not be created in dry run");
+    assert!(!env.has_file("my-little-soda.toml"), "Clambake config should not be created in dry run");
+    assert!(!env.has_file(".my-little-soda"), "Clambake directory should not be created in dry run");
     
     println!("✅ Directory structure preservation validated");
     
@@ -405,10 +405,10 @@ async fn test_complete_c1d_scenario() {
            "Post-init validation should pass: {:?}", post_init.validation_failures());
     
     // Verify appropriate file placement behavior (in dry run, files are not created)
-    assert!(!env.has_file("clambake.toml"), "Config should not be created in dry run");
-    assert!(!env.has_file("src/clambake.toml"), "Config should not be in src/");
-    assert!(!env.has_file("crates/clambake.toml"), "Config should not be in crates/");
-    assert!(!env.has_file("services/clambake.toml"), "Config should not be in services/");
+    assert!(!env.has_file("my-little-soda.toml"), "Config should not be created in dry run");
+    assert!(!env.has_file("src/my-little-soda.toml"), "Config should not be in src/");
+    assert!(!env.has_file("crates/my-little-soda.toml"), "Config should not be in crates/");
+    assert!(!env.has_file("services/my-little-soda.toml"), "Config should not be in services/");
     
     // Verify workspace structure remains intact
     let workspace_config = env.read_file("Cargo.toml")

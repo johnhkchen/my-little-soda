@@ -143,16 +143,16 @@ impl RepositoryStateValidator {
     
     /// Validate cross-property consistency
     fn validate_property_consistency(fixture: &RepositoryStateFixture, report: &mut FixtureValidationReport) -> Result<()> {
-        // If existing_clambake_config is Some, should have clambake.toml in files
+        // If existing_clambake_config is Some, should have my-little-soda.toml in files
         if fixture.existing_clambake_config.is_some() {
-            if !fixture.files.contains_key("clambake.toml") {
-                report.add_error("existing_clambake_config is present but clambake.toml not in files");
+            if !fixture.files.contains_key("my-little-soda.toml") {
+                report.add_error("existing_clambake_config is present but my-little-soda.toml not in files");
             } else {
                 // Content should match
-                let file_content = &fixture.files["clambake.toml"];
+                let file_content = &fixture.files["my-little-soda.toml"];
                 let config_content = fixture.existing_clambake_config.as_ref().unwrap();
                 if file_content != config_content {
-                    report.add_error("clambake.toml file content doesn't match existing_clambake_config");
+                    report.add_error("my-little-soda.toml file content doesn't match existing_clambake_config");
                 }
             }
         }

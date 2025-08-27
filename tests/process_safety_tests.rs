@@ -19,10 +19,10 @@ pub struct ProcessSafetyTestHelper {
 impl ProcessSafetyTestHelper {
     pub fn new() -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        let lock_file_path = temp_dir.path().join(".clambake").join("bundle.lock");
+        let lock_file_path = temp_dir.path().join(".my-little-soda").join("bundle.lock");
 
-        // Create .clambake directory
-        create_dir_all(temp_dir.path().join(".clambake"))?;
+        // Create .my-little-soda directory
+        create_dir_all(temp_dir.path().join(".my-little-soda"))?;
 
         Ok(Self {
             temp_dir,
