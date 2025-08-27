@@ -21,9 +21,9 @@ pub enum StuckAgentPattern {
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Architectural error enum - fields reserved for future error context
 pub enum StateError {
-    GitHubError(String),
-    GitError(String),
-    ValidationError(String),
+    GitHub(String),
+    Git(String),
+    Validation(String),
 }
 use crate::github::GitHubClient;
 
@@ -114,7 +114,7 @@ impl StateValidator {
                 Ok(!branches_output.trim().is_empty())
             }
             Ok(_) => Ok(false),
-            Err(e) => Err(StateError::GitError(format!(
+            Err(e) => Err(StateError::Git(format!(
                 "Failed to check git branches: {e}"
             ))),
         }
@@ -137,7 +137,7 @@ impl StateValidator {
                 &format!("origin/{expected_branch_prefix}*"),
             ])
             .output()
-            .map_err(|e| StateError::GitError(format!("Failed to list branches: {e}")))?;
+            .map_err(|e| StateError::Git(format!("Failed to list branches: {e}")))?;
 
         if !branch_output.status.success() {
             return Ok(None);
@@ -160,7 +160,7 @@ impl StateValidator {
                     &format!("origin/main..origin/{branch_name}"),
                 ])
                 .output()
-                .map_err(|e| StateError::GitError(format!("Failed to count commits: {e}")))?;
+                .map_err(|e| StateError::Git(format!("Failed to count commits: {e}")))?;
 
             if commits_output.status.success() {
                 let count_str = String::from_utf8_lossy(&commits_output.stdout)
@@ -181,7 +181,7 @@ impl StateValidator {
             .github_client
             .fetch_issues_with_state(Some(octocrab::params::State::Open))
             .await
-            .map_err(|e| StateError::GitHubError(format!("Failed to fetch issues: {e}")))?;
+            .map_err(|e| StateError::GitHub(format!("Failed to fetch issues: {e}")))?;
 
         let mut patterns = Vec::new();
 
@@ -209,7 +209,7 @@ impl StateValidator {
         let branch_output = std::process::Command::new("git")
             .args(["branch", "-r", "--list", "origin/agent*"])
             .output()
-            .map_err(|e| StateError::GitError(format!("Failed to list agent branches: {e}")))?;
+            .map_err(|e| StateError::Git(format!("Failed to list agent branches: {e}")))?;
 
         if !branch_output.status.success() {
             return Ok(Vec::new());
@@ -263,7 +263,7 @@ impl StateValidator {
             .github_client
             .fetch_issues_with_state(Some(octocrab::params::State::Open))
             .await
-            .map_err(|e| StateError::GitHubError(format!("Failed to fetch issues: {e}")))?;
+            .map_err(|e| StateError::GitHub(format!("Failed to fetch issues: {e}")))?;
 
         let mut patterns = Vec::new();
 
@@ -301,7 +301,7 @@ impl StateValidation for StateValidator {
             .github_client
             .fetch_issues_with_state(Some(octocrab::params::State::Open))
             .await
-            .map_err(|e| StateError::GitHubError(format!("Failed to fetch issues: {e}")))?;
+            .map_err(|e| StateError::GitHub(format!("Failed to fetch issues: {e}")))?;
 
         let agent_issues: Vec<_> = issues
             .into_iter()
@@ -432,7 +432,7 @@ impl StateValidation for StateValidator {
             "LabeledButNoBranch" => self.detect_labeled_but_no_branch().await,
             "BranchButNoLabel" => self.detect_branch_but_no_label().await,
             "WorkingButNoCommits" => self.detect_working_but_no_commits().await,
-            _ => Err(StateError::ValidationError(format!(
+            _ => Err(StateError::Validation(format!(
                 "Unknown pattern type: {pattern_type}"
             ))),
         }
@@ -617,23 +617,23 @@ mod tests {
 
     #[test]
     fn test_state_error_types() {
-        let github_error = StateError::GitHubError("GitHub API failed".to_string());
-        let git_error = StateError::GitError("Git command failed".to_string());
-        let validation_error = StateError::ValidationError("Invalid state".to_string());
+        let github_error = StateError::GitHub("GitHub API failed".to_string());
+        let git_error = StateError::Git("Git command failed".to_string());
+        let validation_error = StateError::Validation("Invalid state".to_string());
 
         match github_error {
-            StateError::GitHubError(msg) => assert_eq!(msg, "GitHub API failed"),
-            _ => panic!("Expected GitHubError"),
+            StateError::GitHub(msg) => assert_eq!(msg, "GitHub API failed"),
+            _ => panic!("Expected GitHub error"),
         }
 
         match git_error {
-            StateError::GitError(msg) => assert_eq!(msg, "Git command failed"),
-            _ => panic!("Expected GitError"),
+            StateError::Git(msg) => assert_eq!(msg, "Git command failed"),
+            _ => panic!("Expected Git error"),
         }
 
         match validation_error {
-            StateError::ValidationError(msg) => assert_eq!(msg, "Invalid state"),
-            _ => panic!("Expected ValidationError"),
+            StateError::Validation(msg) => assert_eq!(msg, "Invalid state"),
+            _ => panic!("Expected Validation error"),
         }
     }
 }

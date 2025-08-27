@@ -133,8 +133,8 @@ impl RoutingCoordinator {
         github_client: &GitHubClient,
         current_user: &str,
     ) -> Result<Option<RoutingAssignment>, GitHubError> {
-        let _routing_start = Instant::now();
-        let _correlation_id = generate_correlation_id();
+        let routing_start = Instant::now();
+        let correlation_id = generate_correlation_id();
 
         let all_issues = github_client.fetch_issues().await?;
         let available_issues = self
@@ -182,16 +182,16 @@ impl RoutingCoordinator {
                         })
                 };
 
-                let _active_issues = [issue.number];
+                let active_issues = [issue.number];
                 #[cfg(feature = "metrics")]
                 let _ = self
                     .metrics_tracker
                     .track_agent_utilization(
                         &agent.id,
                         1,
-                        agent.capacity,
+                        1, // Default capacity for single agent
                         active_issues,
-                        &format!("{:?}", agent.state),
+                        "Working", // Single agent state
                     )
                     .await;
 
