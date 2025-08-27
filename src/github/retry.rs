@@ -126,6 +126,7 @@ impl GitHubRetryHandler {
             GitHubError::RateLimit { .. } => true, // Rate limits are definitely retryable
             GitHubError::Timeout { .. } => true, // Timeouts are retryable
             GitHubError::NetworkError(_) => true, // Network errors are retryable
+            GitHubError::TokenScopeInsufficient { .. } => false, // Token scope issues are not retryable
         }
     }
 }
