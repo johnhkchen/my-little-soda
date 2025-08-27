@@ -30,13 +30,15 @@ pub struct GitHubRetryHandler {
     config: RetryConfig,
 }
 
+impl Default for GitHubRetryHandler {
+    fn default() -> Self {
+        Self::new(RetryConfig::default())
+    }
+}
+
 impl GitHubRetryHandler {
     pub fn new(config: RetryConfig) -> Self {
         Self { config }
-    }
-
-    pub fn default() -> Self {
-        Self::new(RetryConfig::default())
     }
 
     /// Execute a GitHub API operation with exponential backoff retry

@@ -6,6 +6,12 @@ pub struct StatusCommand {
     pub ci_mode: bool,
 }
 
+impl Default for StatusCommand {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatusCommand {
     pub fn new() -> Self {
         Self { ci_mode: false }

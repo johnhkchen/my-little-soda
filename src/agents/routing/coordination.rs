@@ -182,7 +182,7 @@ impl RoutingCoordinator {
                         })
                 };
 
-                let _active_issues = vec![issue.number];
+                let _active_issues = [issue.number];
                 #[cfg(feature = "metrics")]
                 let _ = self
                     .metrics_tracker

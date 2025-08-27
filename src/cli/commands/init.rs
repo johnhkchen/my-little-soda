@@ -26,7 +26,6 @@
 /// 
 /// This approach ensures that my-little-soda can be initialized in any existing repository
 /// without risk of data loss or conflicts with existing project structure.
-
 use crate::config::{
     AgentConfig, AgentProcessConfig, BundleConfig, CIModeConfig, DatabaseConfig, GitHubConfig,
     MyLittleSodaConfig, ObservabilityConfig, RateLimitConfig, WorkContinuityConfig,
@@ -220,16 +219,16 @@ impl InitCommand {
                         } else {
                             val
                         };
-                        println!("   ✅ VERBOSE: {} = {}", var, display_val);
+                        println!("   ✅ VERBOSE: {var} = {display_val}");
                     },
                     Ok(val) if val.contains("YOUR_") || val.contains("your-") => {
-                        println!("   ⚠️  VERBOSE: {} = {} (placeholder value - needs to be set)", var, val);
+                        println!("   ⚠️  VERBOSE: {var} = {val} (placeholder value - needs to be set)");
                     },
                     Ok(_) => {
-                        println!("   ⚠️  VERBOSE: {} = (empty)", var);
+                        println!("   ⚠️  VERBOSE: {var} = (empty)");
                     },
                     Err(_) => {
-                        println!("   ℹ️  VERBOSE: {} = (not set)", var);
+                        println!("   ℹ️  VERBOSE: {var} = (not set)");
                     }
                 }
             }
@@ -243,9 +242,9 @@ impl InitCommand {
             
             for file in cred_files {
                 if std::path::Path::new(file).exists() {
-                    println!("   ✅ VERBOSE: {} exists", file);
+                    println!("   ✅ VERBOSE: {file} exists");
                 } else {
-                    println!("   ℹ️  VERBOSE: {} not found", file);
+                    println!("   ℹ️  VERBOSE: {file} not found");
                 }
             }
             
@@ -283,7 +282,7 @@ impl InitCommand {
             .await
             .map_err(|e| {
                 if self.verbose {
-                    println!("   ❌ VERBOSE: GitHub CLI command failed: {}", e);
+                    println!("   ❌ VERBOSE: GitHub CLI command failed: {e}");
                 }
                 anyhow!(
                     "Failed to run 'gh auth status': {}. Make sure GitHub CLI is installed.",
@@ -394,7 +393,7 @@ impl InitCommand {
             },
             Err(e) => {
                 if self.verbose {
-                    println!("   ❌ VERBOSE: GitHub client creation failed: {}", e);
+                    println!("   ❌ VERBOSE: GitHub client creation failed: {e}");
                 }
                 return Err(anyhow!("Failed to create GitHub client: {}", e));
             }
@@ -428,7 +427,7 @@ impl InitCommand {
             .await
             .map_err(|e| {
                 if self.verbose {
-                    println!("   ❌ VERBOSE: Repository access failed: {}", e);
+                    println!("   ❌ VERBOSE: Repository access failed: {e}");
                     println!("   🔍 VERBOSE: Repository: {}/{}", github_client.owner(), github_client.repo());
                 }
                 
@@ -436,13 +435,11 @@ impl InitCommand {
                 let enhanced_error = match &e {
                     octocrab::Error::GitHub { source, .. } => {
                         match source.status_code.as_u16() {
-                            401 => format!(
-                                "GitHub API authentication failed (HTTP 401).\n\
+                            401 => "GitHub API authentication failed (HTTP 401).\n\
                                  💡 Token is invalid or expired\n\
                                  💡 Try: gh auth login\n\
                                  💡 Or refresh token: gh auth refresh\n\
-                                 💡 Check token: gh auth token"
-                            ),
+                                 💡 Check token: gh auth token".to_string(),
                             403 => format!(
                                 "GitHub API access forbidden (HTTP 403).\n\
                                  💡 Token lacks required permissions\n\
@@ -468,12 +465,10 @@ impl InitCommand {
                             )
                         }
                     },
-                    octocrab::Error::Http { .. } => format!(
-                        "Network error connecting to GitHub API.\n\
+                    octocrab::Error::Http { .. } => "Network error connecting to GitHub API.\n\
                          💡 Check internet connectivity\n\
                          💡 Test: curl -I https://api.github.com\n\
-                         💡 Check firewall/proxy settings"
-                    ),
+                         💡 Check firewall/proxy settings".to_string(),
                     _ => format!(
                         "Failed to access repository {}/{}.\n\
                          💡 Check your GitHub token permissions\n\
@@ -499,7 +494,7 @@ impl InitCommand {
                 println!("      - Push: {}", permissions.push);
                 println!("      - Pull: {}", permissions.pull);
             }
-            println!("   🔍 VERBOSE: Has write permissions: {}", has_write_permissions);
+            println!("   🔍 VERBOSE: Has write permissions: {has_write_permissions}");
         }
 
         if !has_write_permissions {
@@ -564,7 +559,7 @@ impl InitCommand {
             .await
             .map_err(|e| {
                 if self.verbose {
-                    println!("   ❌ VERBOSE: Git status command failed: {}", e);
+                    println!("   ❌ VERBOSE: Git status command failed: {e}");
                 }
                 anyhow!("Failed to check git status: {}", e)
             })?;
@@ -578,7 +573,7 @@ impl InitCommand {
                 let changes = String::from_utf8_lossy(&output.stdout);
                 println!("   🔍 VERBOSE: Found uncommitted changes:");
                 for line in changes.lines() {
-                    println!("      {}", line);
+                    println!("      {line}");
                 }
                 println!("   🔍 VERBOSE: Force flag: {}", self.force);
             }

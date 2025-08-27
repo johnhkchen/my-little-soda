@@ -302,7 +302,7 @@ impl AutoRecovery {
 
         if has_work && self.preserve_work {
             // Try to add label to issue if it exists
-            if let Ok(_) = self.github_client.fetch_issue(issue).await {
+            if (self.github_client.fetch_issue(issue).await).is_ok() {
                 match self.github_client.issues.add_label(issue, agent_id).await {
                     Ok(_) => {
                         tracing::info!(
