@@ -70,25 +70,110 @@ impl GitHubClient {
 
     /// Pre-flight validation to ensure API connectivity and authentication
     async fn validate_api_connectivity(&self) -> Result<(), GitHubError> {
-        // Test with a simple API call that requires authentication
         let octocrab = self.issues.octocrab();
         
+        // Detect CI/CD environment for enhanced reporting
+        let is_ci = std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();
+        let environment_context = if is_ci { "CI/CD" } else { "local development" };
+        
+        // Test basic authentication first
         match octocrab.current().user().await {
-            Ok(_user) => Ok(()),
+            Ok(user) => {
+                eprintln!("✅ GitHub authentication successful");
+                eprintln!("   🧑‍💼 Authenticated as: {}", user.login);
+                eprintln!("   🌍 Environment: {}", environment_context);
+                
+                // Validate token scopes by attempting repository access
+                self.validate_token_scopes().await?;
+                Ok(())
+            },
             Err(octocrab_err) => {
-                // Transform generic octocrab error into specific actionable error
+                // Enhanced error reporting with environment context
                 match &octocrab_err {
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 401 => {
-                        Err(GitHubError::TokenNotFound(
-                            "GitHub API authentication failed (HTTP 401). Token may be invalid or expired.\n  → Run 'gh auth login' to refresh authentication\n  → Or set valid MY_LITTLE_SODA_GITHUB_TOKEN environment variable".to_string()
-                        ))
+                        let mut error_msg = format!(
+                            "GitHub API authentication failed (HTTP 401) in {} environment.\nToken may be invalid or expired.",
+                            environment_context
+                        );
+                        
+                        if is_ci {
+                            error_msg.push_str("\n\nCI/CD Environment Troubleshooting:");
+                            error_msg.push_str("\n  → Check GITHUB_TOKEN secret is set correctly");
+                            error_msg.push_str("\n  → Verify token hasn't expired");
+                            error_msg.push_str("\n  → Ensure workflow has appropriate permissions");
+                        } else {
+                            error_msg.push_str("\n\nLocal Development Troubleshooting:");
+                            error_msg.push_str("\n  → Run 'gh auth login' to refresh authentication");
+                            error_msg.push_str("\n  → Or set valid MY_LITTLE_SODA_GITHUB_TOKEN environment variable");
+                            error_msg.push_str("\n  → Check token at: https://github.com/settings/tokens");
+                        }
+                        
+                        Err(GitHubError::TokenNotFound(error_msg))
                     },
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
                         Err(GitHubError::ApiError(octocrab_err))
                     },
                     octocrab::Error::Http { .. } => {
-                        Err(GitHubError::NetworkError(
-                            "Unable to connect to GitHub API. Check your internet connection and try again.".to_string()
+                        let mut error_msg = format!(
+                            "Unable to connect to GitHub API from {} environment.",
+                            environment_context
+                        );
+                        
+                        if is_ci {
+                            error_msg.push_str("\n\nCI/CD Network Troubleshooting:");
+                            error_msg.push_str("\n  → GitHub Actions should have internet access by default");
+                            error_msg.push_str("\n  → Check for custom network configurations");
+                            error_msg.push_str("\n  → Verify GitHub status: https://status.github.com");
+                        } else {
+                            error_msg.push_str("\n\nLocal Network Troubleshooting:");
+                            error_msg.push_str("\n  → Check internet connectivity");
+                            error_msg.push_str("\n  → Test: curl -I https://api.github.com");
+                            error_msg.push_str("\n  → Check firewall/proxy settings");
+                        }
+                        
+                        Err(GitHubError::NetworkError(error_msg))
+                    },
+                    _ => Err(GitHubError::ApiError(octocrab_err))
+                }
+            }
+        }
+    }
+
+    /// Validate token has required scopes for repository operations
+    async fn validate_token_scopes(&self) -> Result<(), GitHubError> {
+        let octocrab = self.issues.octocrab();
+        
+        // Test repository access to validate scopes
+        match octocrab.repos(&self.owner, &self.repo).get().await {
+            Ok(repo) => {
+                eprintln!("   📦 Repository access confirmed: {}/{}", self.owner, self.repo);
+                if repo.private.unwrap_or(false) {
+                    eprintln!("   🔒 Token has access to private repository");
+                } else {
+                    eprintln!("   🌍 Token has access to public repository");
+                }
+                
+                // Test issue access permission
+                match octocrab.issues(&self.owner, &self.repo).list().per_page(1).send().await {
+                    Ok(_) => {
+                        eprintln!("   ✍️  Token has issue read access");
+                        Ok(())
+                    },
+                    Err(_) => {
+                        eprintln!("   ⚠️  Token may lack issue write permissions");
+                        Ok(()) // Don't fail - just warn
+                    }
+                }
+            },
+            Err(octocrab_err) => {
+                match &octocrab_err {
+                    octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
+                        Err(GitHubError::ApiError(octocrab_err))
+                    },
+                    octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 404 => {
+                        Err(GitHubError::ConfigNotFound(
+                            format!("Repository '{}/{}' not found or not accessible. Check GITHUB_OWNER and GITHUB_REPO configuration.", 
+                                   &self.owner, &self.repo)
                         ))
                     },
                     _ => Err(GitHubError::ApiError(octocrab_err))

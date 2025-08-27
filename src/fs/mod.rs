@@ -120,7 +120,7 @@ pub trait FileSystemOperations: Send + Sync {
     /// ```rust,no_run
     /// # use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
     /// let fs_ops = StandardFileSystem;
-    /// if fs_ops.exists("clambake.toml") {
+    /// if fs_ops.exists("my-little-soda.toml") {
     ///     println!("Configuration file exists");
     /// }
     /// ```
