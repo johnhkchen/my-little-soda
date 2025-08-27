@@ -124,7 +124,7 @@ impl RepositoryStateValidator {
         let behavior = fixture.expected_init_behavior();
         
         // If fixture has existing config, it shouldn't succeed without force
-        if fixture.existing_clambake_config.is_some() && behavior.should_succeed_without_force {
+        if fixture.existing_my_little_soda_config.is_some() && behavior.should_succeed_without_force {
             report.add_error("Fixtures with existing config should not succeed without force");
         }
         
@@ -143,16 +143,16 @@ impl RepositoryStateValidator {
     
     /// Validate cross-property consistency
     fn validate_property_consistency(fixture: &RepositoryStateFixture, report: &mut FixtureValidationReport) -> Result<()> {
-        // If existing_clambake_config is Some, should have my-little-soda.toml in files
-        if fixture.existing_clambake_config.is_some() {
+        // If existing_my_little_soda_config is Some, should have my-little-soda.toml in files
+        if fixture.existing_my_little_soda_config.is_some() {
             if !fixture.files.contains_key("my-little-soda.toml") {
-                report.add_error("existing_clambake_config is present but my-little-soda.toml not in files");
+                report.add_error("existing_my_little_soda_config is present but my-little-soda.toml not in files");
             } else {
                 // Content should match
                 let file_content = &fixture.files["my-little-soda.toml"];
-                let config_content = fixture.existing_clambake_config.as_ref().unwrap();
+                let config_content = fixture.existing_my_little_soda_config.as_ref().unwrap();
                 if file_content != config_content {
-                    report.add_error("my-little-soda.toml file content doesn't match existing_clambake_config");
+                    report.add_error("my-little-soda.toml file content doesn't match existing_my_little_soda_config");
                 }
             }
         }

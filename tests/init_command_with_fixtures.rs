@@ -359,7 +359,7 @@ async fn test_fixture_extensibility() {
             (".gitignore".to_string(), "target/\n*.log\ncustom/\n".to_string()),
         ]),
         git_config: crate::tests::fixtures::repository_states::GitConfig::default(),
-        existing_clambake_config: None,
+        existing_my_little_soda_config: None,
     };
     
     // Use the custom fixture

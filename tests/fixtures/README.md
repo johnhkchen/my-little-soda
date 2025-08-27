@@ -69,7 +69,7 @@ Located in `repository_states.rs`, these fixtures simulate different repository 
   ```rust
   let fixture = RepositoryStateFixture::repository_with_partial_initialization();
   assert!(!fixture.expected_init_behavior().should_succeed_without_force);
-  assert!(fixture.existing_clambake_config.is_some());
+  assert!(fixture.existing_my_little_soda_config.is_some());
   ```
 
 #### 4. Repository with Conflicts (`repository_with_conflicts`)
@@ -231,7 +231,7 @@ impl RepositoryStateFixture {
                 ("special_file.txt".to_string(), "special content".to_string()),
             ]),
             git_config: GitConfig::default(),
-            existing_clambake_config: None,
+            existing_my_little_soda_config: None,
         }
     }
 }
