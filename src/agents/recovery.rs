@@ -66,6 +66,7 @@ pub struct ComprehensiveRecoveryReport {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // Architectural error enum - variants reserved for future error handling
 pub enum RecoveryError {
     GitHubError(GitHubError),
     GitError(String),

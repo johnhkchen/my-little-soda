@@ -4,8 +4,7 @@ use anyhow::{anyhow, Result};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use crate::agent_lifecycle::traits::*;
-use crate::agent_lifecycle::types::*;
+// Removed unused imports - traits and types modules are not used in mocks
 
 /// Mock Git operations that store expected responses
 #[derive(Debug)]
