@@ -88,7 +88,7 @@ impl PeekCommand {
         }).await.or_else(|_| {
             println!("❌ Router initialization failed");
             println!();
-            println!("📚 Full setup guide: clambake init");
+            println!("📚 Full setup guide: my-little-soda init");
             Ok(())
         })
     }

@@ -297,8 +297,8 @@ impl BundleCommand {
         println!("📊 API calls per bundle: Tracking not implemented");
 
         println!();
-        println!("💡 Tip: Run 'clambake bundle --dry-run' to preview next bundle");
-        println!("💡 Tip: Use 'clambake bundle --verbose' for detailed output");
+        println!("💡 Tip: Run 'my-little-soda bundle --dry-run' to preview next bundle");
+        println!("💡 Tip: Use 'my-little-soda bundle --verbose' for detailed output");
 
         Ok(())
     }

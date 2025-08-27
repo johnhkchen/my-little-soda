@@ -72,7 +72,7 @@ impl RouteCommand {
                 }
             }
         }).await.or_else(|_| {
-            println!("📚 Need setup help? Run: clambake init");
+            println!("📚 Need setup help? Run: my-little-soda init");
             println!("🚀 For single tasks: my-little-soda pop");
             Ok(())
         })

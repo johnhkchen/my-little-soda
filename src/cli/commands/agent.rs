@@ -64,7 +64,7 @@ async fn show_single_agent_status(
     }
 
     println!();
-    println!("💡 Use 'clambake agent diagnose --agent {agent_id}' for detailed validation");
+    println!("💡 Use 'my-little-soda agent diagnose --agent {agent_id}' for detailed validation");
 
     Ok(())
 }
@@ -99,7 +99,7 @@ async fn show_all_agents_status(_router: &crate::agents::AgentRouter) -> Result<
     }
 
     println!();
-    println!("💡 Use 'clambake agent status --agent AGENT_ID' for detailed information");
+    println!("💡 Use 'my-little-soda agent status --agent AGENT_ID' for detailed information");
 
     Ok(())
 }
@@ -213,7 +213,7 @@ async fn diagnose_all_agents(_router: &crate::agents::AgentRouter) -> Result<()>
 
     println!();
     println!("✅ System appears healthy");
-    println!("💡 Use 'clambake agent diagnose --agent AGENT_ID' for detailed diagnostics");
+    println!("💡 Use 'my-little-soda agent diagnose --agent AGENT_ID' for detailed diagnostics");
 
     Ok(())
 }
@@ -290,7 +290,7 @@ async fn recover_single_agent(
 
         println!();
         println!("⚠️  Automatic recovery not yet fully implemented");
-        println!("💡 Use 'clambake agent force-reset --agent {agent_id}' for immediate reset");
+        println!("💡 Use 'my-little-soda agent force-reset --agent {agent_id}' for immediate reset");
     } else {
         println!("🔧 Attempting automatic recovery...");
 
@@ -303,7 +303,7 @@ async fn recover_single_agent(
             }
             Err(e) => {
                 println!("❌ Recovery failed: {e:?}");
-                println!("💡 Try 'clambake agent force-reset --agent {agent_id}' instead");
+                println!("💡 Try 'my-little-soda agent force-reset --agent {agent_id}' instead");
             }
         }
     }
@@ -337,7 +337,7 @@ async fn recover_all_agents(router: &crate::agents::AgentRouter, dry_run: bool) 
             }
             Err(e) => {
                 println!("❌ System recovery failed: {e:?}");
-                println!("💡 Try individual agent recovery with 'clambake agent recover --agent AGENT_ID'");
+                println!("💡 Try individual agent recovery with 'my-little-soda agent recover --agent AGENT_ID'");
             }
         }
     }
@@ -497,7 +497,7 @@ async fn validate_single_agent(agent_id: &str, _router: &crate::agents::AgentRou
         println!("✅ Agent {agent_id} validation passed");
     } else {
         println!("❌ Agent {agent_id} validation failed");
-        println!("💡 Use 'clambake agent recover --agent {agent_id}' to fix issues");
+        println!("💡 Use 'my-little-soda agent recover --agent {agent_id}' to fix issues");
     }
 
     Ok(())
@@ -538,7 +538,7 @@ async fn validate_all_agents(_router: &crate::agents::AgentRouter) -> Result<()>
         println!("✅ All agents validated successfully");
     } else {
         println!("⚠️  {issues_found} agents have validation issues");
-        println!("💡 Use 'clambake agent recover --all' to fix issues");
+        println!("💡 Use 'my-little-soda agent recover --all' to fix issues");
     }
 
     Ok(())

@@ -291,7 +291,7 @@ impl TrainSchedule {
         output.push_str("⏰ Schedule: :00, :10, :20, :30, :40, :50\n");
 
         if matches!(self.status, ScheduleStatus::Departing) && !queued_branches.is_empty() {
-            output.push_str("\n💡 Run 'clambake land' to bundle queued branches into PR\n");
+            output.push_str("\n💡 Run 'my-little-soda land' to bundle queued branches into PR\n");
         }
 
         output
