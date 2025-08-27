@@ -1,0 +1,41 @@
+# Cross-rs configuration for enhanced cross-compilation
+# This enables building for additional ARM targets including Raspberry Pi
+
+[build]
+# Default build environment
+default-target = "x86_64-unknown-linux-gnu"
+
+# ARM Raspberry Pi targets (Linux)
+[target.armv7-unknown-linux-gnueabihf]
+image = "ghcr.io/cross-rs/armv7-unknown-linux-gnueabihf:main"
+
+[target.aarch64-unknown-linux-gnu]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-gnu:main"
+
+# Additional ARM targets for embedded systems
+[target.arm-unknown-linux-gnueabihf]
+image = "ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:main"
+
+# OpenSSL configuration for cross-compilation
+[build.env]
+passthrough = [
+    "OPENSSL_VENDORED",
+    "OPENSSL_STATIC",
+    "OPENSSL_LIB_DIR",
+    "OPENSSL_INCLUDE_DIR",
+    "PKG_CONFIG_ALLOW_CROSS",
+    "RUSTFLAGS"
+]
+
+# ARM-specific environment configuration
+[target.armv7-unknown-linux-gnueabihf.env]
+OPENSSL_VENDORED = "1"
+OPENSSL_STATIC = "1"
+
+[target.aarch64-unknown-linux-gnu.env]
+OPENSSL_VENDORED = "1"
+OPENSSL_STATIC = "1"
+
+[target.arm-unknown-linux-gnueabihf.env]
+OPENSSL_VENDORED = "1"
+OPENSSL_STATIC = "1"

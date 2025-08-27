@@ -128,6 +128,22 @@ jobs:
             platform: windows-x64
             artifact_name: my-little-soda-windows-x64
             executable_suffix: ".exe"
+            
+          # ARM Raspberry Pi (ARMv7)
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            platform: raspberry-pi-armv7
+            artifact_name: my-little-soda-raspberry-pi-armv7
+            executable_suffix: ""
+            use_cross: true
+            
+          # ARM64 Raspberry Pi
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform: raspberry-pi-arm64
+            artifact_name: my-little-soda-raspberry-pi-arm64
+            executable_suffix: ""
+            use_cross: true
     
     steps:
       - name: Checkout repository
@@ -152,6 +168,13 @@ jobs:
             ~/.cargo/git
             target/
           cache-all-crates: true
+
+      # Install cross-rs for enhanced cross-compilation (ARM targets)
+      - name: Install cross-rs
+        if: matrix.use_cross == true
+        run: |
+          echo "Installing cross-rs for enhanced cross-compilation..."
+          cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Extract matrix variables
         id: matrix-vars
@@ -224,9 +247,35 @@ jobs:
           # List installed VS components for debugging
           Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*Visual Studio*" } | Select-Object Name, Version
 
-      # Linux/macOS build
+      # ARM Cross-compilation build using cross-rs
+      - name: Build binary for ARM targets using cross-rs
+        if: matrix.use_cross == true
+        env:
+          RUSTFLAGS: ""  # Override to allow warnings for testing
+        run: |
+          echo "Building for ARM platform: ${{ matrix.platform }}"
+          echo "Rust target: ${{ matrix.target }}"
+          echo "Using cross-rs for enhanced cross-compilation"
+          echo "Artifact name: ${{ matrix.artifact_name }}"
+          echo "Version: ${{ needs.prepare-release.outputs.version }}"
+          
+          # Build using cross-rs for ARM targets
+          echo "Cross-compilation build for ${{ matrix.platform }}"
+          cross build --release --target ${{ matrix.target }}
+          
+          # Copy binary to expected location
+          mkdir -p target/release-artifacts/
+          cp target/${{ matrix.target }}/release/my-little-soda target/release-artifacts/${{ matrix.artifact_name }}
+          
+          # Verify the ARM binary was created
+          echo "Verifying ARM binary..."
+          file target/release-artifacts/${{ matrix.artifact_name }}
+          ls -la target/release-artifacts/
+          echo "Binary size: $(du -h target/release-artifacts/${{ matrix.artifact_name }})"
+
+      # Linux/macOS build (native compilation)
       - name: Build binary for Linux/macOS
-        if: matrix.os != 'windows-latest'
+        if: matrix.os != 'windows-latest' && matrix.use_cross != true
         env:
           RUSTFLAGS: ""  # Override to allow warnings for testing
         run: |
@@ -294,11 +343,59 @@ jobs:
           path: target/release-artifacts/${{ matrix.artifact_name }}${{ matrix.executable_suffix }}
           retention-days: 30
 
+  # Create universal macOS binary
+  create-universal-macos:
+    name: Create Universal macOS Binary
+    runs-on: macos-latest
+    needs: [prepare-release, build-matrix]
+    steps:
+      - name: Download macOS x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: my-little-soda-macos-x86_64
+          path: ./macos-binaries/
+
+      - name: Download macOS ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: my-little-soda-macos-arm64
+          path: ./macos-binaries/
+
+      - name: Create universal macOS binary
+        run: |
+          echo "Creating universal macOS binary..."
+          
+          # Create universal binary using lipo
+          lipo -create \
+            ./macos-binaries/my-little-soda-macos-x86_64 \
+            ./macos-binaries/my-little-soda-macos-arm64 \
+            -output ./macos-binaries/my-little-soda-macos-universal
+          
+          # Verify universal binary
+          echo "Universal binary architecture:"
+          lipo -info ./macos-binaries/my-little-soda-macos-universal
+          
+          # Make executable
+          chmod +x ./macos-binaries/my-little-soda-macos-universal
+          
+          # Test that it works
+          ./macos-binaries/my-little-soda-macos-universal --version
+          
+          # Show binary size
+          echo "Binary size: $(du -h ./macos-binaries/my-little-soda-macos-universal)"
+
+      - name: Upload universal macOS binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-little-soda-macos-universal
+          path: ./macos-binaries/my-little-soda-macos-universal
+          retention-days: 30
+
   # Create GitHub Release with metadata
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [prepare-release, build-matrix]
+    needs: [prepare-release, build-matrix, create-universal-macos]
     outputs:
       release-id: ${{ steps.create-release.outputs.id }}
       upload-url: ${{ steps.create-release.outputs.upload_url }}
@@ -403,12 +500,41 @@ jobs:
           my-little-soda --version
           ```
           
-          ### macOS (Intel & Apple Silicon)
+          ### Raspberry Pi (ARM)
           ```bash
-          # For Intel Macs
+          # For Raspberry Pi 3/4 (ARMv7)
+          wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-raspberry-pi-armv7
+          
+          # For Raspberry Pi 4/5 64-bit (ARM64)  
+          wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-raspberry-pi-arm64
+          
+          # Make executable and install
+          chmod +x my-little-soda-raspberry-pi-*
+          sudo mv my-little-soda-raspberry-pi-* /usr/local/bin/my-little-soda
+          
+          # Verify installation
+          my-little-soda --version
+          ```
+          
+          ### macOS (Universal Binary)
+          ```bash
+          # Universal binary (works on both Intel and Apple Silicon)
+          wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-macos-universal
+          
+          # Make executable and install
+          chmod +x my-little-soda-macos-universal
+          sudo mv my-little-soda-macos-universal /usr/local/bin/my-little-soda
+          
+          # Verify installation
+          my-little-soda --version
+          ```
+          
+          ### macOS (Architecture-Specific)
+          ```bash
+          # For Intel Macs only
           wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-macos-x86_64
           
-          # For Apple Silicon Macs  
+          # For Apple Silicon Macs only
           wget https://github.com/johnhkchen/my-little-soda/releases/latest/download/my-little-soda-macos-arm64
           
           # Make executable and install
@@ -462,7 +588,7 @@ jobs:
   upload-assets:
     name: Upload Release Assets
     runs-on: ubuntu-latest
-    needs: [prepare-release, build-matrix]
+    needs: [prepare-release, build-matrix, create-universal-macos]
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
