@@ -304,7 +304,7 @@ async fn test_init_creates_all_required_files_dry_run() {
     // Run init command in dry run mode
     let binary_path = std::env::current_dir().unwrap().join("target/debug/my-little-soda");
     let output = std::process::Command::new(&binary_path)
-        .args(&["init", "--agents", "2", "--dry-run"])
+        .args(&["init", "--dry-run"])
         .current_dir(repo_path)
         .output()
         .expect("Failed to run init command");
@@ -329,7 +329,7 @@ async fn test_init_creates_all_required_files_real_run() {
     // Run init command in real mode (requires GitHub authentication)
     let binary_path = std::env::current_dir().unwrap().join("target/debug/my-little-soda");
     let output = std::process::Command::new(&binary_path)
-        .args(&["init", "--agents", "2"])
+        .args(&["init"])
         .current_dir(repo_path)
         .output()
         .expect("Failed to run init command");

@@ -34,6 +34,15 @@ workflow_state_persistence = true
 ci_timeout_adjustment = 300
 enhanced_error_reporting = true
 
+[agents.work_continuity]
+enable_continuity = true
+state_file_path = ".my-little-soda/agent-state.json"
+backup_interval_minutes = 5
+max_recovery_attempts = 3
+validation_timeout_seconds = 30
+force_fresh_start_after_hours = 24
+preserve_partial_work = true
+
 [database]
 url = ".my-little-soda/my-little-soda.db"
 max_connections = 10

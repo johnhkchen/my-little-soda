@@ -4,6 +4,7 @@ pub mod commands;
 
 #[derive(Parser)]
 #[command(name = "my-little-soda")]
+#[command(version = "0.1.0")]
 #[command(about = "GitHub-native multi-agent development orchestration")]
 #[command(
     long_about = "My Little Soda orchestrates multiple AI coding agents using GitHub Issues as tasks, \
