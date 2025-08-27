@@ -16,6 +16,7 @@ pub struct BundleManager {
     git_ops: GitOperations,
     github_client: GitHubClient,
     _lock_guard: Option<RwLockWriteGuard<'static, File>>,
+    #[allow(dead_code)]
     bundle_state: Option<BundleState>,
 }
 

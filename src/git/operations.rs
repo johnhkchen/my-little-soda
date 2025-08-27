@@ -8,15 +8,19 @@ pub trait GitOperations {
     fn checkout_branch(&self, branch: &str) -> Result<()>;
 
     /// Create a new branch (replaces `git branch -b`)
+    #[allow(dead_code)]
     fn create_branch(&self, name: &str, from: &str) -> Result<()>;
 
     /// Cherry-pick a commit with conflict detection (replaces `git cherry-pick`)
+    #[allow(dead_code)]
     fn cherry_pick(&self, commit: Oid) -> Result<Option<Vec<String>>>;
 
     /// Push to remote (replaces `git push`)
+    #[allow(dead_code)]
     fn push(&self, remote: &str, branch: &str) -> Result<()>;
 
     /// Get branch status (replaces `git status`)
+    #[allow(dead_code)]
     fn get_status(&self) -> Result<Vec<String>>;
 
     /// Check if branch exists locally (replaces `git branch --list`)
@@ -32,10 +36,12 @@ pub trait GitOperations {
     fn get_commits(&self, from: Option<&str>, to: Option<&str>) -> Result<Vec<CommitInfo>>;
 
     /// Delete branch (replaces `git branch -D`)
+    #[allow(dead_code)]
     fn delete_branch(&self, branch: &str, force: bool) -> Result<()>;
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CommitInfo {
     pub id: String,
     pub message: String,

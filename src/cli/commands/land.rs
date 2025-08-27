@@ -6,18 +6,14 @@ use git2::Repository;
 use std::process::Command;
 
 pub struct LandCommand {
-    pub include_closed: bool,
-    pub days: u32,
     pub dry_run: bool,
     pub verbose: bool,
     pub ci_mode: bool,
 }
 
 impl LandCommand {
-    pub fn new(include_closed: bool, days: u32, dry_run: bool, verbose: bool) -> Self {
+    pub fn new(_include_closed: bool, _days: u32, dry_run: bool, verbose: bool) -> Self {
         Self {
-            include_closed,
-            days,
             dry_run,
             verbose,
             ci_mode: false,

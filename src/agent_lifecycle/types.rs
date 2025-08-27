@@ -2,6 +2,7 @@
 
 /// Agent states in the lifecycle
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum AgentState {
     /// Agent has no active assignment
     Idle,
@@ -22,6 +23,7 @@ pub enum AgentState {
 
 /// Issues detected during pre-flight checks
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum PreFlightIssue {
     /// Commits exist but haven't been pushed
     UnpushedCommits { count: u32 },
@@ -51,6 +53,7 @@ pub enum PreFlightIssue {
 
 
 /// Parse agent branch pattern (agent001/123 or agent001/123-description)
+#[allow(dead_code)]
 pub fn parse_agent_branch(branch: &str) -> Option<(String, u64)> {
     let parts: Vec<&str> = branch.split('/').collect();
     if parts.len() == 2 {
@@ -76,6 +79,7 @@ pub fn parse_agent_branch(branch: &str) -> Option<(String, u64)> {
 
 /// Validation for agent states
 impl AgentState {
+    #[allow(dead_code)]
     pub fn agent_id(&self) -> Option<&str> {
         match self {
             AgentState::Assigned { agent_id, .. } => Some(agent_id),
@@ -84,6 +88,7 @@ impl AgentState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn issue_number(&self) -> Option<u64> {
         match self {
             AgentState::Assigned { issue, .. } => Some(*issue),
@@ -92,6 +97,7 @@ impl AgentState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn branch_name(&self) -> Option<&str> {
         match self {
             AgentState::Assigned { branch, .. } => Some(branch),
@@ -100,6 +106,7 @@ impl AgentState {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_busy(&self) -> bool {
         matches!(
             self,
@@ -107,6 +114,7 @@ impl AgentState {
         )
     }
 
+    #[allow(dead_code)]
     pub fn is_available(&self) -> bool {
         matches!(self, AgentState::Idle)
     }
