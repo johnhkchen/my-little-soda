@@ -622,6 +622,40 @@ impl GitHubClient {
         self.pulls.merge_pull_request(pr_number, merge_method).await
     }
 
+    /// Create a review comment on a pull request
+    pub async fn create_pr_review_comment(
+        &self,
+        pr_number: u64,
+        body: &str,
+        commit_id: &str,
+        path: &str,
+        line: u32,
+    ) -> Result<octocrab::models::pulls::Comment, GitHubError> {
+        self.comments.create_pr_review_comment(pr_number, body, commit_id, path, line).await
+    }
+
+    /// Get review comments for a pull request
+    pub async fn get_pr_review_comments(
+        &self,
+        pr_number: u64,
+    ) -> Result<Vec<octocrab::models::pulls::Comment>, GitHubError> {
+        self.comments.get_pr_review_comments(pr_number).await
+    }
+
+    /// Update a PR review comment
+    pub async fn update_pr_review_comment(
+        &self,
+        comment_id: u64,
+        body: &str,
+    ) -> Result<octocrab::models::pulls::Comment, GitHubError> {
+        self.comments.update_pr_review_comment(comment_id, body).await
+    }
+
+    /// Delete a PR review comment
+    pub async fn delete_pr_review_comment(&self, comment_id: u64) -> Result<(), GitHubError> {
+        self.comments.delete_pr_review_comment(comment_id).await
+    }
+
     pub fn owner(&self) -> &str {
         &self.owner
     }

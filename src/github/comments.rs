@@ -100,20 +100,81 @@ impl CommentHandler {
     // Review comments methods are commented out as they require different octocrab API patterns
     // These can be implemented when needed with the correct octocrab API calls
 
-    /*
     /// Create a review comment on a pull request (inline code comment)
     pub async fn create_pr_review_comment(
         &self,
         pr_number: u64,
         body: &str,
-        commit_sha: &str,
+        commit_id: &str,
         path: &str,
-        position: u32,
-    ) -> Result<octocrab::models::pulls::ReviewComment, GitHubError> {
-        // TODO: Implement with correct octocrab API
-        todo!("Review comments not implemented yet")
+        line: u32,
+    ) -> Result<octocrab::models::pulls::Comment, GitHubError> {
+        use serde_json::json;
+        
+        let route = format!(
+            "/repos/{}/{}/pulls/{}/comments",
+            &self.owner, &self.repo, pr_number
+        );
+        
+        let data = json!({
+            "body": body,
+            "commit_id": commit_id,
+            "path": path,
+            "line": line
+        });
+        
+        let review_comment = self
+            .octocrab
+            .post(route, Some(&data))
+            .await?;
+
+        println!("💬 Created PR review comment on #{pr_number} at {path}:{line}");
+        Ok(review_comment)
     }
-    */
+
+    /// Get review comments for a pull request
+    pub async fn get_pr_review_comments(
+        &self,
+        pr_number: u64,
+    ) -> Result<Vec<octocrab::models::pulls::Comment>, GitHubError> {
+        let comments = self
+            .octocrab
+            .pulls(&self.owner, &self.repo)
+            .list_comments(Some(pr_number))
+            .send()
+            .await?;
+
+        Ok(comments.items)
+    }
+
+    /// Update a PR review comment
+    pub async fn update_pr_review_comment(
+        &self,
+        comment_id: u64,
+        body: &str,
+    ) -> Result<octocrab::models::pulls::Comment, GitHubError> {
+        let comment = self
+            .octocrab
+            .pulls(&self.owner, &self.repo)
+            .comment(octocrab::models::CommentId(comment_id))
+            .update(body)
+            .await?;
+
+        println!("✏️  Updated PR review comment #{comment_id}");
+        Ok(comment)
+    }
+
+    /// Delete a PR review comment  
+    pub async fn delete_pr_review_comment(&self, comment_id: u64) -> Result<(), GitHubError> {
+        self.octocrab
+            .pulls(&self.owner, &self.repo)
+            .comment(octocrab::models::CommentId(comment_id))
+            .delete()
+            .await?;
+
+        println!("🗑️  Deleted PR review comment #{comment_id}");
+        Ok(())
+    }
 
     /// Search for comments containing specific text
     pub async fn search_comments(
