@@ -108,6 +108,7 @@ pub trait FileSystemOperations: Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(dead_code)]
     async fn write(&self, path: &str, contents: &[u8]) -> Result<()>;
     
     /// Check if a path exists
