@@ -4,9 +4,7 @@
 /// outputs including file existence, directory structure, file content validation,
 /// and Git configuration validation with clear error reporting.
 
-use super::init_integration::{InitCommandTestResult, PostInitValidationResult};
-use super::repository_states::RepositoryStateFixture;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use std::path::Path;
 use std::collections::HashMap;
 

@@ -53,9 +53,9 @@ impl InitCommandTestEnvironment {
     }
     
     /// Create an InitCommand configured for this test environment
-    pub fn create_init_command(&self, agents: u32, force: bool, dry_run: bool) -> InitCommand {
+    pub fn create_init_command(&self, _agents: u32, force: bool, dry_run: bool) -> InitCommand {
         let fs_ops: Arc<dyn FileSystemOperations> = Arc::new(StandardFileSystem);
-        InitCommand::new(agents, None, force, dry_run, fs_ops)
+        InitCommand::new(None, force, dry_run, fs_ops)
     }
     
     /// Run init command and validate the result matches expected behavior

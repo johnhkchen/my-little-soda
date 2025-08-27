@@ -5,7 +5,7 @@
 
 use super::automated_validators::{ValidationSummaryReport, FailureAnalysisReport};
 use anyhow::Result;
-use std::time::{SystemTime, Duration, Instant};
+use std::time::{SystemTime, Duration};
 use std::collections::HashMap;
 use std::path::Path;
 use serde::{Serialize, Deserialize};
@@ -344,6 +344,7 @@ impl TestResultReporter {
             failed_test_details: self.get_failure_details(),
             performance_highlights: self.get_performance_highlights(),
             recommendations: self.generate_recommendations(),
+            test_categories: self.get_all_categories(),
             timestamp: SystemTime::now(),
         }
     }
@@ -400,12 +401,28 @@ impl TestResultReporter {
         
         if self.aggregation.failed_tests > 0 {
             let common_failures = self.analyze_common_failure_patterns();
-            for pattern in common_failures {
-                recommendations.push(format!("Common failure pattern detected: {}", pattern));
+            if !common_failures.is_empty() {
+                for pattern in common_failures {
+                    recommendations.push(format!("Common failure pattern detected: {}", pattern));
+                }
+            } else {
+                // If no common patterns but there are failures, provide general recommendation
+                recommendations.push("Review failed tests for potential improvements to test reliability".to_string());
             }
         }
         
         recommendations
+    }
+    
+    fn get_all_categories(&self) -> Vec<String> {
+        use std::collections::HashSet;
+        let mut categories = HashSet::new();
+        for test in &self.aggregation.test_results {
+            categories.insert(test.test_category.clone());
+        }
+        let mut sorted_categories: Vec<String> = categories.into_iter().collect();
+        sorted_categories.sort();
+        sorted_categories
     }
     
     fn analyze_common_failure_patterns(&self) -> Vec<String> {
@@ -547,6 +564,7 @@ pub struct TestSummaryReport {
     pub failed_test_details: Vec<TestFailureDetail>,
     pub performance_highlights: PerformanceHighlights,
     pub recommendations: Vec<String>,
+    pub test_categories: Vec<String>,
     pub timestamp: SystemTime,
 }
 

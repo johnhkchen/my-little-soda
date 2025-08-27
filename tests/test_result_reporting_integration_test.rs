@@ -437,12 +437,7 @@ fn simulate_work(duration: Duration) {
 }
 
 fn get_unique_categories(summary: &fixtures::test_result_reporting::TestSummaryReport) -> usize {
-    use std::collections::HashSet;
-    let mut categories = HashSet::new();
-    for detail in &summary.failed_test_details {
-        categories.insert(&detail.test_category);
-    }
-    categories.len()
+    summary.test_categories.len()
 }
 
 fn calculate_performance_score(summary: &fixtures::test_result_reporting::TestSummaryReport) -> String {

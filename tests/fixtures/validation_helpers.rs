@@ -3,11 +3,10 @@
 /// This module provides comprehensive validation utilities that go beyond basic assertions
 /// to validate complex repository states, configuration correctness, and behavioral expectations.
 
-use super::repository_states::{RepositoryStateFixture, InitBehaviorExpectation};
+use super::repository_states::RepositoryStateFixture;
 use super::init_integration::{InitCommandTestEnvironment, InitCommandTestResult, PostInitValidationResult};
 use anyhow::Result;
 use std::path::Path;
-use std::collections::HashMap;
 
 /// Comprehensive validator for repository state fixtures
 pub struct RepositoryStateValidator;
@@ -647,7 +646,7 @@ macro_rules! validate_init_result {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::repository_states::RepositoryStateFixture;
+    use crate::fixtures::repository_states::RepositoryStateFixture;
     
     #[tokio::test]
     async fn test_fixture_validation() {
