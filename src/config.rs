@@ -50,8 +50,6 @@ pub struct ObservabilityConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AgentConfig {
-    /// Maximum number of concurrent agents
-    pub max_agents: u32,
     /// Agent coordination timeout
     pub coordination_timeout_seconds: u64,
     /// Bundle queue processing settings
@@ -163,7 +161,6 @@ impl Default for MyLittleSodaConfig {
                 metrics_enabled: true,
             },
             agents: AgentConfig {
-                max_agents: 1,
                 coordination_timeout_seconds: 300, // 5 minutes
                 bundle_processing: BundleConfig {
                     max_queue_size: 50,

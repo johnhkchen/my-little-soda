@@ -100,13 +100,12 @@ async fn main() -> Result<()> {
                 .await
         }
         Some(Commands::Init {
-            agents,
             template,
             force,
             dry_run,
         }) => {
             let fs_ops = Arc::new(StandardFileSystem);
-            InitCommand::new(agents, template, force, dry_run, fs_ops)
+            InitCommand::new(template, force, dry_run, fs_ops)
                 .with_ci_mode(cli.ci_mode)
                 .execute()
                 .await

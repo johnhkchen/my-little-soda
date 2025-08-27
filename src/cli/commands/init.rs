@@ -39,7 +39,6 @@ use std::sync::Arc;
 // GitHubError import removed - unused
 
 pub struct InitCommand {
-    pub agents: u32,
     pub template: Option<String>,
     pub force: bool,
     pub dry_run: bool,
@@ -55,9 +54,8 @@ struct LabelSpec {
 }
 
 impl InitCommand {
-    pub fn new(agents: u32, template: Option<String>, force: bool, dry_run: bool, fs_ops: Arc<dyn FileSystemOperations>) -> Self {
+    pub fn new(template: Option<String>, force: bool, dry_run: bool, fs_ops: Arc<dyn FileSystemOperations>) -> Self {
         Self {
-            agents,
             template,
             force,
             dry_run,
@@ -81,7 +79,7 @@ impl InitCommand {
         println!();
 
         println!("⚙️  Configuration:");
-        println!("   🤖 Agents: {}", self.agents);
+        println!("   🤖 Agents: 1 (single-agent mode)");
         if let Some(template) = &self.template {
             println!("   📋 Template: {template}");
         }
@@ -89,13 +87,7 @@ impl InitCommand {
         println!("   🔍 Dry run: {}", self.dry_run);
         println!();
 
-        // Validate input parameters
-        if self.agents == 0 || self.agents > 12 {
-            return Err(anyhow!(
-                "Number of agents must be between 1 and 12, got: {}",
-                self.agents
-            ));
-        }
+        // Single-agent mode - no validation needed for agent count
 
         // Phase 1: Validation
         println!("Phase 1: Validation");
@@ -467,7 +459,6 @@ impl InitCommand {
                 metrics_enabled: true,
             },
             agents: AgentConfig {
-                max_agents: self.agents,
                 coordination_timeout_seconds: 300,
                 bundle_processing: BundleConfig {
                     max_queue_size: 50,
@@ -538,15 +529,12 @@ impl InitCommand {
 
     async fn setup_agents(&self) -> Result<()> {
         if self.dry_run {
-            println!(
-                "Would configure {} agents with capacity settings",
-                self.agents
-            );
+            println!("Would configure 1 agent with capacity settings (single-agent mode)");
             println!("Would create agent state tracking");
             return Ok(());
         }
 
-        print!("🤖 Configuring agent capacity ({} agents)... ", self.agents);
+        print!("🤖 Configuring agent capacity (1 agent)... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
         // Create agent working directories
@@ -665,7 +653,7 @@ mod tests {
             }));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry_run = true
+        let init_command = InitCommand::new(None, false, true, fs_ops); // dry_run = true
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Init command should succeed in clean repository");
@@ -702,7 +690,7 @@ mod tests {
             }));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(4, Some("default".to_string()), false, true, fs_ops);
+        let init_command = InitCommand::new(Some("default".to_string()), false, true, fs_ops);
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Init command should succeed with template");
@@ -714,13 +702,13 @@ mod tests {
         let fs_ops = Arc::new(mock_fs);
         
         // Test with 0 agents
-        let init_command = InitCommand::new(0, None, false, true, fs_ops.clone());
+        let init_command = InitCommand::new(None, false, true, fs_ops.clone());
         let result = init_command.execute().await;
         assert!(result.is_err(), "Should fail with 0 agents");
         assert!(result.unwrap_err().to_string().contains("between 1 and 12"));
         
         // Test with too many agents
-        let init_command = InitCommand::new(15, None, false, true, fs_ops);
+        let init_command = InitCommand::new(None, false, true, fs_ops);
         let result = init_command.execute().await;
         assert!(result.is_err(), "Should fail with 15 agents");
         assert!(result.unwrap_err().to_string().contains("between 1 and 12"));
@@ -736,7 +724,7 @@ mod tests {
             .return_const(true);
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, true, fs_ops);
+        let init_command = InitCommand::new(None, false, true, fs_ops);
         
         let result = init_command.generate_configuration().await;
         assert!(result.is_err(), "Should fail when config exists and force is false");
@@ -774,7 +762,7 @@ mod tests {
             }));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, true, true, fs_ops); // force = true, dry_run = true
+        let init_command = InitCommand::new(None, true, true, fs_ops); // force = true, dry_run = true
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Should succeed when config exists and force is true");
@@ -802,7 +790,7 @@ mod tests {
             .returning(move |_, _| Ok(failed_output.clone()));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops); // dry_run = false
+        let init_command = InitCommand::new(None, false, false, fs_ops); // dry_run = false
         
         let result = init_command.detect_repository_info().await;
         assert!(result.is_ok(), "Should succeed with placeholder values when no git remote found");
@@ -833,7 +821,7 @@ mod tests {
             .returning(move |_, _| Ok(invalid_url_output.clone()));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops);
+        let init_command = InitCommand::new(None, false, false, fs_ops);
         
         let result = init_command.detect_repository_info().await;
         assert!(result.is_err(), "Should fail with non-GitHub URL");
@@ -874,12 +862,12 @@ mod tests {
         let fs_ops = Arc::new(mock_fs);
         
         // First init - should succeed (force + dry_run)
-        let init_command = InitCommand::new(1, None, true, true, fs_ops.clone());
+        let init_command = InitCommand::new(None, true, true, fs_ops.clone());
         let result1 = init_command.execute().await;
         assert!(result1.is_ok(), "First init should succeed");
         
         // Second init - should also succeed (idempotent)
-        let init_command = InitCommand::new(1, None, true, true, fs_ops);
+        let init_command = InitCommand::new(None, true, true, fs_ops);
         let result2 = init_command.execute().await;
         assert!(result2.is_ok(), "Second init should succeed (idempotent)");
     }
@@ -900,7 +888,7 @@ mod tests {
             .returning(|_| Err(anyhow::anyhow!("Permission denied")));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops);
+        let init_command = InitCommand::new(None, false, false, fs_ops);
         
         let result = init_command.generate_configuration().await;
         assert!(result.is_err(), "Should fail when directory creation fails");
@@ -938,7 +926,7 @@ mod tests {
             }));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(2, None, false, true, fs_ops).with_ci_mode(true);
+        let init_command = InitCommand::new(None, false, true, fs_ops).with_ci_mode(true);
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Init should succeed in CI mode");
@@ -946,7 +934,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_label_spec_creation() {
-        let init_command = InitCommand::new(1, None, false, true, Arc::new(MockFileSystemOperations::new()));
+        let init_command = InitCommand::new(None, false, true, Arc::new(MockFileSystemOperations::new()));
         let labels = init_command.get_required_labels();
         
         assert!(!labels.is_empty(), "Should create multiple labels");
@@ -982,7 +970,7 @@ mod tests {
             .returning(move |_, _| Ok(https_output.clone()));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops);
+        let init_command = InitCommand::new(None, false, false, fs_ops);
         
         let result = init_command.detect_repository_info().await;
         assert!(result.is_ok(), "Should parse HTTPS GitHub URL");
@@ -1014,7 +1002,7 @@ mod tests {
             .returning(move |_, _| Ok(ssh_output.clone()));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops);
+        let init_command = InitCommand::new(None, false, false, fs_ops);
         
         let result = init_command.detect_repository_info().await;
         assert!(result.is_ok(), "Should parse SSH GitHub URL");
@@ -1061,7 +1049,7 @@ mod tests {
             .returning(move |_, _| Ok(auth_failed_output.clone()));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops);
+        let init_command = InitCommand::new(None, false, false, fs_ops);
         
         let result = init_command.validate_environment().await;
         assert!(result.is_err(), "Should fail when GitHub CLI not authenticated");
@@ -1118,7 +1106,7 @@ mod tests {
             .returning(move |_, _| Ok(git_status_output.clone()));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops); // force = false
+        let init_command = InitCommand::new(None, false, false, fs_ops); // force = false
         
         let result = init_command.validate_environment().await;
         assert!(result.is_err(), "Should fail with uncommitted changes and no force flag");
@@ -1175,7 +1163,7 @@ mod tests {
             .returning(move |_, _| Ok(git_status_output.clone()));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, true, false, fs_ops); // force = true
+        let init_command = InitCommand::new(None, true, false, fs_ops); // force = true
         
         let result = init_command.validate_environment().await;
         assert!(result.is_ok(), "Should succeed with uncommitted changes when force flag is set");
@@ -1225,7 +1213,7 @@ mod tests {
             .returning(|_, _| Err(anyhow::anyhow!("git command not found")));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops);
+        let init_command = InitCommand::new(None, false, false, fs_ops);
         
         let result = init_command.validate_environment().await;
         assert!(result.is_err(), "Should fail when git command fails");
@@ -1264,7 +1252,7 @@ mod tests {
             .returning(|_, _| Err(anyhow::anyhow!("gh command not found")));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, false, fs_ops);
+        let init_command = InitCommand::new(None, false, false, fs_ops);
         
         let result = init_command.validate_environment().await;
         assert!(result.is_err(), "Should fail when gh command fails");
@@ -1284,7 +1272,7 @@ mod tests {
             .return_const(true);
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(2, None, false, true, fs_ops); // force = false, dry_run = true
+        let init_command = InitCommand::new(None, false, true, fs_ops); // force = false, dry_run = true
         
         let result = init_command.generate_configuration().await;
         assert!(result.is_err(), "Should fail when partial config exists without force");
@@ -1322,7 +1310,7 @@ mod tests {
             }));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(2, None, true, true, fs_ops); // force = true, dry_run = true
+        let init_command = InitCommand::new(None, true, true, fs_ops); // force = true, dry_run = true
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Should succeed when config exists and force is true");
@@ -1359,7 +1347,7 @@ mod tests {
             }));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(12, None, false, true, fs_ops); // max agents, dry_run
+        let init_command = InitCommand::new(None, false, true, fs_ops); // max agents, dry_run
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Should succeed with maximum agent count");
@@ -1399,12 +1387,12 @@ mod tests {
         let fs_ops = Arc::new(mock_fs);
         
         // Test minimum valid agent count
-        let init_command = InitCommand::new(1, None, false, true, fs_ops.clone());
+        let init_command = InitCommand::new(None, false, true, fs_ops.clone());
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Should succeed with 1 agent");
         
         // Test maximum valid agent count
-        let init_command = InitCommand::new(12, None, false, true, fs_ops);
+        let init_command = InitCommand::new(None, false, true, fs_ops);
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Should succeed with 12 agents");
     }
@@ -1441,7 +1429,7 @@ mod tests {
             }));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry_run = true
+        let init_command = InitCommand::new(None, false, true, fs_ops); // dry_run = true
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Dry run should succeed without actual file operations");
@@ -1449,7 +1437,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_init_creates_required_label_specs() {
-        let init_command = InitCommand::new(1, None, false, true, Arc::new(MockFileSystemOperations::new()));
+        let init_command = InitCommand::new(None, false, true, Arc::new(MockFileSystemOperations::new()));
         let labels = init_command.get_required_labels();
         
         assert!(labels.len() >= 10, "Should create at least 10 labels");
@@ -1532,7 +1520,7 @@ mod tests {
                 .returning(|_, _| Err(anyhow::anyhow!("not a git repository")));
             
             let fs_ops = Arc::new(mock_fs);
-            let init_command = InitCommand::new(1, None, false, false, fs_ops);
+            let init_command = InitCommand::new(None, false, false, fs_ops);
             
             let result = init_command.detect_fresh_project().await;
             assert!(result, "Should detect fresh project when no git repo");
@@ -1562,7 +1550,7 @@ mod tests {
                 }));
             
             let fs_ops = Arc::new(mock_fs);
-            let init_command = InitCommand::new(1, None, false, false, fs_ops);
+            let init_command = InitCommand::new(None, false, false, fs_ops);
             
             let result = init_command.detect_fresh_project().await;
             assert!(result, "Should detect fresh project when no remote");
@@ -1592,7 +1580,7 @@ mod tests {
                 }));
             
             let fs_ops = Arc::new(mock_fs);
-            let init_command = InitCommand::new(1, None, false, false, fs_ops);
+            let init_command = InitCommand::new(None, false, false, fs_ops);
             
             let result = init_command.detect_fresh_project().await;
             assert!(!result, "Should not detect fresh project when git repo with remote exists");
@@ -1616,7 +1604,7 @@ mod tests {
             .returning(|_, _| Err(anyhow::anyhow!("not a git repository")));
         
         let fs_ops = Arc::new(mock_fs);
-        let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry_run = true
+        let init_command = InitCommand::new(None, false, true, fs_ops); // dry_run = true
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Fresh project init should succeed in dry run mode");

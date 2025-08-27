@@ -25,13 +25,13 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Route multiple tickets to available agents (admin command for multi-agent coordination)
+    /// Route tickets to the available agent (single-agent mode)
     Route {
-        /// Maximum number of agents to route tickets to
+        /// Maximum number of tickets to route (for single agent)
         #[arg(
             long,
             default_value = "3",
-            help = "Limit the number of agents that get assigned tickets"
+            help = "Maximum number of tickets to route to the agent"
         )]
         agents: u32,
     },
@@ -63,15 +63,8 @@ pub enum Commands {
     },
     /// Display system status, agent utilization, and task queue overview
     Status,
-    /// Initialize multi-agent development environment
+    /// Initialize single-agent development environment
     Init {
-        /// Number of agents to configure
-        #[arg(
-            long,
-            default_value = "3",
-            help = "Number of agents to configure (1-12)"
-        )]
-        agents: u32,
         /// Project template to use
         #[arg(
             long,

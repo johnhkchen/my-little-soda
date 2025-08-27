@@ -46,13 +46,12 @@ pub struct Agent {
 
 pub struct AgentCoordinator {
     github_client: GitHubClient,
-    // Safe coordination state - prevents race conditions
-    assignment_lock: Arc<Mutex<HashMap<u64, String>>>, // issue_number -> agent_id
-    agent_capacity: Arc<Mutex<HashMap<String, (u32, u32)>>>, // agent_id -> (current, max)
+    // Single agent state tracking
+    current_assignment: Arc<Mutex<Option<u64>>>, // Currently assigned issue
     #[cfg(feature = "metrics")]
     metrics_tracker: MetricsTracker,
-    // State machine for agent lifecycle management
-    agent_state_machines: Arc<Mutex<HashMap<String, StateMachine<AgentStateMachine>>>>,
+    // State machine for the single agent lifecycle
+    agent_state_machine: Arc<Mutex<StateMachine<AgentStateMachine>>>,
     // Work continuity manager for persistent state across restarts
     #[cfg(feature = "autonomous")]
     work_continuity: Arc<Mutex<Option<WorkContinuityManager>>>,
@@ -64,31 +63,27 @@ impl AgentCoordinator {
         #[cfg(feature = "metrics")]
         let metrics_tracker = MetricsTracker::new();
 
-        // Agent capacity: Solo agent system - agent001 only
-        let mut agent_capacity = HashMap::new();
-        agent_capacity.insert("agent001".to_string(), (0, 1)); // 0 current, 1 max per agent
-
-        // Initialize state machines for each agent
-        let mut agent_state_machines = HashMap::new();
-        let agent001_sm = AgentStateMachine::new("agent001".to_string()).state_machine();
-        agent_state_machines.insert("agent001".to_string(), agent001_sm);
+        // Initialize state machine for the single agent
+        let agent_state_machine = AgentStateMachine::new("agent001".to_string()).state_machine();
 
         Ok(Self {
             github_client,
-            assignment_lock: Arc::new(Mutex::new(HashMap::new())),
-            agent_capacity: Arc::new(Mutex::new(agent_capacity)),
+            current_assignment: Arc::new(Mutex::new(None)),
             #[cfg(feature = "metrics")]
             metrics_tracker,
-            agent_state_machines: Arc::new(Mutex::new(agent_state_machines)),
+            agent_state_machine: Arc::new(Mutex::new(agent_state_machine)),
             #[cfg(feature = "autonomous")]
             work_continuity: Arc::new(Mutex::new(None)),
         })
     }
 
     pub async fn get_available_agents(&self) -> Result<Vec<Agent>, GitHubError> {
-        // Solo agent system: Check if agent001 is actively working on a branch
-        let capacities = self.agent_capacity.lock().await;
+        // Single agent system: Check if agent001 is available
         let mut agents = Vec::new();
+
+        // Check current assignment
+        let current_assignment = self.current_assignment.lock().await;
+        let is_assigned = current_assignment.is_some();
 
         // Check current git branch to see if agent is actively working
         let current_branch = self.get_current_git_branch();
@@ -100,32 +95,33 @@ impl AgentCoordinator {
         // Check bundling status for additional context
         let bundling_status = self.get_bundling_status().await;
 
-        // For each configured agent, check availability
-        for (agent_id, (_current, max_capacity)) in capacities.iter() {
-            let agent_state = if is_agent_working && agent_id == "agent001" {
-                AgentState::Working(format!(
-                    "Active on branch: {}",
-                    current_branch.as_ref().unwrap()
-                ))
-            } else {
-                AgentState::Available
-            };
+        let agent_state = if is_agent_working {
+            AgentState::Working(format!(
+                "Active on branch: {}",
+                current_branch.as_ref().unwrap()
+            ))
+        } else if is_assigned {
+            AgentState::Assigned(format!(
+                "Assigned to issue: {}",
+                current_assignment.unwrap()
+            ))
+        } else {
+            AgentState::Available
+        };
 
-            // In solo mode, agent is available unless actively working on a branch
-            let is_available = !(is_agent_working && agent_id == "agent001");
+        // Agent is available unless actively working
+        let is_available = !is_agent_working && !is_assigned;
 
-            if is_available {
-                agents.push(Agent {
-                    id: agent_id.clone(),
-                    capacity: *max_capacity,
-                    state: agent_state,
-                });
-            }
+        if is_available {
+            agents.push(Agent {
+                id: "agent001".to_string(),
+                capacity: 1,
+                state: agent_state,
+            });
         }
 
         let available_count = agents.len();
-        let total_agents = capacities.len();
-        println!("📊 Available agents: {available_count} of {total_agents} total");
+        println!("📊 Available agents: {available_count} of 1 total");
 
         // Show bundling status in verbose mode for operational visibility
         if let Some(bundling_info) = bundling_status {
@@ -167,17 +163,12 @@ impl AgentCoordinator {
         issue_number: u64,
     ) -> Result<(), GitHubError> {
         // Fetch issue to get title for descriptive branch name
-        let issue = match self.github_client.fetch_issue(issue_number).await {
-            Ok(issue) => issue,
-            Err(_) => {
-                // Fallback to simple assignment without descriptive branch if issue fetch fails
-                return self
-                    .assign_agent_to_issue_simple(agent_id, issue_number)
-                    .await;
-            }
+        let issue_title = match self.github_client.fetch_issue(issue_number).await {
+            Ok(issue) => issue.title,
+            Err(_) => format!("issue-{}", issue_number), // Fallback title
         };
 
-        self.assign_agent_to_issue_with_title(agent_id, issue_number, &issue.title)
+        self.assign_agent_to_issue_with_title(agent_id, issue_number, &issue_title)
             .await
     }
 
@@ -188,7 +179,7 @@ impl AgentCoordinator {
         issue_number: u64,
         issue_title: &str,
     ) -> Result<(), GitHubError> {
-        let _execution_start = Instant::now();
+        let execution_start = Instant::now();
         let correlation_id = generate_correlation_id();
         let span = create_coordination_span(
             "assign_agent_to_issue",
@@ -212,19 +203,26 @@ impl AgentCoordinator {
 
         // STATE MACHINE TRANSITION: Try to assign agent using state machine
         {
-            let mut state_machines = self.agent_state_machines.lock().await;
-            if let Some(sm) = state_machines.get_mut(agent_id) {
-                // Check if agent is available before attempting assignment
-                if !sm.inner().is_available() {
-                    // Track failed coordination decision
-                    #[cfg(feature = "metrics")]
-                    #[cfg(feature = "metrics")]
-        let _ = self.metrics_tracker.track_coordination_decision(
-                        correlation_id.clone(),
-                        "assign_agent_to_issue",
-                        Some(agent_id),
-                        Some(issue_number),
-                        &format!("Agent {} not available for assignment (current state: available={})", agent_id, sm.inner().is_available()),
+            let mut state_machine = self.agent_state_machine.lock().await;
+            
+            // Validate agent_id is agent001 (single agent system)
+            if agent_id != "agent001" {
+                return Err(GitHubError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("Only agent001 is supported in single-agent mode, got: {agent_id}")
+                )));
+            }
+
+            // Check if agent is available before attempting assignment
+            if !state_machine.inner().is_available() {
+                // Track failed coordination decision
+                #[cfg(feature = "metrics")]
+                let _ = self.metrics_tracker.track_coordination_decision(
+                    correlation_id.clone(),
+                    "assign_agent_to_issue",
+                    Some(agent_id),
+                    Some(issue_number),
+                    &format!("Agent {} not available for assignment (current state: available={})", agent_id, state_machine.inner().is_available()),
                         execution_start,
                         false,
                         HashMap::new(),
@@ -237,18 +235,17 @@ impl AgentCoordinator {
                 }
 
                 // Attempt the state machine transition
-                sm.handle(&AgentEvent::Assign {
+                state_machine.handle(&AgentEvent::Assign {
                     agent_id: agent_id.to_string(),
                     issue: issue_number,
                     branch: branch_name.clone(),
                 });
 
                 // Verify the transition succeeded
-                if sm.inner().current_issue() != Some(issue_number) {
+                if state_machine.inner().current_issue() != Some(issue_number) {
                     // Track failed coordination decision
                     #[cfg(feature = "metrics")]
-                    #[cfg(feature = "metrics")]
-        let _ = self.metrics_tracker.track_coordination_decision(
+                    let _ = self.metrics_tracker.track_coordination_decision(
                         correlation_id.clone(),
                         "assign_agent_to_issue",
                         Some(agent_id),
@@ -271,22 +268,15 @@ impl AgentCoordinator {
                     branch = %branch_name,
                     "State machine assign event triggered successfully"
                 );
-            } else {
-                return Err(GitHubError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("State machine not found for agent: {agent_id}")
-                )));
-            }
         }
 
-        // ATOMIC OPERATION: All-or-nothing assignment with conflict detection
+        // ASSIGNMENT TRACKING: Track the assignment in single-agent mode
         {
-            let mut assignments = self.assignment_lock.lock().await;
-            let mut capacities = self.agent_capacity.lock().await;
+            let mut current_assignment = self.current_assignment.lock().await;
 
-            // CONFLICT DETECTION: Check if issue already assigned
-            if assignments.contains_key(&issue_number) {
-                let existing_agent = assignments.get(&issue_number).unwrap();
+            // Check if agent is already assigned
+            if current_assignment.is_some() {
+                let existing_issue = current_assignment.unwrap();
 
                 // Track failed coordination decision
                 #[cfg(feature = "metrics")]
@@ -295,7 +285,7 @@ impl AgentCoordinator {
                     "assign_agent_to_issue",
                     Some(agent_id),
                     Some(issue_number),
-                    &format!("Assignment conflict: Issue #{issue_number} already assigned to agent {existing_agent}"),
+                    &format!("Assignment conflict: Agent already assigned to issue #{existing_issue}"),
                     execution_start,
                     false,
                     HashMap::new(),
@@ -303,47 +293,15 @@ impl AgentCoordinator {
 
                 return Err(GitHubError::IoError(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("Issue #{issue_number} already assigned to agent {existing_agent}")
+                    format!("Agent {agent_id} already assigned to issue #{existing_issue}")
                 )));
             }
 
-            // CAPACITY MANAGEMENT: Check agent capacity
-            let (current, max) = *capacities.get(agent_id)
-                .ok_or_else(|| GitHubError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("Unknown agent: {agent_id}")
-                )))?;
+            // Reserve the assignment
+            *current_assignment = Some(issue_number);
 
-            if current >= max {
-                // Track failed coordination decision
-                let mut metadata = HashMap::new();
-                metadata.insert("current_capacity".to_string(), current.to_string());
-                metadata.insert("max_capacity".to_string(), max.to_string());
-
-                #[cfg(feature = "metrics")]
-        let _ = self.metrics_tracker.track_coordination_decision(
-                    correlation_id.clone(),
-                    "assign_agent_to_issue",
-                    Some(agent_id),
-                    Some(issue_number),
-                    &format!("Capacity exceeded: Agent {agent_id} at capacity ({current}/{max})"),
-                    execution_start,
-                    false,
-                    metadata,
-                ).await;
-
-                return Err(GitHubError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::ResourceBusy,
-                    format!("Agent {agent_id} at capacity ({current}/{max})")
-                )));
-            }
-
-            // RESERVATION: Reserve the assignment before GitHub operations
-            assignments.insert(issue_number, agent_id.to_string());
-            capacities.insert(agent_id.to_string(), (current + 1, max));
-
-            println!("✅ Reserved assignment: agent {} -> issue #{} (capacity: {}/{})",
-                    agent_id, issue_number, current + 1, max);
+            println!("✅ Reserved assignment: agent {} -> issue #{} (capacity: 1/1)",
+                    agent_id, issue_number);
         }
 
         // GITHUB OPERATIONS: Perform actual GitHub API calls
@@ -440,192 +398,6 @@ impl AgentCoordinator {
         }.instrument(span).await
     }
 
-    /// Simple assignment without descriptive branch name (fallback)
-    async fn assign_agent_to_issue_simple(
-        &self,
-        agent_id: &str,
-        issue_number: u64,
-    ) -> Result<(), GitHubError> {
-        let _execution_start = Instant::now();
-        let correlation_id = generate_correlation_id();
-        let span = create_coordination_span(
-            "assign_agent_to_issue",
-            Some(agent_id),
-            Some(issue_number),
-            Some(&correlation_id),
-        );
-
-        async move {
-            tracing::info!(
-                agent_id = %agent_id,
-                issue_number = issue_number,
-                correlation_id = %correlation_id,
-                "Starting atomic agent assignment"
-            );
-
-            println!("🤖 Attempting atomic assignment: agent {agent_id} -> issue #{issue_number}");
-
-        // ATOMIC OPERATION: All-or-nothing assignment with conflict detection
-        {
-            let mut assignments = self.assignment_lock.lock().await;
-            let mut capacities = self.agent_capacity.lock().await;
-
-            // CONFLICT DETECTION: Check if issue already assigned
-            if assignments.contains_key(&issue_number) {
-                let existing_agent = assignments.get(&issue_number).unwrap();
-
-                // Track failed coordination decision
-                #[cfg(feature = "metrics")]
-        let _ = self.metrics_tracker.track_coordination_decision(
-                    correlation_id.clone(),
-                    "assign_agent_to_issue",
-                    Some(agent_id),
-                    Some(issue_number),
-                    &format!("Assignment conflict: Issue #{issue_number} already assigned to agent {existing_agent}"),
-                    execution_start,
-                    false,
-                    HashMap::new(),
-                ).await;
-
-                return Err(GitHubError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("Issue #{issue_number} already assigned to agent {existing_agent}")
-                )));
-            }
-
-            // CAPACITY MANAGEMENT: Check agent capacity
-            let (current, max) = *capacities.get(agent_id)
-                .ok_or_else(|| GitHubError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("Unknown agent: {agent_id}")
-                )))?;
-
-            if current >= max {
-                // Track failed coordination decision
-                let mut metadata = HashMap::new();
-                metadata.insert("current_capacity".to_string(), current.to_string());
-                metadata.insert("max_capacity".to_string(), max.to_string());
-
-                #[cfg(feature = "metrics")]
-        let _ = self.metrics_tracker.track_coordination_decision(
-                    correlation_id.clone(),
-                    "assign_agent_to_issue",
-                    Some(agent_id),
-                    Some(issue_number),
-                    &format!("Capacity exceeded: Agent {agent_id} at capacity ({current}/{max})"),
-                    execution_start,
-                    false,
-                    metadata,
-                ).await;
-
-                return Err(GitHubError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::ResourceBusy,
-                    format!("Agent {agent_id} at capacity ({current}/{max})")
-                )));
-            }
-
-            // RESERVATION: Reserve the assignment before GitHub operations
-            assignments.insert(issue_number, agent_id.to_string());
-            capacities.insert(agent_id.to_string(), (current + 1, max));
-
-            println!("✅ Reserved assignment: agent {} -> issue #{} (capacity: {}/{})",
-                    agent_id, issue_number, current + 1, max);
-        }
-
-        // GITHUB OPERATIONS: Perform actual GitHub API calls
-        let github_user = self.github_client.owner();
-
-        // Step 1: Assign the issue to the real GitHub user (with retry logic)
-        match self.github_client.assign_issue(issue_number, github_user).await {
-            Ok(_) => {
-                println!("✅ Issue #{issue_number} assigned to GitHub user: {github_user}");
-            },
-            Err(e) => {
-                // ROLLBACK: Remove reservation on failure
-                self.rollback_assignment(agent_id, issue_number).await;
-                println!("❌ Failed to assign issue #{issue_number}: {e:?}");
-
-                // Track failed coordination decision
-                let mut metadata = HashMap::new();
-                metadata.insert("error_type".to_string(), "github_assignment_failed".to_string());
-                metadata.insert("error_message".to_string(), format!("{e:?}"));
-
-                #[cfg(feature = "metrics")]
-        let _ = self.metrics_tracker.track_coordination_decision(
-                    correlation_id.clone(),
-                    "assign_agent_to_issue",
-                    Some(agent_id),
-                    Some(issue_number),
-                    &format!("GitHub assignment failed: {e:?}"),
-                    execution_start,
-                    false,
-                    metadata,
-                ).await;
-
-                return Err(e);
-            }
-        }
-
-        // Step 2: Add agent label to track which agent is working on this
-        println!("🏷️  Adding agent label: {agent_id}");
-        match self.github_client.add_label_to_issue(issue_number, agent_id).await {
-            Ok(_) => {
-                println!("✅ Added agent label: {agent_id}");
-            },
-            Err(e) => {
-                println!("⚠️  Agent labeling failed but assignment succeeded: {e:?}");
-            }
-        }
-
-        // Step 3: Create agent branch using proper naming scheme
-        let branch_name = format!("{agent_id}/{issue_number}");
-        println!("🌿 Creating agent branch: {branch_name}");
-
-        match self.github_client.create_branch(&branch_name, "main").await {
-            Ok(_) => {
-                // Branch creation succeeded - the success message is already printed by the client
-            },
-            Err(e) => {
-                println!("⚠️  Branch creation failed: {e}");
-                println!("   📝 Note: Branch may already exist, or you can create it manually");
-                // Don't rollback - the issue assignment is the important part
-                // Agent can still work without automatic branch creation
-            }
-        }
-
-        println!("🎯 ATOMIC ASSIGNMENT COMPLETE: agent {agent_id} -> issue #{issue_number}");
-        tracing::info!(
-            agent_id = %agent_id,
-            issue_number = issue_number,
-            "Successfully completed atomic agent assignment"
-        );
-
-        // Track coordination decision
-        let mut metadata = HashMap::new();
-        metadata.insert("branch_name".to_string(), format!("{agent_id}/{issue_number}"));
-        metadata.insert("github_user".to_string(), github_user.to_string());
-
-        #[cfg(feature = "metrics")]
-        let _ = self.metrics_tracker.track_coordination_decision(
-            correlation_id.clone(),
-            "assign_agent_to_issue",
-            Some(agent_id),
-            Some(issue_number),
-            &format!("Successfully assigned agent {agent_id} to issue #{issue_number}"),
-            execution_start,
-            true,
-            metadata,
-        ).await;
-
-        // Checkpoint work state after successful assignment
-        #[cfg(feature = "autonomous")]
-        if let Err(e) = self.checkpoint_work_state(agent_id).await {
-            warn!("Failed to checkpoint after assignment: {:?}", e);
-        }
-
-        Ok(())
-        }.instrument(span).await
-    }
 
     /// Generate descriptive branch name from issue title
     fn generate_descriptive_branch_name(
@@ -650,86 +422,39 @@ impl AgentCoordinator {
     }
 
     /// Rollback assignment reservation on failure
-    async fn rollback_assignment(&self, agent_id: &str, issue_number: u64) {
-        let mut assignments = self.assignment_lock.lock().await;
-        let mut capacities = self.agent_capacity.lock().await;
-
-        assignments.remove(&issue_number);
-
-        if let Some((current, max)) = capacities.get(agent_id).cloned() {
-            if current > 0 {
-                capacities.insert(agent_id.to_string(), (current - 1, max));
-                println!(
-                    "🔄 Rolled back assignment: agent {} (capacity: {}/{})",
-                    agent_id,
-                    current - 1,
-                    max
-                );
-            }
-        }
+    async fn rollback_assignment(&self, _agent_id: &str, _issue_number: u64) {
+        let mut current_assignment = self.current_assignment.lock().await;
+        *current_assignment = None;
+        println!("🔄 Rolled back assignment: agent available again");
     }
 
-    /// Get agent utilization for load balancing
+    /// Get agent utilization for single agent system
     pub async fn get_agent_utilization(&self) -> HashMap<String, (u32, u32)> {
-        // Get real-time utilization by checking GitHub for agent assignments
-        let issues = match self.github_client.fetch_issues().await {
-            Ok(issues) => issues,
-            Err(_) => {
-                // Fall back to cached state if GitHub is unavailable
-                let capacities = self.agent_capacity.lock().await;
-                return capacities.clone();
-            }
-        };
-
-        let capacities = self.agent_capacity.lock().await;
         let mut utilization = HashMap::new();
-
-        // For each configured agent, count their actual assignments from GitHub
-        for (agent_id, (_cached_current, max_capacity)) in capacities.iter() {
-            let actual_count = issues
-                .iter()
-                .filter(|issue| {
-                    issue.state == octocrab::models::IssueState::Open
-                        && issue.labels.iter().any(|label| label.name == *agent_id)
-                        && issue.labels.iter().any(|label| label.name == "route:ready")
-                })
-                .count() as u32;
-
-            utilization.insert(agent_id.clone(), (actual_count, *max_capacity));
-        }
-
+        let current_assignment = self.current_assignment.lock().await;
+        let is_assigned = current_assignment.is_some();
+        
+        // Single agent: 0 or 1 assignment, max capacity 1
+        utilization.insert("agent001".to_string(), (if is_assigned { 1 } else { 0 }, 1));
+        
         utilization
     }
 
-    /// Validate system consistency - no conflicts or over-assignments
+    /// Validate system consistency for single agent
     pub async fn validate_consistency(&self) -> Result<bool, GitHubError> {
-        let assignments = self.assignment_lock.lock().await;
-        let capacities = self.agent_capacity.lock().await;
-
-        // Check that assignment counts match capacity tracking
-        let mut agent_counts = HashMap::new();
-        for agent_id in assignments.values() {
-            *agent_counts.entry(agent_id.clone()).or_insert(0) += 1;
+        let current_assignment = self.current_assignment.lock().await;
+        let state_machine = self.agent_state_machine.lock().await;
+        
+        // Check state machine and assignment tracking are consistent
+        let state_issue = state_machine.inner().current_issue();
+        let tracked_issue = *current_assignment;
+        
+        if state_issue != tracked_issue {
+            println!("❌ CONSISTENCY ERROR: State machine issue ({state_issue:?}) != tracked assignment ({tracked_issue:?})");
+            return Ok(false);
         }
 
-        for (agent_id, (current, max)) in capacities.iter() {
-            let actual_count = agent_counts.get(agent_id).unwrap_or(&0);
-            if actual_count != current {
-                println!("❌ CONSISTENCY ERROR: Agent {agent_id} capacity tracking mismatch: tracked={current}, actual={actual_count}");
-                return Ok(false);
-            }
-
-            if current > max {
-                println!("❌ CONSISTENCY ERROR: Agent {agent_id} over-capacity: {current}/{max}");
-                return Ok(false);
-            }
-        }
-
-        println!(
-            "✅ Consistency check passed: {} assignments across {} agents",
-            assignments.len(),
-            capacities.len()
-        );
+        println!("✅ Consistency check passed: Single agent state is consistent");
         Ok(true)
     }
 
@@ -746,100 +471,83 @@ impl AgentCoordinator {
 
     /// Handle agent starting work - triggers state machine transition to working state
     pub async fn start_work(&self, agent_id: &str, commits_ahead: u32) -> Result<(), GitHubError> {
-        let mut state_machines = self.agent_state_machines.lock().await;
-        if let Some(sm) = state_machines.get_mut(agent_id) {
-            sm.handle(&AgentEvent::StartWork { commits_ahead });
-
-            tracing::info!(
-                agent_id = %agent_id,
-                commits_ahead = %commits_ahead,
-                "Agent started work via state machine"
-            );
-
-            Ok(())
-        } else {
-            Err(GitHubError::IoError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("State machine not found for agent: {agent_id}"),
-            )))
+        // Validate agent_id is agent001 (single agent system)
+        if agent_id != "agent001" {
+            return Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Only agent001 is supported in single-agent mode, got: {agent_id}"),
+            )));
         }
+
+        let mut state_machine = self.agent_state_machine.lock().await;
+        state_machine.handle(&AgentEvent::StartWork { commits_ahead });
+
+        tracing::info!(
+            agent_id = %agent_id,
+            commits_ahead = %commits_ahead,
+            "Agent started work via state machine"
+        );
+
+        Ok(())
     }
 
     /// Handle agent completing work - triggers state machine transition to landed state
     pub async fn complete_work(&self, agent_id: &str) -> Result<(), GitHubError> {
-        let mut state_machines = self.agent_state_machines.lock().await;
-        if let Some(sm) = state_machines.get_mut(agent_id) {
-            sm.handle(&AgentEvent::CompleteWork);
-
-            tracing::info!(
-                agent_id = %agent_id,
-                "Agent completed work via state machine"
-            );
-
-            // Trigger GitHub Actions bundling workflow after work completion
-            if let Err(e) = self.trigger_bundling_workflow_async(agent_id).await {
-                warn!(
-                    agent_id = %agent_id,
-                    error = %e,
-                    "Failed to trigger bundling workflow after work completion"
-                );
-                // Don't fail the work completion if bundling trigger fails
-                // The periodic bundling workflow will catch any missed work
-            }
-
-            Ok(())
-        } else {
-            Err(GitHubError::IoError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("State machine not found for agent: {agent_id}"),
-            )))
+        // Validate agent_id is agent001 (single agent system)
+        if agent_id != "agent001" {
+            return Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Only agent001 is supported in single-agent mode, got: {agent_id}"),
+            )));
         }
+
+        let mut state_machine = self.agent_state_machine.lock().await;
+        state_machine.handle(&AgentEvent::CompleteWork);
+
+        tracing::info!(
+            agent_id = %agent_id,
+            "Agent completed work via state machine"
+        );
+
+        // Trigger GitHub Actions bundling workflow after work completion
+        if let Err(e) = self.trigger_bundling_workflow_async(agent_id).await {
+            warn!(
+                agent_id = %agent_id,
+                error = %e,
+                "Failed to trigger bundling workflow after work completion"
+            );
+            // Don't fail the work completion if bundling trigger fails
+            // The periodic bundling workflow will catch any missed work
+        }
+
+        Ok(())
     }
 
     /// Handle agent abandoning work - triggers state machine transition back to idle
     pub async fn abandon_work(&self, agent_id: &str) -> Result<(), GitHubError> {
-        let mut state_machines = self.agent_state_machines.lock().await;
-        if let Some(sm) = state_machines.get_mut(agent_id) {
-            sm.handle(&AgentEvent::Abandon);
-
-            // Also clear internal state tracking
-            {
-                let mut assignments = self.assignment_lock.lock().await;
-                let mut capacities = self.agent_capacity.lock().await;
-
-                // Find and remove the assignment for this agent
-                let issue_to_remove = assignments.iter().find_map(|(issue, assigned_agent)| {
-                    if assigned_agent == agent_id {
-                        Some(*issue)
-                    } else {
-                        None
-                    }
-                });
-
-                if let Some(issue_number) = issue_to_remove {
-                    assignments.remove(&issue_number);
-                }
-
-                // Reduce agent capacity
-                if let Some((current, max)) = capacities.get(agent_id).cloned() {
-                    if current > 0 {
-                        capacities.insert(agent_id.to_string(), (current - 1, max));
-                    }
-                }
-            }
-
-            tracing::info!(
-                agent_id = %agent_id,
-                "Agent abandoned work via state machine"
-            );
-
-            Ok(())
-        } else {
-            Err(GitHubError::IoError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("State machine not found for agent: {agent_id}"),
-            )))
+        // Validate agent_id is agent001 (single agent system)
+        if agent_id != "agent001" {
+            return Err(GitHubError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Only agent001 is supported in single-agent mode, got: {agent_id}"),
+            )));
         }
+
+        let mut state_machine = self.agent_state_machine.lock().await;
+        state_machine.handle(&AgentEvent::Abandon);
+
+        // Clear internal state tracking
+        {
+            let mut current_assignment = self.current_assignment.lock().await;
+            *current_assignment = None;
+        }
+
+        tracing::info!(
+            agent_id = %agent_id,
+            "Agent abandoned work via state machine"
+        );
+
+        Ok(())
     }
 
     /// Trigger GitHub Actions bundling workflow asynchronously
@@ -930,57 +638,53 @@ impl AgentCoordinator {
 
     /// Get current state machine state for debugging and status reporting
     pub async fn get_agent_state_machine_info(&self, agent_id: &str) -> Option<String> {
-        let state_machines = self.agent_state_machines.lock().await;
-        if let Some(sm) = state_machines.get(agent_id) {
-            let inner = sm.inner();
-            let status = if inner.is_available() {
-                "AVAILABLE"
-            } else if inner.is_assigned() {
-                "ASSIGNED"
-            } else if inner.is_working() {
-                "WORKING"
-            } else {
-                "OTHER"
-            };
-
-            Some(format!(
-                "Agent: {} | Status: {} | Issue: {:?} | Branch: {:?} | Commits: {}",
-                agent_id,
-                status,
-                inner.current_issue(),
-                inner.current_branch(),
-                inner.commits_ahead()
-            ))
-        } else {
-            None
+        // Only support agent001 in single-agent mode
+        if agent_id != "agent001" {
+            return None;
         }
+
+        let state_machine = self.agent_state_machine.lock().await;
+        let inner = state_machine.inner();
+        let status = if inner.is_available() {
+            "AVAILABLE"
+        } else if inner.is_assigned() {
+            "ASSIGNED"
+        } else if inner.is_working() {
+            "WORKING"
+        } else {
+            "OTHER"
+        };
+
+        Some(format!(
+            "Agent: {} | Status: {} | Issue: {:?} | Branch: {:?} | Commits: {}",
+            agent_id,
+            status,
+            inner.current_issue(),
+            inner.current_branch(),
+            inner.commits_ahead()
+        ))
     }
 
-    /// Get detailed state machine status for all agents
+    /// Get detailed state machine status for single agent
     pub async fn get_all_agent_states(&self) -> Vec<(String, String)> {
-        let state_machines = self.agent_state_machines.lock().await;
-        let mut states = Vec::new();
+        let state_machine = self.agent_state_machine.lock().await;
+        let inner = state_machine.inner();
+        
+        let status = if inner.is_available() {
+            "AVAILABLE".to_string()
+        } else if inner.is_assigned() {
+            format!("ASSIGNED(issue: {})", inner.current_issue().unwrap_or(0))
+        } else if inner.is_working() {
+            format!(
+                "WORKING(issue: {}, commits: {})",
+                inner.current_issue().unwrap_or(0),
+                inner.commits_ahead()
+            )
+        } else {
+            "OTHER".to_string()
+        };
 
-        for (agent_id, sm) in state_machines.iter() {
-            let inner = sm.inner();
-            let status = if inner.is_available() {
-                "AVAILABLE".to_string()
-            } else if inner.is_assigned() {
-                format!("ASSIGNED(issue: {})", inner.current_issue().unwrap_or(0))
-            } else if inner.is_working() {
-                format!(
-                    "WORKING(issue: {}, commits: {})",
-                    inner.current_issue().unwrap_or(0),
-                    inner.commits_ahead()
-                )
-            } else {
-                "OTHER".to_string()
-            };
-
-            states.push((agent_id.clone(), status));
-        }
-
-        states
+        vec![("agent001".to_string(), status)]
     }
 
     /// Get current bundling status for operational visibility
@@ -1121,14 +825,14 @@ impl AgentCoordinator {
             None => return Ok(()), // Continuity not enabled
         };
 
-        let state_machines = self.agent_state_machines.lock().await;
-        let agent_state = match state_machines.get(agent_id) {
-            Some(sm) => sm.inner(),
-            None => {
-                warn!("No state machine found for agent {}", agent_id);
-                return Ok(());
-            }
-        };
+        // Validate agent_id is agent001 (single agent system)
+        if agent_id != "agent001" {
+            warn!("Only agent001 is supported in single-agent mode, got: {}", agent_id);
+            return Ok(());
+        }
+
+        let state_machine = self.agent_state_machine.lock().await;
+        let agent_state = state_machine.inner();
 
         match continuity_manager
             .checkpoint_state(
@@ -1169,14 +873,14 @@ impl AgentCoordinator {
             None => return Ok(()), // Continuity not enabled
         };
 
-        let mut state_machines = self.agent_state_machines.lock().await;
-        let agent_state = match state_machines.get_mut(agent_id) {
-            Some(sm) => unsafe { sm.inner_mut() },
-            None => {
-                warn!("No state machine found for agent {}", agent_id);
-                return Ok(());
-            }
-        };
+        // Validate agent_id is agent001 (single agent system)
+        if agent_id != "agent001" {
+            warn!("Only agent001 is supported in single-agent mode, got: {}", agent_id);
+            return Ok(());
+        }
+
+        let mut state_machine = self.agent_state_machine.lock().await;
+        let agent_state = unsafe { state_machine.inner_mut() };
 
         match continuity_manager
             .resume_interrupted_work(resume_action, agent_state)
@@ -1224,17 +928,13 @@ impl std::fmt::Debug for AgentCoordinator {
         let mut debug_struct = f.debug_struct("AgentCoordinator");
         debug_struct
             .field("github_client", &"GitHubClient")
-            .field("assignment_lock", &"Arc<Mutex<HashMap<u64, String>>>")
-            .field("agent_capacity", &"Arc<Mutex<HashMap<String, (u32, u32)>>>");
+            .field("current_assignment", &"Arc<Mutex<Option<u64>>>");
         
         #[cfg(feature = "metrics")]
         debug_struct.field("metrics_tracker", &"MetricsTracker");
         
         debug_struct
-            .field(
-                "agent_state_machines",
-                &"Arc<Mutex<HashMap<String, StateMachine<AgentStateMachine>>>>",
-            )
+            .field("agent_state_machine", &"Arc<Mutex<StateMachine<AgentStateMachine>>>")
             .finish()
     }
 }
