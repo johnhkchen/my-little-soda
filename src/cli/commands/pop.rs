@@ -60,8 +60,8 @@ impl PopCommand {
                         println!("📋 Working on: Issue #{issue_number}");
                         println!();
                         println!("💡 Suggested actions:");
-                        println!("   → Check progress: clambake status");
-                        println!("   → Complete work: clambake land");
+                        println!("   → Check progress: my-little-soda status");
+                        println!("   → Complete work: my-little-soda land");
                         println!("   → Switch to main: git checkout main");
                         println!(
                             "   → Force new task: my-little-soda pop --force (not yet implemented)"
@@ -180,7 +180,7 @@ impl PopCommand {
         }).await.or_else(|_| {
             println!("❌ Router initialization failed");
             println!();
-            println!("📚 Full setup guide: clambake init");
+            println!("📚 Full setup guide: my-little-soda init");
             Ok(())
         })
     }

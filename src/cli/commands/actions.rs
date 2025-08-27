@@ -238,7 +238,7 @@ impl ActionsCommand {
     }
 
     fn show_actions_help(&self) {
-        println!("GitHub Actions integration for CLambake bundling automation");
+        println!("GitHub Actions integration for My Little Soda bundling automation");
         println!();
         println!("Available subcommands:");
         println!("  --trigger-bundle     Manually trigger the bundling workflow");
@@ -251,14 +251,14 @@ impl ActionsCommand {
         println!("  --verbose            Enable verbose output");
         println!();
         println!("Examples:");
-        println!("  clambake actions --trigger-bundle");
-        println!("  clambake actions --trigger-bundle --force --verbose");
-        println!("  clambake actions --status");
-        println!("  clambake actions --logs --run-id 12345");
+        println!("  my-little-soda actions --trigger-bundle");
+        println!("  my-little-soda actions --trigger-bundle --force --verbose");
+        println!("  my-little-soda actions --status");
+        println!("  my-little-soda actions --logs --run-id 12345");
         println!();
         println!("💡 The bundling workflow runs automatically every 10 minutes");
         println!(
-            "🔗 View workflows: https://github.com/{}/clambake/actions",
+            "🔗 View workflows: https://github.com/{}/my-little-soda/actions",
             std::env::var("GITHUB_REPOSITORY_OWNER").unwrap_or_else(|_| "your-org".to_string())
         );
     }
