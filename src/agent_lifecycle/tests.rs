@@ -3,8 +3,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::mocks::*;
-    use super::super::traits::*;
-    use super::super::types::*;
+    // Removed unused imports - traits and types modules are not used in tests
 
     #[test]
     fn test_mock_git_operations() {

@@ -206,7 +206,7 @@ mod tests {
         
         let test_issues = vec![
             create_test_issue(999, "Z9z - Should be last task", vec!["route:priority-very-high"]),
-            create_test_issue(001, "A0a - Should be first alphabetically", vec!["route:priority-very-high"]),
+            create_test_issue(1, "A0a - Should be first alphabetically", vec!["route:priority-very-high"]),
             create_test_issue(288, "A1a - Create GitHub Actions workflow file structure", vec!["route:priority-very-high"]),
             create_test_issue(294, "A2d - Optimize release build settings", vec!["route:priority-very-high"]),
         ];

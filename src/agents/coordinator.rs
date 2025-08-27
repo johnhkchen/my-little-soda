@@ -27,6 +27,7 @@ use tokio::sync::Mutex;
 use tracing::{info, warn, Instrument};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural enum variants - data fields reserved for future use
 pub enum AgentState {
     Available,
     Assigned(String),         // GitHub issue URL
