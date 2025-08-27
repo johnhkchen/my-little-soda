@@ -15,6 +15,7 @@ pub struct PullRequestHandler {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // Architectural - struct for future PR status tracking
 pub struct PullRequestStatus {
     pub number: u64,
     pub state: String,
@@ -26,6 +27,7 @@ pub struct PullRequestStatus {
     pub head_sha: String,
 }
 
+#[allow(dead_code)] // PR functionality for future GitHub integration
 impl PullRequestHandler {
     pub fn new(octocrab: Octocrab, owner: String, repo: String) -> Self {
         Self {

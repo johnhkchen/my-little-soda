@@ -19,6 +19,7 @@ pub enum StuckAgentPattern {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural error enum - fields reserved for future error context
 pub enum StateError {
     GitHubError(String),
     GitError(String),
@@ -53,15 +54,18 @@ pub struct SystemValidationReport {
 #[async_trait]
 pub trait StateValidation {
     /// Validate a specific agent's state against GitHub/Git reality
+    #[allow(dead_code)] // Future agent state validation features
     async fn validate_agent_state(&self, agent_id: &str) -> Result<ValidationReport, StateError>;
 
     /// Detect all stuck agent patterns across the system
     async fn detect_all_inconsistencies(&self) -> Result<Vec<Inconsistency>, StateError>;
 
     /// Validate all agent states and generate comprehensive report
+    #[allow(dead_code)] // Future system state validation features
     async fn validate_system_state(&self) -> Result<SystemValidationReport, StateError>;
 
     /// Check for specific stuck agent pattern
+    #[allow(dead_code)] // Future pattern-specific validation features
     async fn check_specific_pattern(
         &self,
         pattern_type: &str,

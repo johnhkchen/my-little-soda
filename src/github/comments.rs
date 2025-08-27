@@ -3,12 +3,14 @@ use octocrab::Octocrab;
 
 /// Handler for GitHub comment operations
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - fields will be used when comment features are implemented
 pub struct CommentHandler {
     octocrab: Octocrab,
     owner: String,
     repo: String,
 }
 
+#[allow(dead_code)] // Comment functionality for future GitHub integration
 impl CommentHandler {
     pub fn new(octocrab: Octocrab, owner: String, repo: String) -> Self {
         Self {

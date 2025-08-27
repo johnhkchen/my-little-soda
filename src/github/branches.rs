@@ -3,6 +3,7 @@ use octocrab::Octocrab;
 
 /// Handler for GitHub branch operations
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - fields will be used when octocrab integration is completed
 pub struct BranchHandler {
     octocrab: Octocrab,
     owner: String,
@@ -64,6 +65,7 @@ impl BranchHandler {
     }
 
     /// List branches in the repository
+    #[allow(dead_code)] // Future branch management functionality
     pub async fn list_branches(&self) -> Result<Vec<String>, GitHubError> {
         // TODO: Implement branch listing using octocrab API
         // For now, return empty list as placeholder
@@ -71,6 +73,7 @@ impl BranchHandler {
     }
 
     /// Get information about a specific branch
+    #[allow(dead_code)] // Future branch management functionality
     pub async fn get_branch_info(&self, branch_name: &str) -> Result<BranchInfo, GitHubError> {
         // TODO: Implement branch info retrieval
         // For now, return placeholder data
@@ -82,6 +85,7 @@ impl BranchHandler {
     }
 
     /// Check if a branch exists
+    #[allow(dead_code)] // Future branch management functionality
     pub async fn branch_exists(&self, branch_name: &str) -> Result<bool, GitHubError> {
         match self
             .octocrab
@@ -100,6 +104,7 @@ impl BranchHandler {
     }
 
     /// Get the default branch of the repository
+    #[allow(dead_code)] // Future branch management functionality
     pub async fn get_default_branch(&self) -> Result<String, GitHubError> {
         // TODO: Implement default branch retrieval
         // For now, assume "main"
@@ -107,6 +112,7 @@ impl BranchHandler {
     }
 
     /// Compare two branches
+    #[allow(dead_code)] // Future branch management functionality
     pub async fn compare_branches(
         &self,
         base: &str,
@@ -126,6 +132,7 @@ impl BranchHandler {
 
 /// Information about a branch
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Future branch management functionality
 pub struct BranchInfo {
     pub name: String,
     pub sha: String,
@@ -134,6 +141,7 @@ pub struct BranchInfo {
 
 /// Comparison between two branches
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Future branch management functionality
 pub struct BranchComparison {
     pub base_branch: String,
     pub head_branch: String,

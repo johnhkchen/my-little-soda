@@ -15,6 +15,7 @@ use std::path::Path;
 
 /// Trait for GitHub operations to enable testing with mocks
 #[async_trait]
+#[allow(dead_code)] // Trait methods for future GitHub API abstraction and testing
 pub trait GitHubOps {
     async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError>;
     async fn fetch_issues_with_state(
@@ -49,6 +50,7 @@ pub struct GitHubClient {
     retry_handler: GitHubRetryHandler,
 }
 
+#[allow(dead_code)] // Many methods are architectural for future GitHub API features
 impl GitHubClient {
     pub fn new() -> Result<Self, GitHubError> {
         let token = Self::read_token()?;

@@ -4,6 +4,7 @@ use tokio::time::timeout;
 use tracing::{info, warn};
 
 /// Graceful shutdown coordinator for Clambake
+#[allow(dead_code)] // Architectural - shutdown coordination for future multi-agent deployments
 pub struct ShutdownCoordinator {}
 
 impl Default for ShutdownCoordinator {
@@ -12,6 +13,7 @@ impl Default for ShutdownCoordinator {
     }
 }
 
+#[allow(dead_code)] // Shutdown coordination for future multi-agent deployments
 impl ShutdownCoordinator {
     pub fn new() -> Self {
         Self {}
@@ -28,6 +30,7 @@ impl ShutdownCoordinator {
     }
 
     /// Wait for shutdown signal and coordinate graceful shutdown
+    #[allow(dead_code)] // Future graceful shutdown functionality
     pub async fn wait_for_shutdown(self) -> Result<()> {
         info!("Shutdown coordinator ready - will shutdown gracefully on SIGINT/SIGTERM");
 
@@ -38,6 +41,7 @@ impl ShutdownCoordinator {
     }
 
     /// Perform graceful shutdown operations
+    #[allow(dead_code)] // Future graceful shutdown functionality
     pub async fn shutdown_all_services() -> Result<()> {
         info!("Initiating graceful shutdown of all services...");
 
@@ -88,6 +92,7 @@ async fn cancel_git_operations() -> Result<()> {
 }
 
 /// Wait for active agents to finish their current tasks
+#[allow(dead_code)] // Future graceful shutdown helper
 async fn wait_for_agents_to_finish() -> Result<()> {
     info!("Waiting for agents to finish current tasks...");
 
@@ -104,6 +109,7 @@ async fn wait_for_agents_to_finish() -> Result<()> {
 }
 
 /// Finish processing current bundles
+#[allow(dead_code)] // Future graceful shutdown helper
 async fn finish_current_bundles() -> Result<()> {
     info!("Finishing current bundle processing...");
 
@@ -119,6 +125,7 @@ async fn finish_current_bundles() -> Result<()> {
 }
 
 /// Close GitHub connections
+#[allow(dead_code)] // Future graceful shutdown helper
 async fn close_github_connections() -> Result<()> {
     info!("Closing GitHub connections...");
 

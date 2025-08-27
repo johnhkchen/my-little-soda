@@ -7,6 +7,7 @@ use crate::github::GitHubError;
 use tracing::{debug, error, warn};
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - retry configuration for future GitHub API resilience
 pub struct RetryConfig {
     pub max_attempts: u32,
     pub base_delay: Duration,
@@ -26,6 +27,7 @@ impl Default for RetryConfig {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural - retry handler for future GitHub API resilience
 pub struct GitHubRetryHandler {
     config: RetryConfig,
 }
@@ -43,6 +45,7 @@ impl GitHubRetryHandler {
 
     /// Execute a GitHub API operation with exponential backoff retry
     /// Note: Simplified version - full retry implementation would require more complex closure handling
+    #[allow(dead_code)] // Future GitHub API resilience functionality
     pub async fn execute_with_retry<F, R, E>(&self, operation: F) -> Result<R, GitHubError>
     where
         F: Fn() -> Result<R, E>,
@@ -87,6 +90,7 @@ impl GitHubRetryHandler {
     }
 
     /// Determine if an error is retryable based on GitHub API patterns
+    #[allow(dead_code)] // Future GitHub API resilience functionality
     fn should_retry(&self, error: &GitHubError) -> bool {
         match error {
             GitHubError::ApiError(octocrab_error) => {

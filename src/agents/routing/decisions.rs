@@ -47,10 +47,12 @@ impl RoutingDecisions {
             .any(|label| label.name == "route:ready_to_merge")
     }
 
+    #[allow(dead_code)] // Future routing decision logic
     pub fn is_route_ready_task(&self, issue: &Issue) -> bool {
         issue.labels.iter().any(|label| label.name == "route:ready")
     }
 
+    #[allow(dead_code)] // Future routing decision logic
     pub fn is_route_unblocker_task(&self, issue: &Issue) -> bool {
         issue
             .labels
@@ -66,6 +68,7 @@ impl RoutingDecisions {
         issue.assignee.is_none()
     }
 
+    #[allow(dead_code)] // Future routing decision logic
     pub fn is_assigned_to_user(&self, issue: &Issue, username: &str) -> bool {
         issue
             .assignee

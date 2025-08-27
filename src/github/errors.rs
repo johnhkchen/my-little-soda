@@ -1,6 +1,7 @@
 use octocrab::Error as OctocrabError;
 
 #[derive(Debug)]
+#[allow(dead_code)] // Some variants are architectural - for future error handling
 pub enum GitHubError {
     TokenNotFound(String),
     ConfigNotFound(String),

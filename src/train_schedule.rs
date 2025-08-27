@@ -298,6 +298,7 @@ impl TrainSchedule {
     }
 
     /// Get branches that are past their departure time by more than 10 minutes (overdue)
+    #[allow(dead_code)] // Future feature for train schedule management
     pub async fn get_overdue_branches() -> Result<Vec<QueuedBranch>, Box<dyn std::error::Error>> {
         let mut overdue_branches = Vec::new();
 
@@ -354,6 +355,7 @@ impl TrainSchedule {
     }
 
     /// Get minutes since last commit on a branch
+    #[allow(dead_code)] // Helper for future train schedule management
     async fn get_minutes_since_last_commit(
         branch_name: &str,
     ) -> Result<i64, Box<dyn std::error::Error>> {
@@ -382,6 +384,7 @@ impl TrainSchedule {
     }
 
     /// Calculate how many minutes past expected departure time
+    #[allow(dead_code)] // Helper for future train schedule management
     fn calculate_departure_delay(minutes_since_commit: i64) -> i64 {
         // Find the next 10-minute departure time after the commit
         let expected_departure_minutes = ((minutes_since_commit / 10) + 1) * 10;

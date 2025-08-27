@@ -479,6 +479,7 @@ impl BundleManager {
     }
 
     /// Get comprehensive audit trail for bundling operations
+    #[allow(dead_code)] // Future bundling audit and debugging features
     pub fn get_audit_trail(&self) -> Vec<BundleAuditEntry> {
         let mut all_entries = Vec::new();
 
@@ -497,6 +498,7 @@ impl BundleManager {
     }
 
     /// Print audit trail for debugging and transparency
+    #[allow(dead_code)] // Future bundling audit and debugging features
     pub fn print_audit_trail(&self) {
         let audit_trail = self.get_audit_trail();
 

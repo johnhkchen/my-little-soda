@@ -63,6 +63,7 @@ pub enum BundleResult {
 
 /// Information about a bundle branch being created
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Architectural design - future bundling feature
 pub struct BundleBranch {
     pub name: String,
     pub base_branch: String,
