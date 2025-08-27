@@ -139,7 +139,7 @@ impl GitHubClient {
         }
     }
 
-    /// Validate token has required scopes for repository operations
+    /// Enhanced token scope validation with detailed error messages and scope detection
     async fn validate_token_scopes(&self) -> Result<(), GitHubError> {
         let octocrab = self.issues.octocrab();
         
@@ -153,22 +153,22 @@ impl GitHubClient {
                     eprintln!("   🌍 Token has access to public repository");
                 }
                 
-                // Test issue access permission
-                match octocrab.issues(&self.owner, &self.repo).list().per_page(1).send().await {
-                    Ok(_) => {
-                        eprintln!("   ✍️  Token has issue read access");
-                        Ok(())
-                    },
-                    Err(_) => {
-                        eprintln!("   ⚠️  Token may lack issue write permissions");
-                        Ok(()) // Don't fail - just warn
-                    }
-                }
+                // Enhanced scope validation with detailed testing
+                self.validate_detailed_scopes(&octocrab, &repo).await?;
+                Ok(())
             },
             Err(octocrab_err) => {
                 match &octocrab_err {
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
-                        Err(GitHubError::ApiError(octocrab_err))
+                        // Enhanced 403 error with token scope guidance
+                        let repo_type = if std::env::var("GITHUB_ACTIONS").is_ok() { "public" } else { "private" };
+                        let scope_needed = if repo_type == "private" { "repo" } else { "public_repo" };
+                        
+                        Err(GitHubError::TokenScopeInsufficient { 
+                            required_scopes: vec![scope_needed.to_string(), "issues:write".to_string(), "pull_requests:write".to_string()],
+                            current_error: source.message.clone(),
+                            token_url: "https://github.com/settings/tokens".to_string(),
+                        })
                     },
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 404 => {
                         Err(GitHubError::ConfigNotFound(
@@ -182,10 +182,77 @@ impl GitHubClient {
         }
     }
 
+    /// Detailed scope validation with comprehensive permission testing
+    async fn validate_detailed_scopes(&self, octocrab: &Octocrab, repo: &octocrab::models::Repository) -> Result<(), GitHubError> {
+        let mut missing_scopes = Vec::new();
+        let mut warnings = Vec::new();
+
+        // Test issue read access
+        match octocrab.issues(&self.owner, &self.repo).list().per_page(1).send().await {
+            Ok(_) => eprintln!("   ✅ Token has issue read access"),
+            Err(e) => {
+                match &e {
+                    octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
+                        missing_scopes.push("issues:read".to_string());
+                    },
+                    _ => warnings.push("Issue read access test inconclusive".to_string()),
+                }
+            }
+        }
+
+        // Test issue write access (try to fetch assignees which requires write scope)
+        match octocrab.issues(&self.owner, &self.repo).list_assignees().send().await {
+            Ok(_) => eprintln!("   ✅ Token has issue write access"),
+            Err(e) => {
+                match &e {
+                    octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
+                        missing_scopes.push("issues:write".to_string());
+                    },
+                    _ => warnings.push("Issue write access test inconclusive".to_string()),
+                }
+            }
+        }
+
+        // Test pull request access
+        match octocrab.pulls(&self.owner, &self.repo).list().per_page(1).send().await {
+            Ok(_) => eprintln!("   ✅ Token has pull request access"),
+            Err(e) => {
+                match &e {
+                    octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
+                        missing_scopes.push("pull_requests:read".to_string());
+                    },
+                    _ => warnings.push("Pull request access test inconclusive".to_string()),
+                }
+            }
+        }
+
+        // Report warnings
+        for warning in &warnings {
+            eprintln!("   ⚠️  {}", warning);
+        }
+
+        // Fail if critical scopes are missing
+        if !missing_scopes.is_empty() {
+            let required_base_scope = if repo.private.unwrap_or(false) { "repo" } else { "public_repo" };
+            let mut all_required = vec![required_base_scope.to_string()];
+            all_required.extend(missing_scopes);
+            
+            return Err(GitHubError::TokenScopeInsufficient {
+                required_scopes: all_required,
+                current_error: "Token lacks required permissions for My Little Soda operations".to_string(),
+                token_url: "https://github.com/settings/tokens".to_string(),
+            });
+        }
+
+        eprintln!("   ✅ Token has all required scopes for My Little Soda operations");
+        Ok(())
+    }
+
     fn read_token() -> Result<String, GitHubError> {
         // First try environment variable (set by flox)
         if let Ok(token) = std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN") {
             if token != "YOUR_GITHUB_TOKEN_HERE" && !token.is_empty() {
+                eprintln!("   🔑 Authentication method: Environment variable (MY_LITTLE_SODA_GITHUB_TOKEN)");
                 return Ok(token);
             }
         }
@@ -195,19 +262,39 @@ impl GitHubClient {
         if Path::new(token_path).exists() {
             let token = fs::read_to_string(token_path)?.trim().to_string();
             if token != "YOUR_GITHUB_TOKEN_HERE" && !token.is_empty() {
+                eprintln!("   🔑 Authentication method: File-based configuration (.my-little-soda/credentials/github_token)");
                 return Ok(token);
             }
         }
 
         // Fall back to GitHub CLI authentication
         if let Ok(gh_token) = Self::try_github_cli_token() {
+            eprintln!("   🔑 Authentication method: GitHub CLI (gh auth token)");
             return Ok(gh_token);
         }
 
-        // All authentication methods failed
-        Err(GitHubError::TokenNotFound(
-            "No valid GitHub authentication found. Please set up authentication using one of these methods:\n  1. Set MY_LITTLE_SODA_GITHUB_TOKEN environment variable\n  2. Run 'gh auth login' (GitHub CLI)\n  3. Create .my-little-soda/credentials/github_token file with your token".to_string()
-        ))
+        // All authentication methods failed - provide comprehensive guidance
+        let is_ci = std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();
+        let mut error_msg = "No valid GitHub authentication found.".to_string();
+        
+        if is_ci {
+            error_msg.push_str("\n\nCI/CD Environment Setup:");
+            error_msg.push_str("\n  1. Set GITHUB_TOKEN or MY_LITTLE_SODA_GITHUB_TOKEN in repository secrets");
+            error_msg.push_str("\n  2. Ensure workflow has appropriate permissions:");
+            error_msg.push_str("\n     permissions:");
+            error_msg.push_str("\n       contents: write");
+            error_msg.push_str("\n       issues: write");
+            error_msg.push_str("\n       pull-requests: write");
+        } else {
+            error_msg.push_str("\n\nLocal Development Setup (choose one):");
+            error_msg.push_str("\n  1. 🎯 GitHub CLI (recommended): gh auth login");
+            error_msg.push_str("\n  2. 📝 Environment variable: export MY_LITTLE_SODA_GITHUB_TOKEN=your_token");
+            error_msg.push_str("\n  3. 📁 Configuration file: Create .my-little-soda/credentials/github_token");
+            error_msg.push_str("\n\n🔗 Create token at: https://github.com/settings/tokens");
+            error_msg.push_str("\n   Required scopes: repo (private) or public_repo (public), issues, pull_requests");
+        }
+
+        Err(GitHubError::TokenNotFound(error_msg))
     }
 
     fn try_github_cli_token() -> Result<String, GitHubError> {
@@ -302,12 +389,89 @@ impl GitHubClient {
         Ok((owner, repo))
     }
 
-    /// Common error handling utility for GitHub API calls
+    /// Enhanced error handling utility for GitHub API calls with rate limit detection
     pub async fn handle_api_result<T>(
         &self,
         result: Result<T, octocrab::Error>,
     ) -> Result<T, GitHubError> {
-        result.map_err(GitHubError::ApiError)
+        match result {
+            Ok(value) => Ok(value),
+            Err(octocrab_err) => {
+                // Check for rate limiting
+                if let Some(rate_limit_error) = self.detect_rate_limit(&octocrab_err) {
+                    return Err(rate_limit_error);
+                }
+                
+                // Enhanced error context for common API errors
+                match &octocrab_err {
+                    octocrab::Error::GitHub { source, .. } => {
+                        match source.status_code.as_u16() {
+                            403 => {
+                                // Could be rate limit or permissions
+                                if source.message.contains("rate") || source.message.contains("limit") {
+                                    return self.check_rate_limit_status().await;
+                                } else {
+                                    Err(GitHubError::ApiError(octocrab_err))
+                                }
+                            },
+                            502 | 503 | 504 => {
+                                // GitHub is having issues - enhance error message
+                                Err(GitHubError::NetworkError(format!(
+                                    "GitHub API server error (HTTP {}). This is likely a temporary GitHub service issue. Please try again in a few minutes or check https://status.github.com",
+                                    source.status_code.as_u16()
+                                )))
+                            },
+                            _ => Err(GitHubError::ApiError(octocrab_err))
+                        }
+                    },
+                    _ => Err(GitHubError::ApiError(octocrab_err))
+                }
+            }
+        }
+    }
+
+    /// Detect rate limiting from octocrab error
+    fn detect_rate_limit(&self, error: &octocrab::Error) -> Option<GitHubError> {
+        match error {
+            octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
+                if source.message.contains("rate") || source.message.contains("limit") {
+                    // Try to parse rate limit info from headers (simplified)
+                    let reset_time = chrono::Utc::now() + chrono::Duration::minutes(60); // Default assumption
+                    Some(GitHubError::RateLimit { 
+                        reset_time, 
+                        remaining: 0 
+                    })
+                } else {
+                    None
+                }
+            },
+            _ => None
+        }
+    }
+
+    /// Check current rate limit status and provide helpful information  
+    async fn check_rate_limit_status<T>(&self) -> Result<T, GitHubError> {
+        let octocrab = self.issues.octocrab();
+        
+        // Try to get rate limit information
+        match octocrab.ratelimit().get().await {
+            Ok(rate_limit) => {
+                let reset_time = chrono::DateTime::from_timestamp(rate_limit.resources.core.reset as i64, 0)
+                    .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(1));
+                
+                Err(GitHubError::RateLimit {
+                    reset_time,
+                    remaining: rate_limit.resources.core.remaining as u32,
+                })
+            },
+            Err(_) => {
+                // Fallback error if we can't get rate limit info
+                Err(GitHubError::RateLimit {
+                    reset_time: chrono::Utc::now() + chrono::Duration::hours(1),
+                    remaining: 0,
+                })
+            }
+        }
     }
 
     /// Standard retry wrapper for GitHub operations

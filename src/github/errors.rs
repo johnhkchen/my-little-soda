@@ -17,6 +17,11 @@ pub enum GitHubError {
         duration_ms: u64,
     },
     NetworkError(String),
+    TokenScopeInsufficient {
+        required_scopes: Vec<String>,
+        current_error: String,
+        token_url: String,
+    },
 }
 
 impl From<OctocrabError> for GitHubError {
@@ -106,13 +111,40 @@ impl std::fmt::Display for GitHubError {
                         }
                     },
                     octocrab::Error::Http { .. } => {
-                        writeln!(f, "🌐 Network connection failed")?;
+                        writeln!(f, "🌐 Network connection failed to GitHub API")?;
                         writeln!(f)?;
-                        writeln!(f, "🔧 NETWORK TROUBLESHOOTING:")?;
-                        writeln!(f, "   → Check internet connectivity")?;
-                        writeln!(f, "   → Test GitHub: curl -I https://api.github.com")?;
-                        writeln!(f, "   → Check firewall/proxy settings")?;
-                        write!(f, "   → GitHub status: https://status.github.com")
+                        
+                        // Detect common network environments and provide specific guidance
+                        let is_ci = std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();
+                        let is_codespace = std::env::var("CODESPACES").is_ok();
+                        let is_dev_container = std::env::var("REMOTE_CONTAINERS").is_ok();
+                        
+                        if is_ci {
+                            writeln!(f, "🏗️  CI/CD ENVIRONMENT TROUBLESHOOTING:")?;
+                            writeln!(f, "   → GitHub Actions should have internet access by default")?;
+                            writeln!(f, "   → Check for custom network configurations or runners")?;
+                            writeln!(f, "   → Verify GitHub API status: https://status.github.com")?;
+                            writeln!(f, "   → Test: curl -v https://api.github.com")?;
+                        } else if is_codespace || is_dev_container {
+                            writeln!(f, "📦 CONTAINER ENVIRONMENT TROUBLESHOOTING:")?;
+                            writeln!(f, "   → Codespaces/Dev Containers should have GitHub access by default")?;
+                            writeln!(f, "   → Check container network settings")?;
+                            writeln!(f, "   → Verify port forwarding configuration")?;
+                            writeln!(f, "   → Test basic connectivity: curl -I https://api.github.com")?;
+                        } else {
+                            writeln!(f, "🔧 LOCAL NETWORK TROUBLESHOOTING:")?;
+                            writeln!(f, "   → Step 1: Test basic internet: ping 8.8.8.8")?;
+                            writeln!(f, "   → Step 2: Test DNS resolution: nslookup api.github.com")?;
+                            writeln!(f, "   → Step 3: Test HTTPS: curl -I https://api.github.com")?;
+                            writeln!(f, "   → Step 4: Check corporate firewall/proxy settings")?;
+                            writeln!(f)?;
+                            writeln!(f, "🏢 CORPORATE NETWORK SOLUTIONS:")?;
+                            writeln!(f, "   → Configure HTTP proxy: export https_proxy=proxy.company.com:8080")?;
+                            writeln!(f, "   → Add GitHub to allowlist: api.github.com, github.com")?;
+                            writeln!(f, "   → Contact IT about GitHub API access")?;
+                        }
+                        writeln!(f)?;
+                        write!(f, "📊 GitHub status: https://status.github.com")
                     },
                     _ => {
                         write!(f, "🌐 {octocrab_err}\n\n")?;
@@ -147,16 +179,31 @@ impl std::fmt::Display for GitHubError {
             } => {
                 writeln!(f, "GitHub Rate Limit Exceeded")?;
                 writeln!(f, "──────────────────────────")?;
-                writeln!(f, "⏱️  Rate limit exceeded. {remaining} requests remaining")?;
+                writeln!(f, "⏱️  Rate limit exceeded. {} requests remaining", remaining)?;
+                
+                let now = chrono::Utc::now();
+                let wait_duration = reset_time.signed_duration_since(now);
+                let wait_minutes = wait_duration.num_minutes().max(0);
+                
                 write!(
                     f,
-                    "⏳ Rate limit resets at: {}\n\n",
-                    reset_time.format("%Y-%m-%d %H:%M:%S UTC")
+                    "⏳ Rate limit resets at: {} (in ~{} minutes)\n\n",
+                    reset_time.format("%Y-%m-%d %H:%M:%S UTC"),
+                    wait_minutes
                 )?;
-                writeln!(f, "🔧 RECOMMENDED ACTIONS:")?;
-                writeln!(f, "   → Wait for rate limit reset")?;
-                writeln!(f, "   → Use authentication to increase limits")?;
-                write!(f, "   → Check rate limit status: gh api rate_limit")
+                writeln!(f, "🔧 IMMEDIATE SOLUTIONS:")?;
+                if wait_minutes <= 60 {
+                    writeln!(f, "   → Wait {} minutes for automatic reset", wait_minutes)?;
+                } else {
+                    writeln!(f, "   → Wait ~{} hours for automatic reset", (wait_minutes + 30) / 60)?;
+                }
+                writeln!(f, "   → Use authenticated requests (higher limits)")?;
+                writeln!(f, "   → Check current status: gh api rate_limit")?;
+                writeln!(f)?;
+                writeln!(f, "📊 RATE LIMIT INFO:")?;
+                writeln!(f, "   → Authenticated: 5,000 requests/hour")?;
+                writeln!(f, "   → Unauthenticated: 60 requests/hour")?;
+                write!(f, "   → Enterprise: Up to 15,000 requests/hour")
             }
             GitHubError::Timeout {
                 operation,
@@ -177,10 +224,57 @@ impl std::fmt::Display for GitHubError {
                 writeln!(f, "GitHub Network Error")?;
                 writeln!(f, "───────────────────")?;
                 write!(f, "🌐 {msg}\n\n")?;
-                writeln!(f, "🔧 RECOMMENDED ACTIONS:")?;
-                writeln!(f, "   → Check internet connectivity")?;
-                writeln!(f, "   → Verify DNS resolution")?;
-                write!(f, "   → Check firewall/proxy settings")
+                
+                // Environment-specific troubleshooting
+                let is_ci = std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();
+                let has_proxy = std::env::var("HTTP_PROXY").is_ok() || std::env::var("HTTPS_PROXY").is_ok();
+                
+                if is_ci {
+                    writeln!(f, "🔧 CI/CD TROUBLESHOOTING:")?;
+                    writeln!(f, "   → Check runner network configuration")?;
+                    writeln!(f, "   → Verify internet access is enabled")?;
+                    writeln!(f, "   → Test GitHub connectivity in workflow")?;
+                } else if has_proxy {
+                    writeln!(f, "🔧 PROXY ENVIRONMENT DETECTED:")?;
+                    writeln!(f, "   → Verify proxy settings are correct")?;
+                    writeln!(f, "   → Check proxy authentication")?;
+                    writeln!(f, "   → Test: curl -v --proxy $HTTP_PROXY https://api.github.com")?;
+                } else {
+                    writeln!(f, "🔧 LOCAL TROUBLESHOOTING:")?;
+                    writeln!(f, "   → Check internet connectivity: ping 8.8.8.8")?;
+                    writeln!(f, "   → Verify DNS resolution: nslookup api.github.com")?;
+                    writeln!(f, "   → Test HTTPS access: curl -I https://api.github.com")?;
+                    writeln!(f, "   → Check firewall rules for outbound HTTPS (port 443)")?;
+                }
+                writeln!(f)?;
+                writeln!(f, "💡 NETWORK DEBUGGING TIPS:")?;
+                writeln!(f, "   → Try from different network (mobile hotspot)")?;
+                writeln!(f, "   → Check corporate firewall/VPN settings")?;
+                writeln!(f, "   → Verify system time is correct (affects TLS)")?;
+                write!(f, "   → GitHub status page: https://status.github.com")
+            }
+            GitHubError::TokenScopeInsufficient { required_scopes, current_error, token_url } => {
+                writeln!(f, "GitHub Token Scope Insufficient")?;
+                writeln!(f, "──────────────────────────────")?;
+                write!(f, "🔐 {current_error}\n\n")?;
+                writeln!(f, "📋 REQUIRED TOKEN SCOPES:")?;
+                for scope in required_scopes {
+                    writeln!(f, "   ✓ {}", scope)?;
+                }
+                writeln!(f)?;
+                writeln!(f, "🔧 HOW TO FIX:")?;
+                writeln!(f, "   1. Visit: {}", token_url)?;
+                writeln!(f, "   2. Edit your existing token or create a new one")?;
+                writeln!(f, "   3. Enable the required scopes listed above")?;
+                writeln!(f, "   4. Copy the token and run one of:")?;
+                writeln!(f, "      → gh auth login (recommended)")?;
+                writeln!(f, "      → export MY_LITTLE_SODA_GITHUB_TOKEN=your_new_token")?;
+                writeln!(f)?;
+                writeln!(f, "💡 SCOPE GUIDE:")?;
+                writeln!(f, "   → 'repo' = Full access to private repositories")?;
+                writeln!(f, "   → 'public_repo' = Access to public repositories only")?;
+                writeln!(f, "   → 'issues:write' = Create and modify issues")?;
+                write!(f, "   → 'pull_requests:write' = Create and modify pull requests")
             }
         }
     }
