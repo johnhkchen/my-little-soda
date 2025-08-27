@@ -1,4 +1,6 @@
 use anyhow::Result;
+use crate::metrics::MetricsTracker;
+use serde_json;
 
 pub struct MetricsCommand {
     pub hours: u64,
@@ -27,17 +29,57 @@ impl MetricsCommand {
     }
 
     pub async fn execute(&self) -> Result<()> {
+        let tracker = MetricsTracker::new();
+        
+        if self.ci_mode {
+            self.execute_ci_mode(&tracker).await
+        } else {
+            self.execute_interactive_mode(&tracker).await
+        }
+    }
+
+    async fn execute_interactive_mode(&self, tracker: &MetricsTracker) -> Result<()> {
         println!("📊 MY LITTLE SODA METRICS - Integration Performance Analytics");
         println!("======================================================");
         println!();
-
         println!("⏰ Time window: {} hours", self.hours);
         println!("📈 Detailed: {}", self.detailed);
         println!();
 
-        // TODO: Implement full metrics command logic
-        println!("⚠️  Metrics command implementation needs to be completed in refactored version");
+        match tracker.calculate_metrics(Some(self.hours)).await {
+            Ok(metrics) => {
+                let report = tracker.format_metrics_report(&metrics, self.detailed);
+                println!("{}", report);
+                
+                if self.detailed {
+                    println!("\n🔍 Performance Analysis:");
+                    match tracker.format_performance_report(Some(self.hours)).await {
+                        Ok(perf_report) => println!("{}", perf_report),
+                        Err(e) => println!("⚠️  Performance report unavailable: {}", e),
+                    }
+                }
+                
+                println!("\n✅ Metrics analysis complete");
+            }
+            Err(e) => {
+                println!("❌ Error calculating metrics: {}", e);
+            }
+        }
 
+        Ok(())
+    }
+
+    async fn execute_ci_mode(&self, tracker: &MetricsTracker) -> Result<()> {
+        match tracker.export_metrics_for_monitoring(Some(self.hours)).await {
+            Ok(export_data) => {
+                let json_output = serde_json::to_string_pretty(&export_data)?;
+                println!("{}", json_output);
+            }
+            Err(e) => {
+                eprintln!("Error exporting metrics: {}", e);
+                return Err(e.into());
+            }
+        }
         Ok(())
     }
 }
@@ -57,10 +99,19 @@ impl ExportMetricsCommand {
     }
 
     pub async fn execute(&self) -> Result<()> {
+        let tracker = MetricsTracker::new();
+
+        if self.ci_mode {
+            self.execute_ci_mode(&tracker).await
+        } else {
+            self.execute_interactive_mode(&tracker).await
+        }
+    }
+
+    async fn execute_interactive_mode(&self, tracker: &MetricsTracker) -> Result<()> {
         println!("📊 MY LITTLE SODA EXPORT METRICS - JSON Format");
         println!("=========================================");
         println!();
-
         println!("⏰ Time window: {} hours", self.hours);
         if let Some(output) = &self.output {
             println!("📁 Output file: {output}");
@@ -69,11 +120,36 @@ impl ExportMetricsCommand {
         }
         println!();
 
-        // TODO: Implement full export metrics command logic
-        println!(
-            "⚠️  Export metrics command implementation needs to be completed in refactored version"
-        );
+        self.export_metrics(&tracker).await
+    }
 
+    async fn execute_ci_mode(&self, tracker: &MetricsTracker) -> Result<()> {
+        self.export_metrics(&tracker).await
+    }
+
+    async fn export_metrics(&self, tracker: &MetricsTracker) -> Result<()> {
+        match tracker.export_metrics_for_monitoring(Some(self.hours)).await {
+            Ok(export_data) => {
+                let json_output = serde_json::to_string_pretty(&export_data)?;
+                
+                if let Some(output_file) = &self.output {
+                    std::fs::write(output_file, &json_output)?;
+                    if !self.ci_mode {
+                        println!("✅ Metrics exported to: {}", output_file);
+                    }
+                } else {
+                    println!("{}", json_output);
+                }
+            }
+            Err(e) => {
+                if self.ci_mode {
+                    eprintln!("Error exporting metrics: {}", e);
+                    return Err(e.into());
+                } else {
+                    println!("❌ Error exporting metrics: {}", e);
+                }
+            }
+        }
         Ok(())
     }
 }
