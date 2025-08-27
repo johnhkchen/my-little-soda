@@ -26,8 +26,6 @@ pub enum AgentEvent {
 
 #[derive(Debug, Error)]
 pub enum TransitionError {
-    #[error("Invalid transition with event {event:?}")]
-    InvalidTransition { event: AgentEvent },
     #[error("Validation failed: {reason}")]
     ValidationFailed { reason: String },
     #[error("Agent ID mismatch: expected {expected}, got {actual}")]
@@ -36,10 +34,6 @@ pub enum TransitionError {
 
 #[derive(Debug, Error)]
 pub enum StateError {
-    #[error("GitHub API error: {0}")]
-    GitHubError(String),
-    #[error("Git operations error: {0}")]
-    GitError(String),
     #[error("State validation error: {0}")]
     ValidationError(String),
 }
@@ -59,12 +53,6 @@ pub enum StuckAgentPattern {
     LandedButNotFreed { agent_id: String, issue: u64 },
 }
 
-#[derive(Debug)]
-pub struct RecoveryReport {
-    pub recovered: Vec<String>,
-    pub failed: Vec<(String, String)>,
-    pub skipped: Vec<String>,
-}
 
 #[derive(Default)]
 pub struct AgentStateMachine {
@@ -436,58 +424,6 @@ impl AgentStateMachine {
             .map_err(|e| StateError::ValidationError(format!("Recovery failed: {e:?}")))
     }
 
-    /// Apply a recovery action to this state machine instance
-    /// This allows the recovery system to trigger state machine events
-    pub fn apply_recovery_action(
-        &mut self,
-        action: &crate::agents::recovery::RecoveryAction,
-    ) -> Result<(), StateError> {
-        match action {
-            crate::agents::recovery::RecoveryAction::ResetToAssigned { agent_id, issue } => {
-                if self.agent_id != *agent_id {
-                    return Err(StateError::ValidationError(format!(
-                        "Agent ID mismatch: expected {}, got {}",
-                        self.agent_id, agent_id
-                    )));
-                }
-
-                // Reset to assigned state
-                self.current_issue = Some(*issue);
-                self.commits_ahead = 0;
-
-                tracing::info!(
-                    agent_id = %self.agent_id,
-                    issue = %issue,
-                    "Applied recovery action: reset to assigned state"
-                );
-
-                Ok(())
-            }
-            crate::agents::recovery::RecoveryAction::ForceReset { agent_id } => {
-                if self.agent_id != *agent_id {
-                    return Err(StateError::ValidationError(format!(
-                        "Agent ID mismatch: expected {}, got {}",
-                        self.agent_id, agent_id
-                    )));
-                }
-
-                // Force reset to idle
-                self.reset_state();
-
-                tracing::info!(
-                    agent_id = %self.agent_id,
-                    "Applied recovery action: force reset to idle"
-                );
-
-                Ok(())
-            }
-            _ => {
-                // Other recovery actions (label/branch operations) are handled by the recovery system
-                // and don't require state machine changes
-                Ok(())
-            }
-        }
-    }
 
     // Note: Validation methods will be added via extension trait to avoid circular dependencies
     // /// Validate this agent's state against external GitHub/Git reality

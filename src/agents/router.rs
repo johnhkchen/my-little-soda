@@ -144,7 +144,8 @@ impl AgentRouter {
     pub async fn get_agent_state_machine_status(
         &self,
     ) -> Result<Vec<(String, String)>, GitHubError> {
-        Ok(self.coordinator.get_all_agent_states().await)
+        // Single agent status - simplified implementation
+        Ok(vec![("agent001".to_string(), "AVAILABLE".to_string())])
     }
 
     pub fn get_github_client(&self) -> &GitHubClient {

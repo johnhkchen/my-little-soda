@@ -28,8 +28,8 @@
 //! }
 //! ```
 
-use crate::agent_lifecycle::traits::*;
-use crate::agent_lifecycle::types::*;
+use crate::agent_lifecycle::traits::{GitHubOperations, GitOperations};
+use crate::agent_lifecycle::types::{AgentState, PreFlightIssue, parse_agent_branch};
 use anyhow::Result;
 
 /// Real implementation of agent state detection
@@ -58,30 +58,9 @@ pub struct AgentStateDetector<G: GitHubOperations, O: GitOperations> {
 }
 
 impl<G: GitHubOperations, O: GitOperations> AgentStateDetector<G, O> {
-    /// Create new state detector with GitHub and Git operations
-    ///
-    /// # Arguments
-    ///
-    /// - `github_ops`: Implementation of GitHub operations for issue/label checking
-    /// - `git_ops`: Implementation of Git operations for repository state checking
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let detector = AgentStateDetector::new(
-    ///     GitHubClient::new()?,
-    ///     Git2Operations::new()?
-    /// );
-    /// ```
-    pub fn new(github_ops: G, git_ops: O) -> Self {
-        Self {
-            github_ops,
-            git_ops,
-        }
-    }
 }
 
-impl<G: GitHubOperations, O: GitOperations> StateDetector for AgentStateDetector<G, O> {
+impl<G: GitHubOperations, O: GitOperations> AgentStateDetector<G, O> {
     /// Detect current agent state based on GitHub labels and git state
     ///
     /// This method implements the core state detection logic by:
