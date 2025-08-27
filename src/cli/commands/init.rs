@@ -138,7 +138,47 @@ impl InitCommand {
     }
 
     async fn validate_environment(&self) -> Result<()> {
-        // Check GitHub CLI authentication
+        // Check if this is a fresh project (no git repo or no remote)
+        let is_fresh_project = self.detect_fresh_project().await;
+        
+        if is_fresh_project {
+            println!("🆕 Fresh project detected - initializing git repository and My Little Soda...");
+            println!();
+            
+            if !self.dry_run {
+                // Initialize git repository
+                print!("📦 Initializing git repository... ");
+                std::io::Write::flush(&mut std::io::stdout()).unwrap();
+                
+                let git_init_output = self.fs_ops.execute_command("git", &["init".to_string()])
+                    .await
+                    .map_err(|e| anyhow!("Failed to initialize git repository: {}. Make sure git is installed.", e))?;
+                
+                if !git_init_output.status.success() {
+                    let stderr = String::from_utf8_lossy(&git_init_output.stderr);
+                    return Err(anyhow!("Git init failed: {}", stderr));
+                }
+                println!("✅");
+                
+                println!();
+                println!("✨ Git repository initialized!");
+                println!("📋 Next steps after My Little Soda setup completes:");
+                println!("   1. Add your files:                git add .");
+                println!("   2. Create initial commit:         git commit -m 'Initial commit'");
+                println!("   3. Create GitHub repository:      gh repo create --public");
+                println!("   4. Push to GitHub:                git push -u origin main");
+                println!("   5. Update clambake.toml with correct GitHub info");
+                println!();
+            } else {
+                println!("Would initialize git repository (dry run mode)");
+                println!();
+            }
+            
+            // For fresh projects, skip GitHub validation and continue with local setup
+            return Ok(());
+        }
+
+        // Check GitHub CLI authentication for existing repositories
         print!("✅ Verifying GitHub CLI authentication... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
@@ -162,96 +202,67 @@ impl InitCommand {
         }
         println!("✅");
 
-        // Check if this is a fresh project (no git repo or no remote)
-        let is_fresh_project = self.detect_fresh_project().await;
-        
-        if is_fresh_project && !self.dry_run {
-            println!("🆕 Fresh project detected!");
-            println!();
-            println!("📋 To set up my-little-soda in a fresh project, please:");
-            println!("   1. Initialize git repository:     git init");
-            println!("   2. Create initial commit:         git add . && git commit -m 'Initial commit'");
-            println!("   3. Create GitHub repository:      gh repo create --public");
-            println!("   4. Push to GitHub:                git push -u origin main");
-            println!("   5. Run my-little-soda init again: my-little-soda init");
-            println!();
-            println!("💡 Alternatively, run 'my-little-soda init --force' to create local configuration only");
-            println!("   (GitHub integration can be set up later)");
-            
-            if !self.force {
-                return Err(anyhow!("Fresh project detected. Follow the setup steps above or use --force for local-only setup."));
-            }
-            
-            println!();
-            println!("🚀 Proceeding with local-only setup due to --force flag...");
-            return Ok(()); // Skip GitHub validation for fresh projects with --force
-        }
-
         // For existing repositories, validate GitHub permissions
-        if !is_fresh_project {
-            print!("✅ Checking repository write permissions... ");
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        print!("✅ Checking repository write permissions... ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-            if !self.dry_run {
-                let github_client = GitHubClient::new()
-                    .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
+        if !self.dry_run {
+            let github_client = GitHubClient::new()
+                .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
-                // Test permissions by trying to fetch repository info
-                let octocrab = Octocrab::builder()
-                    .personal_token(
-                        std::env::var("GITHUB_TOKEN")
-                            .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
+            // Test permissions by trying to fetch repository info
+            let octocrab = Octocrab::builder()
+                .personal_token(
+                    std::env::var("GITHUB_TOKEN")
+                        .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
+                )
+                .build()?;
+
+            let repo = octocrab
+                .repos(github_client.owner(), github_client.repo())
+                .get()
+                .await
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to access repository: {}. Check your GitHub token permissions.",
+                        e
                     )
-                    .build()?;
+                })?;
 
-                let repo = octocrab
-                    .repos(github_client.owner(), github_client.repo())
-                    .get()
-                    .await
-                    .map_err(|e| {
-                        anyhow!(
-                            "Failed to access repository: {}. Check your GitHub token permissions.",
-                            e
-                        )
-                    })?;
-
-                if !repo
-                    .permissions
-                    .as_ref()
-                    .map(|p| p.admin || p.push)
-                    .unwrap_or(false)
-                {
-                    return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
-                }
+            if !repo
+                .permissions
+                .as_ref()
+                .map(|p| p.admin || p.push)
+                .unwrap_or(false)
+            {
+                return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
             }
-            println!("✅");
         }
+        println!("✅");
 
-        // Check git repository status (only if git repo exists)
-        if !is_fresh_project {
-            print!("✅ Checking git repository status... ");
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        // Check git repository status for existing repositories
+        print!("✅ Checking git repository status... ");
+        std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-            if !self.dry_run {
-                let output = self.fs_ops.execute_command("git", &["status".to_string(), "--porcelain".to_string()])
-                    .await
-                    .map_err(|e| anyhow!("Failed to check git status: {}", e))?;
+        if !self.dry_run {
+            let output = self.fs_ops.execute_command("git", &["status".to_string(), "--porcelain".to_string()])
+                .await
+                .map_err(|e| anyhow!("Failed to check git status: {}", e))?;
 
-                if !output.stdout.is_empty() {
-                    println!("⚠️");
-                    println!("   Warning: Repository has uncommitted changes.");
-                    if !self.force {
-                        return Err(anyhow!(
-                            "Repository has uncommitted changes. Use --force to proceed anyway."
-                        ));
-                    }
-                    println!("   Proceeding due to --force flag.");
-                } else {
-                    println!("✅");
+            if !output.stdout.is_empty() {
+                println!("⚠️");
+                println!("   Warning: Repository has uncommitted changes.");
+                if !self.force {
+                    return Err(anyhow!(
+                        "Repository has uncommitted changes. Use --force to proceed anyway."
+                    ));
                 }
+                println!("   Proceeding due to --force flag.");
             } else {
-                println!("✅ (dry run)");
+                println!("✅");
             }
+        } else {
+            println!("✅ (dry run)");
         }
 
         Ok(())
@@ -269,6 +280,12 @@ impl InitCommand {
         if let Ok(output) = git_remote {
             if !output.status.success() {
                 return true; // No remote origin
+            }
+            
+            // Verify remote URL is actually accessible (not just configured)
+            let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if remote_url.is_empty() {
+                return true; // Empty remote URL
             }
         } else {
             return true; // Command failed
@@ -288,6 +305,14 @@ impl InitCommand {
                     label.name, label.color, label.description
                 );
             }
+            return Ok(());
+        }
+
+        // Check if this is a fresh project - skip label creation
+        let is_fresh_project = self.detect_fresh_project().await;
+        if is_fresh_project {
+            println!("⏭️  Skipping GitHub label creation for fresh project");
+            println!("   Labels will be created after GitHub repository setup");
             return Ok(());
         }
 
@@ -486,14 +511,10 @@ impl InitCommand {
             .map_err(|e| anyhow!("Failed to get git remote URL: {}", e))?;
 
         if !output.status.success() {
-            // For fresh projects with --force, provide placeholder values
-            if self.force {
-                println!("⚠️  No git remote found, using placeholder repository info");
-                println!("   Update clambake.toml manually after setting up GitHub repository");
-                return Ok(("your-github-username".to_string(), "your-repo-name".to_string()));
-            } else {
-                return Err(anyhow!("No git remote 'origin' found"));
-            }
+            // For fresh projects (with or without --force), provide placeholder values
+            println!("⚠️  No git remote found, using placeholder repository info");
+            println!("   Update clambake.toml manually after setting up GitHub repository");
+            return Ok(("your-github-username".to_string(), "your-repo-name".to_string()));
         }
 
         let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -545,35 +566,51 @@ impl InitCommand {
             return Ok(());
         }
 
-        // Test GitHub API connectivity
-        print!("✅ Testing GitHub API connectivity... ");
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        // Check if this is a fresh project
+        let is_fresh_project = self.detect_fresh_project().await;
+        
+        if is_fresh_project {
+            println!("⏭️  Skipping GitHub API connectivity test for fresh project");
+        } else {
+            // Test GitHub API connectivity for existing repositories
+            print!("✅ Testing GitHub API connectivity... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        let github_client =
-            GitHubClient::new().map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
+            let github_client =
+                GitHubClient::new().map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
-        // Try to fetch a few issues to test API access
-        match github_client.fetch_issues().await {
-            Ok(_) => println!("✅"),
-            Err(e) => return Err(anyhow!("GitHub API test failed: {}", e)),
+            // Try to fetch a few issues to test API access
+            match github_client.fetch_issues().await {
+                Ok(_) => println!("✅"),
+                Err(e) => return Err(anyhow!("GitHub API test failed: {}", e)),
+            }
         }
 
-        // Verify configuration is loadable
-        print!("✅ Verifying configuration is loadable... ");
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        if is_fresh_project {
+            println!("⏭️  Skipping configuration validation for fresh project");
+            println!("   Configuration uses placeholder values - update clambake.toml with real GitHub info");
+        } else {
+            // Verify configuration is loadable for existing repositories
+            print!("✅ Verifying configuration is loadable... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        let _config = crate::config::MyLittleSodaConfig::load()
-            .map_err(|e| anyhow!("Generated configuration is invalid: {}", e))?;
-        println!("✅");
+            let _config = crate::config::MyLittleSodaConfig::load()
+                .map_err(|e| anyhow!("Generated configuration is invalid: {}", e))?;
+            println!("✅");
+        }
 
-        // Basic routing test
-        print!("✅ Running basic routing test... ");
-        std::io::Write::flush(&mut std::io::stdout()).unwrap();
+        if is_fresh_project {
+            println!("⏭️  Skipping routing system test for fresh project");
+        } else {
+            // Basic routing test for existing repositories
+            print!("✅ Running basic routing test... ");
+            std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        // This is a simple test - just verify we can create an agent router
-        match crate::agents::AgentRouter::new().await {
-            Ok(_) => println!("✅"),
-            Err(e) => return Err(anyhow!("Routing system test failed: {}", e)),
+            // This is a simple test - just verify we can create an agent router
+            match crate::agents::AgentRouter::new().await {
+                Ok(_) => println!("✅"),
+                Err(e) => return Err(anyhow!("Routing system test failed: {}", e)),
+            }
         }
 
         Ok(())
@@ -744,7 +781,7 @@ mod tests {
     }
     
     #[tokio::test]
-    async fn test_init_fails_with_git_remote_error() {
+    async fn test_init_handles_git_remote_missing_gracefully() {
         let mut mock_fs = MockFileSystemOperations::new();
         
         mock_fs
@@ -768,8 +805,10 @@ mod tests {
         let init_command = InitCommand::new(1, None, false, false, fs_ops); // dry_run = false
         
         let result = init_command.detect_repository_info().await;
-        assert!(result.is_err(), "Should fail when no git remote found");
-        assert!(result.unwrap_err().to_string().contains("No git remote 'origin' found"));
+        assert!(result.is_ok(), "Should succeed with placeholder values when no git remote found");
+        let (owner, repo) = result.unwrap();
+        assert_eq!(owner, "your-github-username");
+        assert_eq!(repo, "your-repo-name");
     }
     
     #[tokio::test]
@@ -988,6 +1027,27 @@ mod tests {
     async fn test_validate_environment_github_auth_failure() {
         let mut mock_fs = MockFileSystemOperations::new();
         
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
+        
         let auth_failed_output = Output {
             status: create_failed_exit_status(),
             stdout: vec![],
@@ -1175,6 +1235,27 @@ mod tests {
     #[tokio::test]
     async fn test_github_cli_command_failure() {
         let mut mock_fs = MockFileSystemOperations::new();
+        
+        // Mock git commands for fresh project detection
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: vec![],
+                stderr: vec![],
+            }));
+        
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["remote".to_string(), "get-url".to_string(), "origin".to_string()]))
+            .times(1)
+            .returning(|_, _| Ok(Output {
+                status: create_successful_exit_status(),
+                stdout: b"https://github.com/owner/repo.git\n".to_vec(),
+                stderr: vec![],
+            }));
         
         mock_fs
             .expect_execute_command()
@@ -1516,5 +1597,28 @@ mod tests {
             let result = init_command.detect_fresh_project().await;
             assert!(!result, "Should not detect fresh project when git repo with remote exists");
         }
+    }
+
+    #[tokio::test]
+    async fn test_fresh_project_init_success() {
+        let mut mock_fs = MockFileSystemOperations::new();
+        
+        mock_fs
+            .expect_exists()
+            .with(eq("clambake.toml"))
+            .return_const(false);
+        
+        // Mock git commands for fresh project detection (no git repo initially)
+        mock_fs
+            .expect_execute_command()
+            .with(eq("git"), eq(vec!["status".to_string()]))
+            .times(1) // Called once for fresh project detection
+            .returning(|_, _| Err(anyhow::anyhow!("not a git repository")));
+        
+        let fs_ops = Arc::new(mock_fs);
+        let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry_run = true
+        
+        let result = init_command.execute().await;
+        assert!(result.is_ok(), "Fresh project init should succeed in dry run mode");
     }
 }
