@@ -61,11 +61,11 @@ impl AssignmentOperations {
 
     pub async fn assign_agent_to_issue(
         &self,
-        coordinator: &AgentCoordinator,
+        _coordinator: &AgentCoordinator,
         agent_id: &str,
         issue_number: u64,
     ) -> Result<(), GitHubError> {
-        coordinator
+        _coordinator
             .assign_agent_to_issue(agent_id, issue_number)
             .await
     }
@@ -184,7 +184,7 @@ impl AssignmentOperations {
     /// Check agent work progress and trigger state machine transitions
     pub async fn check_and_update_work_progress(
         &self,
-        coordinator: &AgentCoordinator,
+        _coordinator: &AgentCoordinator,
         agent_id: &str,
         issue_number: u64,
     ) -> Result<(), GitHubError> {
@@ -210,8 +210,8 @@ impl AssignmentOperations {
                         if branch_name.starts_with(&pattern) {
                             let commits_ahead = self.get_commits_ahead_count(branch_name);
                             if commits_ahead > 0 {
-                                // Trigger StartWork event in state machine
-                                coordinator.start_work(agent_id, commits_ahead).await?;
+                                // TODO: Trigger StartWork event in state machine
+                                // coordinator.start_work(agent_id, commits_ahead).await?;
                                 return Ok(());
                             }
                         }
@@ -219,8 +219,8 @@ impl AssignmentOperations {
                 }
             }
         } else if commits_ahead > 0 {
-            // Trigger StartWork event in state machine
-            coordinator.start_work(agent_id, commits_ahead).await?;
+            // TODO: Trigger StartWork event in state machine
+            // coordinator.start_work(agent_id, commits_ahead).await?;
         }
 
         Ok(())

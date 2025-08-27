@@ -31,17 +31,11 @@ pub enum AgentState {
     Available,
     Assigned(String),         // GitHub issue URL
     Working(String),          // GitHub issue URL
-    Completed(String),        // GitHub issue URL
-    UnderReview(String),      // GitHub issue URL - CodeRabbit reviewing
-    AwaitingApproval(String), // GitHub issue URL - Human approval needed
-    ReadyToLand(String),      // GitHub issue URL - Ready for final merge
 }
 
 #[derive(Debug, Clone)]
 pub struct Agent {
     pub id: String,
-    pub capacity: u32,
-    pub state: AgentState,
 }
 
 pub struct AgentCoordinator {
@@ -95,7 +89,7 @@ impl AgentCoordinator {
         // Check bundling status for additional context
         let bundling_status = self.get_bundling_status().await;
 
-        let agent_state = if is_agent_working {
+        let _agent_state = if is_agent_working {
             AgentState::Working(format!(
                 "Active on branch: {}",
                 current_branch.as_ref().unwrap()
@@ -115,8 +109,6 @@ impl AgentCoordinator {
         if is_available {
             agents.push(Agent {
                 id: "agent001".to_string(),
-                capacity: 1,
-                state: agent_state,
             });
         }
 
@@ -156,7 +148,7 @@ impl AgentCoordinator {
             })
     }
 
-    /// Atomic assignment operation with conflict detection and capacity management
+    /// Atomic assignment operation with conflict detection
     pub async fn assign_agent_to_issue(
         &self,
         agent_id: &str,
@@ -300,7 +292,7 @@ impl AgentCoordinator {
             // Reserve the assignment
             *current_assignment = Some(issue_number);
 
-            println!("✅ Reserved assignment: agent {} -> issue #{} (capacity: 1/1)",
+            println!("✅ Reserved assignment: agent {} -> issue #{}",
                     agent_id, issue_number);
         }
 
@@ -434,62 +426,14 @@ impl AgentCoordinator {
         let current_assignment = self.current_assignment.lock().await;
         let is_assigned = current_assignment.is_some();
         
-        // Single agent: 0 or 1 assignment, max capacity 1
+        // Single agent: 0 or 1 assignment
         utilization.insert("agent001".to_string(), (if is_assigned { 1 } else { 0 }, 1));
         
         utilization
     }
 
-    /// Validate system consistency for single agent
-    pub async fn validate_consistency(&self) -> Result<bool, GitHubError> {
-        let current_assignment = self.current_assignment.lock().await;
-        let state_machine = self.agent_state_machine.lock().await;
-        
-        // Check state machine and assignment tracking are consistent
-        let state_issue = state_machine.inner().current_issue();
-        let tracked_issue = *current_assignment;
-        
-        if state_issue != tracked_issue {
-            println!("❌ CONSISTENCY ERROR: State machine issue ({state_issue:?}) != tracked assignment ({tracked_issue:?})");
-            return Ok(false);
-        }
 
-        println!("✅ Consistency check passed: Single agent state is consistent");
-        Ok(true)
-    }
 
-    pub async fn update_agent_state(
-        &self,
-        agent_id: &str,
-        new_state: AgentState,
-    ) -> Result<(), GitHubError> {
-        // GitHub-native: State changes reflected in GitHub repository
-        // This would update issue status, labels, or branch state
-        println!("🔄 Updating agent {agent_id} state to {new_state:?}");
-        Ok(())
-    }
-
-    /// Handle agent starting work - triggers state machine transition to working state
-    pub async fn start_work(&self, agent_id: &str, commits_ahead: u32) -> Result<(), GitHubError> {
-        // Validate agent_id is agent001 (single agent system)
-        if agent_id != "agent001" {
-            return Err(GitHubError::IoError(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!("Only agent001 is supported in single-agent mode, got: {agent_id}"),
-            )));
-        }
-
-        let mut state_machine = self.agent_state_machine.lock().await;
-        state_machine.handle(&AgentEvent::StartWork { commits_ahead });
-
-        tracing::info!(
-            agent_id = %agent_id,
-            commits_ahead = %commits_ahead,
-            "Agent started work via state machine"
-        );
-
-        Ok(())
-    }
 
     /// Handle agent completing work - triggers state machine transition to landed state
     pub async fn complete_work(&self, agent_id: &str) -> Result<(), GitHubError> {
@@ -580,17 +524,6 @@ impl AgentCoordinator {
         Ok(())
     }
 
-    /// Manually trigger GitHub Actions bundling workflow with options
-    /// This provides direct API access for CLI commands and external triggers
-    pub async fn trigger_bundling_workflow(
-        &self,
-        force: bool,
-        dry_run: bool,
-        verbose: bool,
-    ) -> Result<(), GitHubError> {
-        self.trigger_bundling_workflow_with_ci_mode(force, dry_run, verbose, false)
-            .await
-    }
 
     pub async fn trigger_bundling_workflow_with_ci_mode(
         &self,
@@ -636,56 +569,7 @@ impl AgentCoordinator {
         Ok(())
     }
 
-    /// Get current state machine state for debugging and status reporting
-    pub async fn get_agent_state_machine_info(&self, agent_id: &str) -> Option<String> {
-        // Only support agent001 in single-agent mode
-        if agent_id != "agent001" {
-            return None;
-        }
 
-        let state_machine = self.agent_state_machine.lock().await;
-        let inner = state_machine.inner();
-        let status = if inner.is_available() {
-            "AVAILABLE"
-        } else if inner.is_assigned() {
-            "ASSIGNED"
-        } else if inner.is_working() {
-            "WORKING"
-        } else {
-            "OTHER"
-        };
-
-        Some(format!(
-            "Agent: {} | Status: {} | Issue: {:?} | Branch: {:?} | Commits: {}",
-            agent_id,
-            status,
-            inner.current_issue(),
-            inner.current_branch(),
-            inner.commits_ahead()
-        ))
-    }
-
-    /// Get detailed state machine status for single agent
-    pub async fn get_all_agent_states(&self) -> Vec<(String, String)> {
-        let state_machine = self.agent_state_machine.lock().await;
-        let inner = state_machine.inner();
-        
-        let status = if inner.is_available() {
-            "AVAILABLE".to_string()
-        } else if inner.is_assigned() {
-            format!("ASSIGNED(issue: {})", inner.current_issue().unwrap_or(0))
-        } else if inner.is_working() {
-            format!(
-                "WORKING(issue: {}, commits: {})",
-                inner.current_issue().unwrap_or(0),
-                inner.commits_ahead()
-            )
-        } else {
-            "OTHER".to_string()
-        };
-
-        vec![("agent001".to_string(), status)]
-    }
 
     /// Get current bundling status for operational visibility
     async fn get_bundling_status(&self) -> Option<BundlingStatus> {

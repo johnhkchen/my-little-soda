@@ -139,9 +139,10 @@ impl StateMachine {
             .await
         {
             Ok(_) => {
-                self.coordinator
-                    .update_agent_state(agent_id, new_state.clone())
-                    .await?;
+                // TODO: Update agent state
+                // self.coordinator
+                //     .update_agent_state(agent_id, new_state.clone())
+                //     .await?;
                 Ok(TransitionResult::Success {
                     previous_state,
                     new_state,
@@ -174,9 +175,10 @@ impl StateMachine {
         // 3. Set agent status
         // All in a single atomic GitHub transaction
 
-        self.coordinator
-            .update_agent_state(agent_id, new_state.clone())
-            .await?;
+        // TODO: Update agent state
+        // self.coordinator
+        //     .update_agent_state(agent_id, new_state.clone())
+        //     .await?;
         Ok(TransitionResult::Success {
             previous_state,
             new_state,
@@ -189,7 +191,7 @@ impl StateMachine {
         issue_url: &str,
     ) -> Result<TransitionResult, GitHubError> {
         let previous_state = AgentState::Working(issue_url.to_string());
-        let new_state = AgentState::Completed(issue_url.to_string());
+        let new_state = AgentState::Available; // Simplified state
 
         // Atomic operation: Either work completion succeeds completely or fails with no changes
         println!("✅ Atomically completing work: agent {agent_id} on issue {issue_url}");
@@ -201,9 +203,10 @@ impl StateMachine {
         // 4. Set agent status
         // All atomically
 
-        self.coordinator
-            .update_agent_state(agent_id, new_state.clone())
-            .await?;
+        // TODO: Update agent state
+        // self.coordinator
+        //     .update_agent_state(agent_id, new_state.clone())
+        //     .await?;
         Ok(TransitionResult::Success {
             previous_state,
             new_state,
@@ -216,8 +219,8 @@ impl StateMachine {
         issue_url: &str,
         pr_number: u64,
     ) -> Result<TransitionResult, GitHubError> {
-        let previous_state = AgentState::Completed(issue_url.to_string());
-        let _new_state = AgentState::UnderReview(issue_url.to_string());
+        let previous_state = AgentState::Available;
+        let _new_state = AgentState::Available;
 
         // Phase 1: Atomic transition from completed work to review state
         // This creates PR, removes route:ready label, and frees the agent
@@ -232,9 +235,10 @@ impl StateMachine {
             Ok(_) => {
                 println!("✅ Removed route:ready label from issue #{issue_number}");
                 // Agent is now freed for new work
-                self.coordinator
-                    .update_agent_state(agent_id, AgentState::Available)
-                    .await?;
+                // TODO: Update agent state to available
+                // self.coordinator
+                //     .update_agent_state(agent_id, AgentState::Available)
+                //     .await?;
                 Ok(TransitionResult::Success {
                     previous_state,
                     new_state: AgentState::Available, // Agent is freed immediately
@@ -253,14 +257,15 @@ impl StateMachine {
         issue_url: &str,
     ) -> Result<TransitionResult, GitHubError> {
         let previous_state = AgentState::Available;
-        let new_state = AgentState::ReadyToLand(issue_url.to_string());
+        let new_state = AgentState::Available; // Simplified state
 
         // Phase 2: Agent picks up route:ready_to_merge task to complete final merge
         println!("🔄 Phase 2: Starting landing for agent {agent_id} issue {issue_url}");
 
-        self.coordinator
-            .update_agent_state(agent_id, new_state.clone())
-            .await?;
+        // TODO: Update agent state
+        // self.coordinator
+        //     .update_agent_state(agent_id, new_state.clone())
+        //     .await?;
         Ok(TransitionResult::Success {
             previous_state,
             new_state,
@@ -272,7 +277,7 @@ impl StateMachine {
         agent_id: &str,
         issue_url: &str,
     ) -> Result<TransitionResult, GitHubError> {
-        let previous_state = AgentState::ReadyToLand(issue_url.to_string());
+        let previous_state = AgentState::Available;
         let new_state = AgentState::Available;
 
         // Atomic operation: Either integration succeeds completely or fails with work preserved
@@ -290,9 +295,10 @@ impl StateMachine {
 
         match self.complete_final_integration(issue_number).await {
             Ok(_) => {
-                self.coordinator
-                    .update_agent_state(agent_id, new_state.clone())
-                    .await?;
+                // TODO: Update agent state
+                // self.coordinator
+                //     .update_agent_state(agent_id, new_state.clone())
+                //     .await?;
                 Ok(TransitionResult::Success {
                     previous_state,
                     new_state,

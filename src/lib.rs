@@ -24,8 +24,7 @@ pub mod train_schedule;
 pub mod workflows;
 
 // Re-export key types for easy access
-pub use agent_lifecycle::types::{AgentState, Command, GitCommand, GitHubCommand, PreFlightIssue};
-pub use agents::integrator::{CompletedWork, IntegrationResult, WorkIntegrator};
+pub use agent_lifecycle::types::{AgentState, PreFlightIssue};
 pub use agents::{AgentCoordinator, AgentRouter};
 #[cfg(feature = "autonomous")]
 pub use autonomous::integration::IntegrationCoordinator;
