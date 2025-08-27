@@ -64,12 +64,64 @@ impl std::fmt::Display for GitHubError {
             GitHubError::ApiError(octocrab_err) => {
                 writeln!(f, "GitHub API Error")?;
                 writeln!(f, "────────────────")?;
-                write!(f, "🌐 {octocrab_err}\n\n")?;
-                writeln!(f, "🔧 TROUBLESHOOTING:")?;
-                writeln!(f, "   → Check authentication: gh auth status")?;
-                writeln!(f, "   → Test connection: curl -I https://api.github.com")?;
-                writeln!(f, "   → Verify repository access: gh repo view")?;
-                write!(f, "   → Check rate limits: gh api rate_limit")
+                
+                // Provide specific error details based on error type
+                match octocrab_err {
+                    octocrab::Error::GitHub { source, .. } => {
+                        writeln!(f, "🌐 HTTP {}: {}", source.status_code, source.message)?;
+                        writeln!(f)?;
+                        
+                        match source.status_code.as_u16() {
+                            401 => {
+                                writeln!(f, "🔧 AUTHENTICATION FAILED:")?;
+                                writeln!(f, "   → Token is invalid or expired")?;
+                                writeln!(f, "   → Run: gh auth login")?;
+                                write!(f, "   → Or export MY_LITTLE_SODA_GITHUB_TOKEN=\"$(gh auth token)\"")
+                            },
+                            403 => {
+                                writeln!(f, "🔧 PERMISSION DENIED:")?;
+                                writeln!(f, "   → Token lacks required permissions")?;
+                                writeln!(f, "   → Check repository access: gh repo view")?;
+                                write!(f, "   → May need 'repo' scope: https://github.com/settings/tokens")
+                            },
+                            404 => {
+                                writeln!(f, "🔧 RESOURCE NOT FOUND:")?;
+                                writeln!(f, "   → Repository may not exist or be private")?;
+                                writeln!(f, "   → Check GITHUB_OWNER and GITHUB_REPO settings")?;
+                                write!(f, "   → Verify access: gh repo view")
+                            },
+                            422 => {
+                                writeln!(f, "🔧 VALIDATION ERROR:")?;
+                                writeln!(f, "   → Request data is invalid")?;
+                                write!(f, "   → Check issue labels and repository configuration")
+                            },
+                            _ => {
+                                writeln!(f, "🔧 TROUBLESHOOTING:")?;
+                                writeln!(f, "   → Check authentication: gh auth status")?;
+                                writeln!(f, "   → Test connection: curl -I https://api.github.com")?;
+                                writeln!(f, "   → Verify repository access: gh repo view")?;
+                                write!(f, "   → Check rate limits: gh api rate_limit")
+                            }
+                        }
+                    },
+                    octocrab::Error::Http { .. } => {
+                        writeln!(f, "🌐 Network connection failed")?;
+                        writeln!(f)?;
+                        writeln!(f, "🔧 NETWORK TROUBLESHOOTING:")?;
+                        writeln!(f, "   → Check internet connectivity")?;
+                        writeln!(f, "   → Test GitHub: curl -I https://api.github.com")?;
+                        writeln!(f, "   → Check firewall/proxy settings")?;
+                        write!(f, "   → GitHub status: https://status.github.com")
+                    },
+                    _ => {
+                        write!(f, "🌐 {octocrab_err}\n\n")?;
+                        writeln!(f, "🔧 TROUBLESHOOTING:")?;
+                        writeln!(f, "   → Check authentication: gh auth status")?;
+                        writeln!(f, "   → Test connection: curl -I https://api.github.com")?;
+                        writeln!(f, "   → Verify repository access: gh repo view")?;
+                        write!(f, "   → Check rate limits: gh api rate_limit")
+                    }
+                }
             }
             GitHubError::IoError(io_err) => {
                 writeln!(f, "File System Error")?;

@@ -103,10 +103,12 @@ async fn main() -> Result<()> {
             template,
             force,
             dry_run,
+            verbose,
         }) => {
             let fs_ops = Arc::new(StandardFileSystem);
             InitCommand::new(template, force, dry_run, fs_ops)
                 .with_ci_mode(cli.ci_mode)
+                .with_verbose(verbose)
                 .execute()
                 .await
         }

@@ -18,6 +18,11 @@ impl IssueHandler {
         }
     }
 
+    /// Get reference to octocrab client for validation purposes
+    pub fn octocrab(&self) -> &Octocrab {
+        &self.octocrab
+    }
+
     /// Fetch all open issues
     pub async fn fetch_issues(&self) -> Result<Vec<octocrab::models::issues::Issue>, GitHubError> {
         self.fetch_issues_with_state(None).await

@@ -56,7 +56,43 @@ impl GitHubClient {
 
         let octocrab = Octocrab::builder().personal_token(token).build()?;
 
-        Ok(Self::create_client(octocrab, owner, repo))
+        let client = Self::create_client(octocrab, owner, repo);
+        
+        // Validate API connectivity before returning
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(client.validate_api_connectivity())
+        })?;
+
+        Ok(client)
+    }
+
+    /// Pre-flight validation to ensure API connectivity and authentication
+    async fn validate_api_connectivity(&self) -> Result<(), GitHubError> {
+        // Test with a simple API call that requires authentication
+        let octocrab = self.issues.octocrab();
+        
+        match octocrab.current().user().await {
+            Ok(_user) => Ok(()),
+            Err(octocrab_err) => {
+                // Transform generic octocrab error into specific actionable error
+                match &octocrab_err {
+                    octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 401 => {
+                        Err(GitHubError::TokenNotFound(
+                            format!("GitHub API authentication failed (HTTP 401). Token may be invalid or expired.\n  → Run 'gh auth login' to refresh authentication\n  → Or set valid MY_LITTLE_SODA_GITHUB_TOKEN environment variable")
+                        ))
+                    },
+                    octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
+                        Err(GitHubError::ApiError(octocrab_err))
+                    },
+                    octocrab::Error::Http { .. } => {
+                        Err(GitHubError::NetworkError(
+                            format!("Unable to connect to GitHub API. Check your internet connection and try again.")
+                        ))
+                    },
+                    _ => Err(GitHubError::ApiError(octocrab_err))
+                }
+            }
+        }
     }
 
     fn read_token() -> Result<String, GitHubError> {
@@ -67,19 +103,67 @@ impl GitHubClient {
             }
         }
 
-        // Fall back to file-based configuration
+        // Try file-based configuration
         let token_path = ".my-little-soda/credentials/github_token";
-        if !Path::new(token_path).exists() {
-            return Err(GitHubError::TokenNotFound(format!(
-                "GitHub token not found. Please set MY_LITTLE_SODA_GITHUB_TOKEN environment variable or create {token_path} with your GitHub personal access token."
-            )));
+        if Path::new(token_path).exists() {
+            let token = fs::read_to_string(token_path)?.trim().to_string();
+            if token != "YOUR_GITHUB_TOKEN_HERE" && !token.is_empty() {
+                return Ok(token);
+            }
         }
 
-        let token = fs::read_to_string(token_path)?.trim().to_string();
+        // Fall back to GitHub CLI authentication
+        if let Ok(gh_token) = Self::try_github_cli_token() {
+            return Ok(gh_token);
+        }
 
-        if token == "YOUR_GITHUB_TOKEN_HERE" || token.is_empty() {
+        // All authentication methods failed
+        Err(GitHubError::TokenNotFound(
+            "No valid GitHub authentication found. Please set up authentication using one of these methods:\n  1. Set MY_LITTLE_SODA_GITHUB_TOKEN environment variable\n  2. Run 'gh auth login' (GitHub CLI)\n  3. Create .my-little-soda/credentials/github_token file with your token".to_string()
+        ))
+    }
+
+    fn try_github_cli_token() -> Result<String, GitHubError> {
+        use std::process::Command;
+        
+        // First check if gh CLI is available and authenticated
+        let auth_status = Command::new("gh")
+            .args(["auth", "status"])
+            .output()
+            .map_err(|e| GitHubError::TokenNotFound(
+                format!("GitHub CLI (gh) not available: {}. Install from https://cli.github.com/", e)
+            ))?;
+
+        if !auth_status.status.success() {
             return Err(GitHubError::TokenNotFound(
-                "Please replace YOUR_GITHUB_TOKEN_HERE with your actual GitHub token in the credential file".to_string()
+                "GitHub CLI not authenticated. Run 'gh auth login' first.".to_string()
+            ));
+        }
+
+        // Get the token from gh CLI
+        let token_output = Command::new("gh")
+            .args(["auth", "token"])
+            .output()
+            .map_err(|e| GitHubError::TokenNotFound(
+                format!("Failed to get token from GitHub CLI: {}", e)
+            ))?;
+
+        if !token_output.status.success() {
+            return Err(GitHubError::TokenNotFound(
+                "Failed to retrieve token from GitHub CLI".to_string()
+            ));
+        }
+
+        let token = String::from_utf8(token_output.stdout)
+            .map_err(|e| GitHubError::TokenNotFound(
+                format!("Invalid UTF-8 in GitHub CLI token: {}", e)
+            ))?
+            .trim()
+            .to_string();
+
+        if token.is_empty() {
+            return Err(GitHubError::TokenNotFound(
+                "GitHub CLI returned empty token".to_string()
             ));
         }
 

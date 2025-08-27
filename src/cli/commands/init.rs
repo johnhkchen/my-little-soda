@@ -42,6 +42,7 @@ pub struct InitCommand {
     pub template: Option<String>,
     pub force: bool,
     pub dry_run: bool,
+    pub verbose: bool,
     pub ci_mode: bool,
     fs_ops: Arc<dyn FileSystemOperations>,
 }
@@ -59,6 +60,7 @@ impl InitCommand {
             template,
             force,
             dry_run,
+            verbose: false,
             ci_mode: false,
             fs_ops,
         }
@@ -66,6 +68,11 @@ impl InitCommand {
 
     pub fn with_ci_mode(mut self, ci_mode: bool) -> Self {
         self.ci_mode = ci_mode;
+        self
+    }
+
+    pub fn with_verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
         self
     }
 
@@ -130,6 +137,11 @@ impl InitCommand {
     }
 
     async fn validate_environment(&self) -> Result<()> {
+        if self.verbose {
+            println!("🔍 VERBOSE: Starting detailed authentication validation...");
+            println!();
+        }
+
         // Check if this is a fresh project (no git repo or no remote)
         let is_fresh_project = self.detect_fresh_project().await;
         
@@ -170,91 +182,264 @@ impl InitCommand {
             return Ok(());
         }
 
-        // Check GitHub CLI authentication for existing repositories
+        // Enhanced authentication validation with verbose debugging
+        self.validate_github_authentication().await?;
+        self.validate_github_api_access().await?;
+
+        // Check git repository state
+        self.validate_git_state().await?;
+
+        if self.verbose {
+            println!("🔍 VERBOSE: All authentication and validation checks completed successfully!");
+            println!();
+        }
+
+        Ok(())
+    }
+
+    /// Comprehensive GitHub CLI authentication validation
+    async fn validate_github_authentication(&self) -> Result<()> {
+        if self.verbose {
+            println!("🔍 VERBOSE: Checking GitHub CLI authentication...");
+        }
+
         print!("✅ Verifying GitHub CLI authentication... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        if !self.dry_run {
-            let output = self.fs_ops.execute_command("gh", &["auth".to_string(), "status".to_string()])
-                .await
-                .map_err(|e| {
-                    anyhow!(
-                        "Failed to run 'gh auth status': {}. Make sure GitHub CLI is installed.",
-                        e
-                    )
-                })?;
+        if self.dry_run {
+            println!("✅ (dry run mode)");
+            if self.verbose {
+                println!("   🔍 VERBOSE: Would execute: gh auth status");
+                println!("   🔍 VERBOSE: Dry run mode - skipping actual command execution");
+            }
+            return Ok(());
+        }
 
-            if !output.status.success() {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(anyhow!(
-                    "GitHub CLI not authenticated: {}. Run 'gh auth login' first.",
-                    stderr
-                ));
+        // Check if gh CLI is available
+        if self.verbose {
+            println!();
+            println!("   🔍 VERBOSE: Testing GitHub CLI availability...");
+        }
+
+        let gh_status_output = self.fs_ops.execute_command("gh", &["auth".to_string(), "status".to_string()])
+            .await
+            .map_err(|e| {
+                if self.verbose {
+                    println!("   ❌ VERBOSE: GitHub CLI command failed: {}", e);
+                }
+                anyhow!(
+                    "Failed to run 'gh auth status': {}. Make sure GitHub CLI is installed.",
+                    e
+                )
+            })?;
+
+        if self.verbose {
+            println!("   🔍 VERBOSE: gh auth status exit code: {}", gh_status_output.status.code().unwrap_or(-1));
+            let stdout = String::from_utf8_lossy(&gh_status_output.stdout);
+            let stderr = String::from_utf8_lossy(&gh_status_output.stderr);
+            if !stdout.is_empty() {
+                println!("   🔍 VERBOSE: gh stdout: {}", stdout.trim());
+            }
+            if !stderr.is_empty() {
+                println!("   🔍 VERBOSE: gh stderr: {}", stderr.trim());
             }
         }
-        println!("✅");
 
-        // For existing repositories, validate GitHub permissions
+        if !gh_status_output.status.success() {
+            let stderr = String::from_utf8_lossy(&gh_status_output.stderr);
+            if self.verbose {
+                println!("   ❌ VERBOSE: GitHub CLI not authenticated");
+            }
+            return Err(anyhow!(
+                "GitHub CLI not authenticated: {}. Run 'gh auth login' first.",
+                stderr
+            ));
+        }
+
+        if self.verbose {
+            println!("   ✅ VERBOSE: GitHub CLI is authenticated");
+        }
+        println!("✅");
+        Ok(())
+    }
+
+    /// Comprehensive GitHub API access validation using the new client
+    async fn validate_github_api_access(&self) -> Result<()> {
+        if self.verbose {
+            println!("🔍 VERBOSE: Validating GitHub API access...");
+        }
+
         print!("✅ Checking repository write permissions... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        if !self.dry_run {
-            let github_client = GitHubClient::new()
-                .map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
-
-            // Test permissions by trying to fetch repository info
-            let octocrab = Octocrab::builder()
-                .personal_token(
-                    std::env::var("GITHUB_TOKEN")
-                        .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
-                )
-                .build()?;
-
-            let repo = octocrab
-                .repos(github_client.owner(), github_client.repo())
-                .get()
-                .await
-                .map_err(|e| {
-                    anyhow!(
-                        "Failed to access repository: {}. Check your GitHub token permissions.",
-                        e
-                    )
-                })?;
-
-            if !repo
-                .permissions
-                .as_ref()
-                .map(|p| p.admin || p.push)
-                .unwrap_or(false)
-            {
-                return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
+        if self.dry_run {
+            println!("✅ (dry run mode)");
+            if self.verbose {
+                println!("   🔍 VERBOSE: Would test GitHub API connectivity");
+                println!("   🔍 VERBOSE: Would validate repository permissions");
+                println!("   🔍 VERBOSE: Dry run mode - skipping actual API calls");
             }
+            return Ok(());
+        }
+
+        if self.verbose {
+            println!();
+            println!("   🔍 VERBOSE: Testing authentication methods in order:");
+            println!("      1. MY_LITTLE_SODA_GITHUB_TOKEN environment variable");
+            println!("      2. .my-little-soda/credentials/github_token file");
+            println!("      3. GitHub CLI token (fallback)");
+            println!();
+        }
+
+        // Test the enhanced GitHub client which now includes fallback mechanisms
+        let github_client = match GitHubClient::new() {
+            Ok(client) => {
+                if self.verbose {
+                    println!("   ✅ VERBOSE: GitHub API client created successfully");
+                    println!("   🔍 VERBOSE: Repository: {}/{}", client.owner(), client.repo());
+                    println!("   🔍 VERBOSE: Pre-flight validation passed (authentication + connectivity)");
+                }
+                client
+            },
+            Err(e) => {
+                if self.verbose {
+                    println!("   ❌ VERBOSE: GitHub client creation failed: {}", e);
+                }
+                return Err(anyhow!("Failed to create GitHub client: {}", e));
+            }
+        };
+
+        // Additional repository permission validation
+        if self.verbose {
+            println!("   🔍 VERBOSE: Testing repository write permissions...");
+        }
+
+        let octocrab = Octocrab::builder()
+            .personal_token(
+                std::env::var("GITHUB_TOKEN")
+                    .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))
+                    .or_else(|_| {
+                        // Try to get token from gh CLI
+                        use std::process::Command;
+                        if let Ok(output) = Command::new("gh").args(["auth", "token"]).output() {
+                            if output.status.success() {
+                                return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+                            }
+                        }
+                        Err(std::env::VarError::NotPresent)
+                    })?,
+            )
+            .build()?;
+
+        let repo = octocrab
+            .repos(github_client.owner(), github_client.repo())
+            .get()
+            .await
+            .map_err(|e| {
+                if self.verbose {
+                    println!("   ❌ VERBOSE: Repository access failed: {}", e);
+                }
+                anyhow!(
+                    "Failed to access repository: {}. Check your GitHub token permissions.",
+                    e
+                )
+            })?;
+
+        let has_write_permissions = repo
+            .permissions
+            .as_ref()
+            .map(|p| p.admin || p.push)
+            .unwrap_or(false);
+
+        if self.verbose {
+            if let Some(permissions) = &repo.permissions {
+                println!("   🔍 VERBOSE: Repository permissions:");
+                println!("      - Admin: {}", permissions.admin);
+                println!("      - Push: {}", permissions.push);
+                println!("      - Pull: {}", permissions.pull);
+            }
+            println!("   🔍 VERBOSE: Has write permissions: {}", has_write_permissions);
+        }
+
+        if !has_write_permissions {
+            if self.verbose {
+                println!("   ❌ VERBOSE: Insufficient repository permissions");
+            }
+            return Err(anyhow!("Insufficient repository permissions. Need 'push' access to manage labels and issues."));
+        }
+
+        if self.verbose {
+            println!("   ✅ VERBOSE: Repository permissions validated");
         }
         println!("✅");
+        Ok(())
+    }
 
-        // Check git repository status for existing repositories
+    /// Validate git repository state
+    async fn validate_git_state(&self) -> Result<()> {
+        if self.verbose {
+            println!("🔍 VERBOSE: Checking git repository state...");
+        }
+
         print!("✅ Checking git repository status... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-        if !self.dry_run {
-            let output = self.fs_ops.execute_command("git", &["status".to_string(), "--porcelain".to_string()])
-                .await
-                .map_err(|e| anyhow!("Failed to check git status: {}", e))?;
-
-            if !output.stdout.is_empty() {
-                println!("⚠️");
-                println!("   Warning: Repository has uncommitted changes.");
-                if !self.force {
-                    return Err(anyhow!(
-                        "Repository has uncommitted changes. Use --force to proceed anyway."
-                    ));
-                }
-                println!("   Proceeding due to --force flag.");
-            } else {
-                println!("✅");
+        if self.dry_run {
+            println!("✅ (dry run mode)");
+            if self.verbose {
+                println!("   🔍 VERBOSE: Would execute: git status --porcelain");
+                println!("   🔍 VERBOSE: Dry run mode - skipping git state check");
             }
+            return Ok(());
+        }
+
+        if self.verbose {
+            println!();
+            println!("   🔍 VERBOSE: Checking for uncommitted changes...");
+        }
+
+        let output = self.fs_ops.execute_command("git", &["status".to_string(), "--porcelain".to_string()])
+            .await
+            .map_err(|e| {
+                if self.verbose {
+                    println!("   ❌ VERBOSE: Git status command failed: {}", e);
+                }
+                anyhow!("Failed to check git status: {}", e)
+            })?;
+
+        if self.verbose {
+            println!("   🔍 VERBOSE: git status --porcelain exit code: {}", output.status.code().unwrap_or(-1));
+        }
+
+        if !output.stdout.is_empty() {
+            if self.verbose {
+                let changes = String::from_utf8_lossy(&output.stdout);
+                println!("   🔍 VERBOSE: Found uncommitted changes:");
+                for line in changes.lines() {
+                    println!("      {}", line);
+                }
+                println!("   🔍 VERBOSE: Force flag: {}", self.force);
+            }
+            
+            println!("⚠️");
+            println!("   Warning: Repository has uncommitted changes.");
+            if !self.force {
+                if self.verbose {
+                    println!("   ❌ VERBOSE: Rejecting initialization due to uncommitted changes (use --force to override)");
+                }
+                return Err(anyhow!(
+                    "Repository has uncommitted changes. Use --force to proceed anyway."
+                ));
+            }
+            if self.verbose {
+                println!("   ✅ VERBOSE: Proceeding with uncommitted changes due to --force flag");
+            }
+            println!("   Proceeding due to --force flag.");
         } else {
-            println!("✅ (dry run)");
+            if self.verbose {
+                println!("   ✅ VERBOSE: Repository is clean (no uncommitted changes)");
+            }
+            println!("✅");
         }
 
         Ok(())
