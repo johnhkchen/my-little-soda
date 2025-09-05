@@ -44,6 +44,7 @@ impl std::fmt::Display for GitHubError {
                 writeln!(f, "──────────────────────────")?;
                 write!(f, "🔑 {msg}\n\n")?;
                 writeln!(f, "🔧 QUICK FIXES:")?;
+                writeln!(f, "   → Run health check: my-little-soda doctor")?;
                 writeln!(f, "   → Use GitHub CLI: gh auth login")?;
                 writeln!(
                     f,
@@ -63,6 +64,7 @@ impl std::fmt::Display for GitHubError {
                 writeln!(f, "─────────────────────────")?;
                 write!(f, "📂 {msg}\n\n")?;
                 writeln!(f, "🔧 QUICK FIXES:")?;
+                writeln!(f, "   → Run system diagnosis: my-little-soda doctor")?;
                 writeln!(f, "   → Set environment variables: export GITHUB_OWNER=username GITHUB_REPO=reponame")?;
                 writeln!(f, "   → Use GitHub CLI in repo: gh repo view")?;
                 write!(f, "   → Run setup: my-little-soda init")
@@ -103,6 +105,7 @@ impl std::fmt::Display for GitHubError {
                             },
                             _ => {
                                 writeln!(f, "🔧 TROUBLESHOOTING:")?;
+                                writeln!(f, "   → Run full diagnosis: my-little-soda doctor")?;
                                 writeln!(f, "   → Check authentication: gh auth status")?;
                                 writeln!(f, "   → Test connection: curl -I https://api.github.com")?;
                                 writeln!(f, "   → Verify repository access: gh repo view")?;
@@ -149,6 +152,7 @@ impl std::fmt::Display for GitHubError {
                     _ => {
                         write!(f, "🌐 {octocrab_err}\n\n")?;
                         writeln!(f, "🔧 TROUBLESHOOTING:")?;
+                        writeln!(f, "   → Run comprehensive diagnosis: my-little-soda doctor")?;
                         writeln!(f, "   → Check authentication: gh auth status")?;
                         writeln!(f, "   → Test connection: curl -I https://api.github.com")?;
                         writeln!(f, "   → Verify repository access: gh repo view")?;

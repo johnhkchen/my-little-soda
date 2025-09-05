@@ -39,6 +39,9 @@ export MY_LITTLE_SODA_GITHUB_TOKEN=your_github_token_here
 
 # Initialize in your repository
 ./target/release/my-little-soda init
+
+# Validate setup
+./target/release/my-little-soda doctor
 ```
 
 **For development:**
@@ -46,6 +49,7 @@ export MY_LITTLE_SODA_GITHUB_TOKEN=your_github_token_here
 # Alternative: Install globally
 cargo install --path .
 # Then use: my-little-soda init
+# Validate: my-little-soda doctor
 ```
 
 ## Commands
@@ -63,7 +67,16 @@ my-little-soda status    # Check agent status
 ```bash
 my-little-soda doctor    # Run comprehensive system health checks
 my-little-soda doctor --verbose  # Show detailed diagnostic information
+my-little-soda doctor --format json  # Machine-readable JSON output
+my-little-soda doctor --ci-mode  # Optimized for CI/CD environments
 ```
+
+**Common troubleshooting scenarios:**
+- **Setup validation:** Run `my-little-soda doctor` after installation to verify everything is configured correctly
+- **Authentication issues:** Doctor command checks GitHub authentication and repository permissions  
+- **Missing labels:** Identifies required labels that need to be created with `my-little-soda init`
+- **Agent state problems:** Detects stuck agents, orphaned assignments, and workflow issues
+- **CI/CD debugging:** Use `my-little-soda doctor --ci-mode --format json` for automated health checks
 
 Run `my-little-soda --help` to see all available commands.
 
