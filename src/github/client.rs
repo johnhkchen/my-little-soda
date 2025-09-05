@@ -419,15 +419,21 @@ impl GitHubClient {
         use crate::git::{Git2Operations, GitOperations};
         
         let git_ops = Git2Operations::new(".").map_err(|_| {
-            GitHubError::ConfigNotFound("Not a git repository or git repository not accessible".to_string())
+            GitHubError::ConfigNotFound(
+                "Not in a git repository. Initialize with: git init && git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPO.git".to_string()
+            )
         })?;
         
-        let repo_info = git_ops.get_github_repo_info(None).map_err(|_| {
-            GitHubError::ConfigNotFound("Could not read git remote information".to_string())
+        let repo_info = git_ops.get_github_repo_info(None).map_err(|e| {
+            GitHubError::ConfigNotFound(format!(
+                "Could not read git remote information: {}. Check your git configuration and network connection", e
+            ))
         })?;
         
         repo_info.ok_or_else(|| {
-            GitHubError::ConfigNotFound("No GitHub remote found in git repository".to_string())
+            GitHubError::ConfigNotFound(
+                "No GitHub remote found. Add one with: git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPO.git".to_string()
+            )
         })
     }
 
