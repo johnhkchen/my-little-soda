@@ -1,0 +1,17 @@
+Issue #437 Investigation Results
+
+Issue: [TEST-DEBT] A2-Syntax errors in field access for test result structs
+
+Investigation Date: 2025-09-05
+Status: ALREADY RESOLVED
+
+Findings:
+- The syntax errors described in the issue (hyphenated field names like `my-little-soda_dir_created`) no longer exist in the codebase
+- All field access in tests/c1a_empty_repository_test.rs correctly uses underscores: `my_little_soda_dir_created`
+- The test file compiles successfully with no syntax errors
+- Tests run (though some fail for unrelated reasons about existing configuration files)
+
+Resolution:
+The syntax errors described in issue #437 have already been fixed in a previous commit.
+The field access now correctly uses underscores throughout the codebase.
+No further action required - issue can be closed as resolved.
