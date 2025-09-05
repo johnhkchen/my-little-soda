@@ -1,8 +1,8 @@
 # My Little Soda
 
-**Horizontal scaling for solo developers: Turn 8 hours into 32 repo-hours.**
+**Horizontal scaling for autonomous agents: Today 8→32 repo-hours, tomorrow 1→15 days of work.**
 
-My Little Soda lets you run autonomous coding agents across multiple repositories simultaneously. Instead of working on one repo at a time, multiply your capacity by treating each repository as an independent work queue.
+My Little Soda enables horizontal scaling across repositories to multiply autonomous agent productivity. As AI agents evolve to work unattended for full days, this architecture scales that productivity across your entire repository portfolio.
 
 ## The Problem
 
@@ -30,12 +30,15 @@ All three agents work simultaneously while you focus on architecture, planning, 
 
 ## Why This Architecture Works
 
-**Efficiency over maximum speed.** Instead of optimizing for fastest throughput per repository (complex, merge-heavy), we optimize for **sustainable scaling across repositories** (simple, conflict-free).
+**Built for the future of autonomous agents.** As AI agents evolve to work unattended for full days (turning 1 day into 5 days of work), this architecture multiplies that productivity across repositories.
 
-- **No merge conflicts**: One agent per repo eliminates coordination complexity
-- **Sustainable pace**: Faster than manual, simpler than multi-agent chaos  
-- **Context preservation**: Each agent maintains repository-specific knowledge
-- **PM/Marketing friendly**: Non-technical team members can create meaningful issues for agents to implement
+**Current scaling**: 1 developer + 3 agents = 32 repo-hours  
+**Future scaling**: 1 day unattended + 3 repos = 15 days of work
+
+- **No coordination complexity**: One agent per repo eliminates merge conflicts during long autonomous sessions
+- **Repository-specific context**: Each agent builds deep knowledge of one codebase over extended periods
+- **Clean isolation**: Long-running agents won't interfere with each other
+- **Issue-driven workflow**: GitHub Issues become distributed task queues for autonomous work
 
 ## Quick Start
 
@@ -69,22 +72,29 @@ my-little-soda status
 
 ## Core Workflow
 
+**Designed for autonomous operation**: Issues fit in single context windows today, but the workflow scales to full-day autonomous sessions.
+
 1. **Peek**: Preview available issues without claiming them
 2. **Pop**: Agent claims a `route:ready` issue and creates branch `agent001/123-fix-login-bug`
-3. **Work**: Agent implements solution autonomously
+3. **Work**: Agent implements solution autonomously (15-60 minutes today, hours tomorrow)
 4. **Bottle**: Agent bundles completed work, adds `route:review` label
 5. **Review**: You review PR and merge when ready
 
-## Architecture: One Agent Per Repository
+**Two-phase design**: Separates autonomous implementation from human-supervised merge decisions, enabling long unattended work sessions.
 
-**Key insight**: Instead of complex multi-agent coordination within one repository, scale horizontally across your repository portfolio. Each repository gets one autonomous agent working independently.
+## Architecture: Horizontal Scaling Infrastructure
 
-**Benefits**:
-- No merge conflicts between agents
-- Simple, predictable operation  
-- GitHub Issues become your task queue
-- Native integration with existing workflows
-- **Enables non-technical team members** to become effective code creators through well-written issues
+**Strategic positioning**: My Little Soda provides horizontal scaling infrastructure for autonomous agents. As vertical scaling improves (1 day → 5 days of work), horizontal scaling multiplies that across repositories.
+
+**One agent per repository eliminates**:
+- Merge conflicts during long autonomous sessions
+- Complex coordination that derails unattended operation
+- Context contamination between different codebases
+
+**Enables**:
+- Repository-specific knowledge building over extended periods
+- Clean handoffs between autonomous work and human review
+- Portfolio-wide productivity scaling as agents become more capable
 
 ## Development
 
