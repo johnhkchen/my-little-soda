@@ -4,6 +4,7 @@ use anyhow::Result;
 pub mod actions;
 pub mod agent;
 pub mod bundle;
+pub mod doctor;
 pub mod init;
 pub mod land;
 #[cfg(feature = "metrics")]

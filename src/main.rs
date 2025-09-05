@@ -31,6 +31,7 @@ use cli::commands::{
         AgentValidateCommand,
     },
     bundle::BundleCommand,
+    doctor::DoctorCommand,
     init::InitCommand,
     land::LandCommand,
     peek::PeekCommand,
@@ -216,6 +217,12 @@ async fn main() -> Result<()> {
                     .await
             }
         },
+        Some(Commands::Doctor { format, verbose }) => {
+            DoctorCommand::new(format, verbose)
+                .with_ci_mode(cli.ci_mode)
+                .execute()
+                .await
+        }
     };
 
     // Shutdown database connections and telemetry

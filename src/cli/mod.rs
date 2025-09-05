@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 pub mod commands;
 
@@ -198,6 +198,24 @@ pub enum Commands {
         #[command(subcommand)]
         command: AgentCommands,
     },
+    /// Run system diagnostics and health checks
+    Doctor {
+        /// Output format for diagnostic results
+        #[arg(
+            long,
+            value_enum,
+            default_value = "text",
+            help = "Output format: text for human-readable, json for machine-readable"
+        )]
+        format: DoctorFormat,
+        /// Show detailed diagnostic information
+        #[arg(
+            long,
+            short = 'v',
+            help = "Show detailed diagnostic information and additional context"
+        )]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -247,4 +265,12 @@ pub enum AgentCommands {
         #[arg(long, help = "Validate all agents")]
         all: bool,
     },
+}
+
+#[derive(ValueEnum, Clone, Debug)]
+pub enum DoctorFormat {
+    /// Human-readable text output with colors and formatting
+    Text,
+    /// Machine-readable JSON output
+    Json,
 }
