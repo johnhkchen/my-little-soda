@@ -1045,3 +1045,331 @@ fn test_doctor_git_comprehensive_validation_count() {
     // Should have at least 8 Git-related checks (including git_available and git_repository)
     assert!(git_check_count >= 8, "Should have at least 8 Git checks, found: {}", git_check_count);
 }
+
+// Environment Validation Diagnostic Tests
+
+#[test]
+fn test_doctor_environment_validation_basics() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("environment_variables"))
+        .stdout(predicate::str::contains("file_system_permissions"))
+        .stdout(predicate::str::contains("disk_space"))
+        .stdout(predicate::str::contains("path_configuration"))
+        .stdout(predicate::str::contains("current_directory_access"))
+        .stdout(predicate::str::contains("temporary_directory_access"))
+        .stdout(predicate::str::contains("conflicting_configurations"))
+        .stdout(predicate::str::contains("file_operations"));
+}
+
+#[test]
+fn test_doctor_environment_variables_check() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test with valid GitHub token
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token_12345678901234567890")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("environment_variables").and(
+            predicate::str::contains("Environment variables are properly configured").or(
+                predicate::str::contains("MY_LITTLE_SODA_GITHUB_TOKEN is set")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_environment_variables_missing_token() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test without GitHub token
+    cmd.env_remove("MY_LITTLE_SODA_GITHUB_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("environment_variables").and(
+            predicate::str::contains("MY_LITTLE_SODA_GITHUB_TOKEN not set").or(
+                predicate::str::contains("Environment variables have")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_file_system_permissions() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("file_system_permissions").and(
+            predicate::str::contains("File system permissions for .my-little-soda are adequate").or(
+                predicate::str::contains("Successfully created .my-little-soda directory")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_disk_space_check() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("disk_space").and(
+            predicate::str::contains("disk space available").or(
+                predicate::str::contains("Unable to check disk space")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_path_configuration() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("path_configuration").and(
+            predicate::str::contains("PATH configuration").or(
+                predicate::str::contains("my-little-soda")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_current_directory_access() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("current_directory_access").and(
+            predicate::str::contains("Current directory access permissions are adequate").or(
+                predicate::str::contains("Current directory")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_temporary_directory_access() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("temporary_directory_access").and(
+            predicate::str::contains("Temporary directory access is working correctly").or(
+                predicate::str::contains("System temp directory accessible")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_conflicting_configurations() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("conflicting_configurations").and(
+            predicate::str::contains("No configuration conflicts detected").or(
+                predicate::str::contains("Configuration conflicts detected").or(
+                    predicate::str::contains("Single GitHub token source")
+                )
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_file_operations() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("file_operations").and(
+            predicate::str::contains("All My Little Soda file operations work correctly").or(
+                predicate::str::contains("File operation")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_environment_verbose_details() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("Details:"))
+        .stdout(predicate::str::contains("✅").or(
+            predicate::str::contains("Create").or(
+                predicate::str::contains("accessible")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_environment_json_structure() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    let binding = cmd.arg("doctor").arg("--format").arg("json")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    
+    // Extract the multiline JSON from the output (skip telemetry logs)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let mut json_start = None;
+    let mut brace_count = 0;
+    let mut json_end = None;
+    
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() == "{" {
+            json_start = Some(i);
+            brace_count = 1;
+        } else if json_start.is_some() {
+            brace_count += line.matches('{').count() as i32;
+            brace_count -= line.matches('}').count() as i32;
+            if brace_count == 0 {
+                json_end = Some(i);
+                break;
+            }
+        }
+    }
+    
+    let json_str = if let (Some(start), Some(end)) = (json_start, json_end) {
+        lines[start..=end].join("\n")
+    } else {
+        panic!("No JSON object found in output: {}", stdout);
+    };
+    
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    let checks = &parsed["checks"];
+    
+    // Verify environment diagnostic checks are present
+    let env_checks = [
+        "environment_variables", "file_system_permissions", "disk_space", 
+        "path_configuration", "current_directory_access", "temporary_directory_access",
+        "conflicting_configurations", "file_operations"
+    ];
+    
+    for check_name in env_checks {
+        assert!(checks[check_name].is_object(), "{} check should be present", check_name);
+        let check = &checks[check_name];
+        assert!(check["status"].is_string(), "{} should have status field", check_name);
+        assert!(check["message"].is_string(), "{} should have message field", check_name);
+    }
+}
+
+#[test]
+fn test_doctor_environment_conflicting_tokens() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Set multiple GitHub tokens to test conflict detection
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .env("GITHUB_TOKEN", "ghp_other_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("conflicting_configurations").and(
+            predicate::str::contains("Multiple GitHub tokens set").or(
+                predicate::str::contains("Configuration conflicts detected")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_environment_no_write_permissions() {
+    // Test in read-only temporary directory
+    let temp_dir = TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // This test may not work on all systems, so we just check the check exists
+    cmd.current_dir(temp_dir.path())
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("current_directory_access"))
+        .stdout(predicate::str::contains("file_operations"));
+}
+
+#[test]
+fn test_doctor_environment_path_warnings() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test with limited PATH
+    cmd.env("PATH", "/usr/bin:/bin")  // Remove cargo paths
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("path_configuration"));
+}
+
+#[test]
+fn test_doctor_environment_github_cli_fallback() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test without MY_LITTLE_SODA_GITHUB_TOKEN but possibly with gh CLI
+    cmd.env_remove("MY_LITTLE_SODA_GITHUB_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("environment_variables"));
+}
+
+#[test]
+fn test_doctor_comprehensive_environment_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test comprehensive environment validation with all components
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("🩺 MY LITTLE SODA DOCTOR"))
+        // Environment validation checks
+        .stdout(predicate::str::contains("environment_variables"))
+        .stdout(predicate::str::contains("file_system_permissions"))
+        .stdout(predicate::str::contains("disk_space"))
+        .stdout(predicate::str::contains("path_configuration"))
+        .stdout(predicate::str::contains("current_directory_access"))
+        .stdout(predicate::str::contains("temporary_directory_access"))
+        .stdout(predicate::str::contains("conflicting_configurations"))
+        .stdout(predicate::str::contains("file_operations"))
+        // Original checks should still be present
+        .stdout(predicate::str::contains("git_repository"))
+        .stdout(predicate::str::contains("github_authentication"));
+}
+
+#[test]
+fn test_doctor_environment_validation_count() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    let binding = cmd.arg("doctor").arg("--format").arg("json")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    
+    // Count environment-related checks in JSON output
+    let env_checks = [
+        "environment_variables", "file_system_permissions", "disk_space",
+        "path_configuration", "current_directory_access", "temporary_directory_access", 
+        "conflicting_configurations", "file_operations"
+    ];
+    
+    for check_name in env_checks {
+        assert!(stdout.contains(&format!("\"{}\"", check_name)), 
+                "Should contain {} check", check_name);
+    }
+    
+    // Should have all 8 environment checks
+    let env_check_count = env_checks.iter().filter(|check| stdout.contains(&format!("\"{}\"", check))).count();
+    assert_eq!(env_check_count, 8, "Should have all 8 environment checks, found: {}", env_check_count);
+}

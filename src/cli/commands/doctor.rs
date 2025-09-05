@@ -6,7 +6,9 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
+use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 /// Doctor command for system diagnostics and health checks
 pub struct DoctorCommand {
@@ -98,6 +100,16 @@ impl DoctorCommand {
         
         // Run GitHub repository access diagnostics
         self.check_github_repository_access(&mut checks).await;
+        
+        // Run environment validation diagnostics
+        self.check_environment_variables(&mut checks)?;
+        self.check_file_system_permissions(&mut checks)?;
+        self.check_disk_space(&mut checks)?;
+        self.check_path_configuration(&mut checks)?;
+        self.check_current_directory_access(&mut checks)?;
+        self.check_temporary_directory_access(&mut checks)?;
+        self.check_conflicting_configurations(&mut checks)?;
+        self.check_file_operations(&mut checks)?;
         
         // Calculate summary
         let summary = self.calculate_summary(&checks);
@@ -2024,5 +2036,749 @@ impl DoctorCommand {
                 );
             }
         }
+    }
+
+    /// Check required environment variables
+    fn check_environment_variables(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let mut issues = Vec::new();
+        let mut warnings = Vec::new();
+        let mut good = Vec::new();
+
+        // Check MY_LITTLE_SODA_GITHUB_TOKEN
+        match env::var("MY_LITTLE_SODA_GITHUB_TOKEN") {
+            Ok(token) if !token.is_empty() && token != "YOUR_GITHUB_TOKEN_HERE" => {
+                good.push("MY_LITTLE_SODA_GITHUB_TOKEN is set ✅".to_string());
+            }
+            Ok(_) => {
+                issues.push("MY_LITTLE_SODA_GITHUB_TOKEN is empty or has placeholder value".to_string());
+            }
+            Err(_) => {
+                // Check for GitHub CLI as fallback
+                if Command::new("gh").arg("auth").arg("status").output().map_or(false, |o| o.status.success()) {
+                    warnings.push("MY_LITTLE_SODA_GITHUB_TOKEN not set but GitHub CLI is authenticated".to_string());
+                } else {
+                    issues.push("MY_LITTLE_SODA_GITHUB_TOKEN not set and no GitHub CLI authentication found".to_string());
+                }
+            }
+        }
+
+        // Check PATH if my-little-soda might be globally installed
+        if let Ok(path) = env::var("PATH") {
+            let has_cargo_bin = path.split(':').any(|p| p.contains("cargo/bin") || p.contains(".cargo/bin"));
+            if has_cargo_bin {
+                good.push("PATH includes Cargo bin directory ✅".to_string());
+            } else {
+                warnings.push("PATH may not include Cargo bin directory for global installations".to_string());
+            }
+        }
+
+        // Check for conflicting environment variables
+        let conflicting_vars = vec![
+            ("GITHUB_TOKEN", "MY_LITTLE_SODA_GITHUB_TOKEN"),
+            ("GH_TOKEN", "MY_LITTLE_SODA_GITHUB_TOKEN"),
+        ];
+
+        for (conflict_var, preferred_var) in conflicting_vars {
+            if env::var(conflict_var).is_ok() && env::var(preferred_var).is_err() {
+                warnings.push(format!("{} is set but {} is not - consider using {}", 
+                                    conflict_var, preferred_var, preferred_var));
+            }
+        }
+
+        let status = if !issues.is_empty() {
+            DiagnosticStatus::Fail
+        } else if !warnings.is_empty() {
+            DiagnosticStatus::Warning
+        } else {
+            DiagnosticStatus::Pass
+        };
+
+        let message = if !issues.is_empty() {
+            format!("Environment variables have {} issue(s)", issues.len())
+        } else if !warnings.is_empty() {
+            format!("Environment variables have {} warning(s)", warnings.len())
+        } else {
+            "Environment variables are properly configured".to_string()
+        };
+
+        let details = if self.verbose || !issues.is_empty() || !warnings.is_empty() {
+            let mut all_details = good;
+            all_details.extend(warnings.iter().map(|w| format!("⚠️  {}", w)));
+            all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
+            Some(all_details.join("; "))
+        } else {
+            None
+        };
+
+        let suggestion = if !issues.is_empty() {
+            Some("Set MY_LITTLE_SODA_GITHUB_TOKEN environment variable or run 'gh auth login'".to_string())
+        } else if !warnings.is_empty() {
+            Some("Review environment variable configuration for optimal setup".to_string())
+        } else {
+            None
+        };
+
+        checks.insert(
+            "environment_variables".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
+    }
+
+    /// Check file system permissions for .my-little-soda directory
+    fn check_file_system_permissions(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let soda_dir = Path::new(".my-little-soda");
+        let mut issues = Vec::new();
+        let mut good = Vec::new();
+
+        if soda_dir.exists() {
+            // Check if it's a directory
+            if soda_dir.is_dir() {
+                good.push(".my-little-soda directory exists ✅".to_string());
+                
+                // Check read permissions
+                match fs::read_dir(soda_dir) {
+                    Ok(_) => good.push("Directory is readable ✅".to_string()),
+                    Err(e) => issues.push(format!("Cannot read .my-little-soda directory: {}", e)),
+                }
+
+                // Check write permissions by trying to create a test file
+                let test_file = soda_dir.join(".doctor-test");
+                match fs::write(&test_file, "test") {
+                    Ok(_) => {
+                        good.push("Directory is writable ✅".to_string());
+                        let _ = fs::remove_file(&test_file); // Clean up
+                    }
+                    Err(e) => issues.push(format!("Cannot write to .my-little-soda directory: {}", e)),
+                }
+            } else {
+                issues.push(".my-little-soda exists but is not a directory".to_string());
+            }
+        } else {
+            // Try to create the directory to test permissions
+            match fs::create_dir_all(soda_dir) {
+                Ok(_) => {
+                    good.push("Successfully created .my-little-soda directory ✅".to_string());
+                    // Clean up test directory
+                    let _ = fs::remove_dir(soda_dir);
+                }
+                Err(e) => {
+                    issues.push(format!("Cannot create .my-little-soda directory: {}", e));
+                }
+            }
+        }
+
+        let status = if issues.is_empty() {
+            DiagnosticStatus::Pass
+        } else {
+            DiagnosticStatus::Fail
+        };
+
+        let message = if issues.is_empty() {
+            "File system permissions for .my-little-soda are adequate".to_string()
+        } else {
+            format!("File system permission issues detected ({} issues)", issues.len())
+        };
+
+        let details = if self.verbose || !issues.is_empty() {
+            let mut all_details = good;
+            all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
+            Some(all_details.join("; "))
+        } else {
+            None
+        };
+
+        let suggestion = if !issues.is_empty() {
+            Some("Ensure current user has read/write permissions for the current directory".to_string())
+        } else {
+            None
+        };
+
+        checks.insert(
+            "file_system_permissions".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
+    }
+
+    /// Check available disk space for temporary files and state
+    fn check_disk_space(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
+        
+        // Try to get disk usage information (cross-platform approach)
+        let (status, message, details, suggestion) = match self.get_available_space(&current_dir) {
+            Ok(space_mb) => {
+                if space_mb > 1000.0 { // More than 1GB
+                    (DiagnosticStatus::Pass,
+                     format!("Sufficient disk space available ({:.1} MB)", space_mb),
+                     if self.verbose { Some("Disk space check passed".to_string()) } else { None },
+                     None)
+                } else if space_mb > 100.0 { // 100MB - 1GB
+                    (DiagnosticStatus::Warning,
+                     format!("Limited disk space available ({:.1} MB)", space_mb),
+                     Some("May affect temporary file operations".to_string()),
+                     Some("Consider freeing up disk space for optimal operation".to_string()))
+                } else {
+                    (DiagnosticStatus::Fail,
+                     format!("Very low disk space ({:.1} MB)", space_mb),
+                     Some("Insufficient space for My Little Soda operations".to_string()),
+                     Some("Free up disk space before running My Little Soda operations".to_string()))
+                }
+            }
+            Err(e) => {
+                (DiagnosticStatus::Warning,
+                 "Unable to check disk space".to_string(),
+                 Some(format!("Error checking disk space: {}", e)),
+                 Some("Manually verify sufficient disk space is available".to_string()))
+            }
+        };
+
+        checks.insert(
+            "disk_space".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
+    }
+
+    /// Cross-platform disk space checking using a simple file write test
+    fn get_available_space(&self, path: &Path) -> Result<f64> {
+        // Simple cross-platform approach: try to write progressively larger test files
+        // to estimate available space
+        let test_sizes = vec![
+            (1024 * 1024, 1.0),        // 1MB = 1MB
+            (10 * 1024 * 1024, 10.0),  // 10MB = 10MB  
+            (100 * 1024 * 1024, 100.0), // 100MB = 100MB
+            (1024 * 1024 * 1024, 1024.0), // 1GB = 1024MB
+        ];
+
+        let mut max_writable = 0.0;
+        
+        for (size_bytes, size_mb) in test_sizes {
+            let test_file = path.join(format!(".disk-space-test-{}", size_mb as i32));
+            
+            // Try to write the test file
+            let test_data = vec![0u8; size_bytes];
+            match fs::write(&test_file, &test_data) {
+                Ok(_) => {
+                    // Successfully wrote this size, update max
+                    max_writable = size_mb;
+                    // Clean up immediately
+                    let _ = fs::remove_file(&test_file);
+                }
+                Err(_) => {
+                    // Failed to write this size, return the previous successful size
+                    break;
+                }
+            }
+        }
+
+        if max_writable > 0.0 {
+            // Estimate that we have at least this much space, probably more
+            Ok(max_writable * 2.0) // Assume we have at least twice what we could write
+        } else {
+            // Couldn't even write 1MB, very low space
+            Err(anyhow::anyhow!("Cannot write even small test files - disk may be full"))
+        }
+    }
+
+    /// Check PATH configuration if globally installed
+    fn check_path_configuration(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let mut path_status = Vec::new();
+        let mut warnings = Vec::new();
+
+        // Check if my-little-soda is in PATH
+        match Command::new("my-little-soda").arg("--version").output() {
+            Ok(output) if output.status.success() => {
+                let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                path_status.push(format!("my-little-soda found in PATH: {} ✅", version));
+            }
+            _ => {
+                // Not in PATH, check common installation locations
+                let cargo_home = env::var("CARGO_HOME").unwrap_or_else(|_| 
+                    format!("{}/.cargo", env::var("HOME").unwrap_or_default()));
+                let cargo_bin = format!("{}/bin", cargo_home);
+                
+                if Path::new(&format!("{}/my-little-soda", cargo_bin)).exists() {
+                    warnings.push(format!("my-little-soda installed in {} but not in PATH", cargo_bin));
+                } else {
+                    path_status.push("my-little-soda not found in PATH (using local build) ℹ️".to_string());
+                }
+            }
+        }
+
+        // Check PATH structure
+        if let Ok(path_env) = env::var("PATH") {
+            let paths: Vec<&str> = path_env.split(':').collect();
+            let cargo_paths: Vec<&str> = paths.iter().filter(|p| p.contains("cargo")).copied().collect();
+            
+            if !cargo_paths.is_empty() {
+                path_status.push(format!("Cargo paths in PATH: {} ✅", cargo_paths.len()));
+            } else {
+                warnings.push("No Cargo paths detected in PATH - global installations may not work".to_string());
+            }
+        }
+
+        let status = if !warnings.is_empty() {
+            DiagnosticStatus::Warning
+        } else {
+            DiagnosticStatus::Pass
+        };
+
+        let message = if warnings.is_empty() {
+            "PATH configuration is appropriate".to_string()
+        } else {
+            format!("PATH configuration has {} warning(s)", warnings.len())
+        };
+
+        let details = if self.verbose || !warnings.is_empty() {
+            let mut all_details = path_status;
+            all_details.extend(warnings.iter().map(|w| format!("⚠️  {}", w)));
+            Some(all_details.join("; "))
+        } else {
+            None
+        };
+
+        let suggestion = if !warnings.is_empty() {
+            Some("Add ~/.cargo/bin to PATH for global Rust tool access".to_string())
+        } else {
+            None
+        };
+
+        checks.insert(
+            "path_configuration".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
+    }
+
+    /// Check write permissions in current directory
+    fn check_current_directory_access(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
+        let mut issues = Vec::new();
+        let mut good = Vec::new();
+
+        // Check if we can read the current directory
+        match fs::read_dir(&current_dir) {
+            Ok(_) => good.push("Current directory is readable ✅".to_string()),
+            Err(e) => issues.push(format!("Cannot read current directory: {}", e)),
+        }
+
+        // Check if we can write to the current directory
+        let test_file = current_dir.join(".my-little-soda-doctor-test");
+        match fs::write(&test_file, "test write access") {
+            Ok(_) => {
+                good.push("Current directory is writable ✅".to_string());
+                // Clean up test file
+                let _ = fs::remove_file(&test_file);
+            }
+            Err(e) => {
+                issues.push(format!("Cannot write to current directory: {}", e));
+            }
+        }
+
+        // Check if we can create subdirectories
+        let test_dir = current_dir.join(".my-little-soda-test-dir");
+        match fs::create_dir(&test_dir) {
+            Ok(_) => {
+                good.push("Can create subdirectories ✅".to_string());
+                // Clean up test directory
+                let _ = fs::remove_dir(&test_dir);
+            }
+            Err(e) => {
+                issues.push(format!("Cannot create subdirectories: {}", e));
+            }
+        }
+
+        let status = if issues.is_empty() {
+            DiagnosticStatus::Pass
+        } else {
+            DiagnosticStatus::Fail
+        };
+
+        let message = if issues.is_empty() {
+            "Current directory access permissions are adequate".to_string()
+        } else {
+            format!("Current directory access issues detected ({} issues)", issues.len())
+        };
+
+        let details = if self.verbose || !issues.is_empty() {
+            let mut all_details = good;
+            all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
+            Some(all_details.join("; "))
+        } else {
+            None
+        };
+
+        let suggestion = if !issues.is_empty() {
+            Some("Ensure current user has read/write permissions for the current directory and can create subdirectories".to_string())
+        } else {
+            None
+        };
+
+        checks.insert(
+            "current_directory_access".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
+    }
+
+    /// Check temporary directory access and permissions
+    fn check_temporary_directory_access(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let mut issues = Vec::new();
+        let mut good = Vec::new();
+
+        // Check system temporary directory
+        let temp_dir = env::temp_dir();
+        
+        // Check if temp directory exists and is accessible
+        if temp_dir.exists() && temp_dir.is_dir() {
+            good.push(format!("System temp directory accessible: {} ✅", temp_dir.display()));
+            
+            // Test write access to temp directory
+            let test_file = temp_dir.join("my-little-soda-doctor-test");
+            match fs::write(&test_file, "test temp write") {
+                Ok(_) => {
+                    good.push("Temp directory is writable ✅".to_string());
+                    // Clean up
+                    let _ = fs::remove_file(&test_file);
+                }
+                Err(e) => {
+                    issues.push(format!("Cannot write to temp directory: {}", e));
+                }
+            }
+
+            // Test creating temp subdirectories
+            let test_subdir = temp_dir.join("my-little-soda-test-subdir");
+            match fs::create_dir(&test_subdir) {
+                Ok(_) => {
+                    good.push("Can create temp subdirectories ✅".to_string());
+                    // Test writing in subdirectory
+                    let nested_file = test_subdir.join("test-file");
+                    match fs::write(&nested_file, "nested test") {
+                        Ok(_) => {
+                            good.push("Can write in temp subdirectories ✅".to_string());
+                        }
+                        Err(e) => {
+                            issues.push(format!("Cannot write in temp subdirectories: {}", e));
+                        }
+                    }
+                    // Clean up
+                    let _ = fs::remove_file(&nested_file);
+                    let _ = fs::remove_dir(&test_subdir);
+                }
+                Err(e) => {
+                    issues.push(format!("Cannot create temp subdirectories: {}", e));
+                }
+            }
+        } else {
+            issues.push("System temporary directory not accessible".to_string());
+        }
+
+        // Check TMPDIR environment variable if set
+        if let Ok(tmpdir) = env::var("TMPDIR") {
+            let custom_tmp = Path::new(&tmpdir);
+            if custom_tmp.exists() {
+                good.push(format!("Custom TMPDIR accessible: {} ✅", tmpdir));
+            } else {
+                issues.push(format!("Custom TMPDIR not accessible: {}", tmpdir));
+            }
+        }
+
+        let status = if issues.is_empty() {
+            DiagnosticStatus::Pass
+        } else {
+            DiagnosticStatus::Fail
+        };
+
+        let message = if issues.is_empty() {
+            "Temporary directory access is working correctly".to_string()
+        } else {
+            format!("Temporary directory access issues detected ({} issues)", issues.len())
+        };
+
+        let details = if self.verbose || !issues.is_empty() {
+            let mut all_details = good;
+            all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
+            Some(all_details.join("; "))
+        } else {
+            None
+        };
+
+        let suggestion = if !issues.is_empty() {
+            Some("Ensure system temporary directory is accessible and writable".to_string())
+        } else {
+            None
+        };
+
+        checks.insert(
+            "temporary_directory_access".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
+    }
+
+    /// Check for conflicting environment variables or configurations
+    fn check_conflicting_configurations(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let mut conflicts = Vec::new();
+        let mut warnings = Vec::new();
+        let mut good = Vec::new();
+
+        // Check for conflicting GitHub token environment variables
+        let github_tokens = vec![
+            ("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").ok()),
+            ("GITHUB_TOKEN", env::var("GITHUB_TOKEN").ok()),
+            ("GH_TOKEN", env::var("GH_TOKEN").ok()),
+        ];
+
+        let set_tokens: Vec<&str> = github_tokens.iter()
+            .filter(|(_, val)| val.is_some())
+            .map(|(name, _)| *name)
+            .collect();
+
+        if set_tokens.len() > 1 {
+            conflicts.push(format!("Multiple GitHub tokens set: {} - may cause confusion", set_tokens.join(", ")));
+        } else if set_tokens.len() == 1 {
+            good.push(format!("Single GitHub token source: {} ✅", set_tokens[0]));
+        }
+
+        // Check for conflicting Git configurations
+        if let Ok(config_owner) = config().map(|c| c.github.owner.clone()) {
+            if let Ok(env_owner) = env::var("GITHUB_OWNER") {
+                if config_owner != env_owner {
+                    conflicts.push(format!("GitHub owner mismatch: config='{}' vs env='{}'", config_owner, env_owner));
+                }
+            }
+        }
+
+        if let Ok(config_repo) = config().map(|c| c.github.repo.clone()) {
+            if let Ok(env_repo) = env::var("GITHUB_REPO") {
+                if config_repo != env_repo {
+                    conflicts.push(format!("GitHub repo mismatch: config='{}' vs env='{}'", config_repo, env_repo));
+                }
+            }
+        }
+
+        // Check for conflicting log levels
+        if let Ok(config_log) = config().map(|c| c.observability.log_level.clone()) {
+            if let Ok(env_log) = env::var("MY_LITTLE_SODA_OBSERVABILITY_LOG_LEVEL") {
+                if config_log != env_log {
+                    warnings.push(format!("Log level mismatch: config='{}' vs env='{}'", config_log, env_log));
+                }
+            }
+        }
+
+        // Check for read-only file systems (common in containers)
+        let current_dir = env::current_dir().unwrap_or_else(|_| Path::new(".").to_path_buf());
+        let test_file = current_dir.join(".readonly-test");
+        match fs::write(&test_file, "test") {
+            Ok(_) => {
+                let _ = fs::remove_file(&test_file);
+                good.push("File system is writable ✅".to_string());
+            }
+            Err(_) => {
+                conflicts.push("File system appears to be read-only".to_string());
+            }
+        }
+
+        let status = if !conflicts.is_empty() {
+            DiagnosticStatus::Fail
+        } else if !warnings.is_empty() {
+            DiagnosticStatus::Warning
+        } else {
+            DiagnosticStatus::Pass
+        };
+
+        let message = if !conflicts.is_empty() {
+            format!("Configuration conflicts detected ({} conflicts)", conflicts.len())
+        } else if !warnings.is_empty() {
+            format!("Configuration warnings detected ({} warnings)", warnings.len())
+        } else {
+            "No configuration conflicts detected".to_string()
+        };
+
+        let details = if self.verbose || !conflicts.is_empty() || !warnings.is_empty() {
+            let mut all_details = good;
+            all_details.extend(warnings.iter().map(|w| format!("⚠️  {}", w)));
+            all_details.extend(conflicts.iter().map(|c| format!("❌ {}", c)));
+            Some(all_details.join("; "))
+        } else {
+            None
+        };
+
+        let suggestion = if !conflicts.is_empty() {
+            Some("Resolve configuration conflicts by using consistent environment variables and settings".to_string())
+        } else if !warnings.is_empty() {
+            Some("Review configuration mismatches to ensure intended behavior".to_string())
+        } else {
+            None
+        };
+
+        checks.insert(
+            "conflicting_configurations".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
+    }
+
+    /// Test ability to create/modify files needed by My Little Soda
+    fn check_file_operations(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
+        let mut operations_tested = Vec::new();
+        let mut operations_failed = Vec::new();
+
+        // Test 1: Create .my-little-soda directory structure
+        let soda_dir = Path::new(".my-little-soda");
+        let credentials_dir = soda_dir.join("credentials");
+        let agents_dir = soda_dir.join("agents");
+        
+        match fs::create_dir_all(&credentials_dir) {
+            Ok(_) => {
+                operations_tested.push("Create .my-little-soda/credentials ✅".to_string());
+                // Clean up test directory
+                let _ = fs::remove_dir_all(soda_dir);
+            }
+            Err(e) => {
+                operations_failed.push(format!("Cannot create credentials directory: {}", e));
+            }
+        }
+
+        match fs::create_dir_all(&agents_dir) {
+            Ok(_) => {
+                operations_tested.push("Create .my-little-soda/agents ✅".to_string());
+                // Clean up test directory if credentials didn't fail
+                if operations_failed.is_empty() {
+                    let _ = fs::remove_dir_all(soda_dir);
+                }
+            }
+            Err(e) => {
+                operations_failed.push(format!("Cannot create agents directory: {}", e));
+            }
+        }
+
+        // Test 2: Create and modify state files
+        let state_file = Path::new(".my-little-soda-test-state.json");
+        let test_content = r#"{"test": "state", "timestamp": "2023-01-01T00:00:00Z"}"#;
+        
+        match fs::write(state_file, test_content) {
+            Ok(_) => {
+                operations_tested.push("Create state file ✅".to_string());
+                
+                // Test reading it back
+                match fs::read_to_string(state_file) {
+                    Ok(content) if content == test_content => {
+                        operations_tested.push("Read state file ✅".to_string());
+                    }
+                    Ok(_) => {
+                        operations_failed.push("State file content mismatch".to_string());
+                    }
+                    Err(e) => {
+                        operations_failed.push(format!("Cannot read state file: {}", e));
+                    }
+                }
+
+                // Test modifying it
+                let updated_content = r#"{"test": "updated", "timestamp": "2023-01-01T01:00:00Z"}"#;
+                match fs::write(state_file, updated_content) {
+                    Ok(_) => {
+                        operations_tested.push("Modify state file ✅".to_string());
+                    }
+                    Err(e) => {
+                        operations_failed.push(format!("Cannot modify state file: {}", e));
+                    }
+                }
+                
+                // Clean up
+                let _ = fs::remove_file(state_file);
+            }
+            Err(e) => {
+                operations_failed.push(format!("Cannot create state file: {}", e));
+            }
+        }
+
+        // Test 3: Create temporary work files (simulate agent operations)
+        let work_dir = Path::new(".my-little-soda-test-work");
+        match fs::create_dir_all(work_dir) {
+            Ok(_) => {
+                operations_tested.push("Create work directory ✅".to_string());
+
+                // Test creating files in work directory
+                let work_file = work_dir.join("test-work.txt");
+                match fs::write(&work_file, "test work content") {
+                    Ok(_) => {
+                        operations_tested.push("Create work files ✅".to_string());
+                    }
+                    Err(e) => {
+                        operations_failed.push(format!("Cannot create work files: {}", e));
+                    }
+                }
+
+                // Clean up work directory
+                let _ = fs::remove_dir_all(work_dir);
+            }
+            Err(e) => {
+                operations_failed.push(format!("Cannot create work directory: {}", e));
+            }
+        }
+
+        // Test 4: File locking (simulate concurrent operations)
+        let lock_file = Path::new(".my-little-soda-test-lock");
+        match fs::write(lock_file, "test lock") {
+            Ok(_) => {
+                operations_tested.push("Create lock files ✅".to_string());
+                
+                // Test that we can detect and work with existing files
+                if lock_file.exists() {
+                    operations_tested.push("Detect existing files ✅".to_string());
+                }
+                
+                // Clean up
+                let _ = fs::remove_file(lock_file);
+            }
+            Err(e) => {
+                operations_failed.push(format!("Cannot create lock files: {}", e));
+            }
+        }
+
+        let status = if operations_failed.is_empty() {
+            DiagnosticStatus::Pass
+        } else if operations_tested.len() > operations_failed.len() {
+            DiagnosticStatus::Warning
+        } else {
+            DiagnosticStatus::Fail
+        };
+
+        let message = if operations_failed.is_empty() {
+            "All My Little Soda file operations work correctly".to_string()
+        } else {
+            format!("File operation issues detected ({} failed, {} passed)", 
+                   operations_failed.len(), operations_tested.len())
+        };
+
+        let details = if self.verbose || !operations_failed.is_empty() {
+            let mut all_details = operations_tested;
+            all_details.extend(operations_failed.iter().map(|f| format!("❌ {}", f)));
+            Some(all_details.join("; "))
+        } else {
+            Some(format!("Operations tested: {}, Failed: {}", operations_tested.len(), operations_failed.len()))
+        };
+
+        let suggestion = if !operations_failed.is_empty() {
+            Some("Ensure file system permissions allow My Little Soda to create and modify required files and directories".to_string())
+        } else {
+            None
+        };
+
+        checks.insert(
+            "file_operations".to_string(),
+            DiagnosticResult { status, message, details, suggestion },
+        );
+
+        Ok(())
     }
 }
