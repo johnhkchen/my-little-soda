@@ -56,8 +56,8 @@ impl LandCommand {
         }
 
         // Initialize GitHub client and agent coordinator
-        let client = GitHubClient::new()
-            .map_err(|e| anyhow!("Failed to initialize GitHub client: {}", e))?;
+        let client = GitHubClient::with_verbose(self.verbose)
+            .map_err(|e| anyhow!("Failed to initialize GitHub client: {}. Try: my-little-soda doctor --verbose", e))?;
         let coordinator = AgentCoordinator::new()
             .await
             .map_err(|e| anyhow!("Failed to initialize agent coordinator: {}", e))?;
