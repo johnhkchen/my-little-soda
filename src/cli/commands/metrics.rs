@@ -1,5 +1,5 @@
-use anyhow::Result;
 use crate::metrics::MetricsTracker;
+use anyhow::Result;
 use serde_json;
 
 pub struct MetricsCommand {
@@ -30,7 +30,7 @@ impl MetricsCommand {
 
     pub async fn execute(&self) -> Result<()> {
         let tracker = MetricsTracker::new();
-        
+
         if self.ci_mode {
             self.execute_ci_mode(&tracker).await
         } else {
@@ -50,7 +50,7 @@ impl MetricsCommand {
             Ok(metrics) => {
                 let report = tracker.format_metrics_report(&metrics, self.detailed);
                 println!("{}", report);
-                
+
                 if self.detailed {
                     println!("\n🔍 Performance Analysis:");
                     match tracker.format_performance_report(Some(self.hours)).await {
@@ -58,7 +58,7 @@ impl MetricsCommand {
                         Err(e) => println!("⚠️  Performance report unavailable: {}", e),
                     }
                 }
-                
+
                 println!("\n✅ Metrics analysis complete");
             }
             Err(e) => {
@@ -70,7 +70,10 @@ impl MetricsCommand {
     }
 
     async fn execute_ci_mode(&self, tracker: &MetricsTracker) -> Result<()> {
-        match tracker.export_metrics_for_monitoring(Some(self.hours)).await {
+        match tracker
+            .export_metrics_for_monitoring(Some(self.hours))
+            .await
+        {
             Ok(export_data) => {
                 let json_output = serde_json::to_string_pretty(&export_data)?;
                 println!("{}", json_output);
@@ -128,10 +131,13 @@ impl ExportMetricsCommand {
     }
 
     async fn export_metrics(&self, tracker: &MetricsTracker) -> Result<()> {
-        match tracker.export_metrics_for_monitoring(Some(self.hours)).await {
+        match tracker
+            .export_metrics_for_monitoring(Some(self.hours))
+            .await
+        {
             Ok(export_data) => {
                 let json_output = serde_json::to_string_pretty(&export_data)?;
-                
+
                 if let Some(output_file) = &self.output {
                     std::fs::write(output_file, &json_output)?;
                     if !self.ci_mode {

@@ -110,23 +110,20 @@ impl CommentHandler {
         line: u32,
     ) -> Result<octocrab::models::pulls::Comment, GitHubError> {
         use serde_json::json;
-        
+
         let route = format!(
             "/repos/{}/{}/pulls/{}/comments",
             &self.owner, &self.repo, pr_number
         );
-        
+
         let data = json!({
             "body": body,
             "commit_id": commit_id,
             "path": path,
             "line": line
         });
-        
-        let review_comment = self
-            .octocrab
-            .post(route, Some(&data))
-            .await?;
+
+        let review_comment = self.octocrab.post(route, Some(&data)).await?;
 
         println!("💬 Created PR review comment on #{pr_number} at {path}:{line}");
         Ok(review_comment)

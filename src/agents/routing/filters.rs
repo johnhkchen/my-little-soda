@@ -21,7 +21,6 @@ impl IssueFilter {
         let mut routable_issues = Vec::new();
 
         for issue in all_issues {
-
             let is_open = issue.state == octocrab::models::IssueState::Open;
 
             let has_route_ready = issue.labels.iter().any(|label| label.name == "route:ready");

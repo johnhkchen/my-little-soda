@@ -1,22 +1,21 @@
 //! Agent State Diagnostics
-//! 
+//!
 //! This module implements comprehensive diagnostic checks for agent state,
 //! work continuity, and state machine health to ensure proper agent lifecycle management.
 
 use crate::agent_lifecycle::state_machine::AgentStateMachine;
 use crate::agents::coordinator::AgentCoordinator;
-use crate::cli::commands::doctor::{DiagnosticResult, DiagnosticStatus};
-#[cfg(feature = "autonomous")]
-use crate::autonomous::work_continuity::{WorkContinuityManager, WorkContinuityConfig};
 #[cfg(feature = "autonomous")]
 use crate::autonomous::persistence::PersistenceConfig;
 #[cfg(feature = "autonomous")]
+use crate::autonomous::work_continuity::{WorkContinuityConfig, WorkContinuityManager};
+use crate::cli::commands::doctor::{DiagnosticResult, DiagnosticStatus};
+#[cfg(feature = "autonomous")]
 use crate::config::config;
 use crate::github::{GitHubClient, GitHubError};
-use std::path::PathBuf;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 use tracing::{debug, info};
 
 /// Comprehensive agent state diagnostic report
@@ -102,6 +101,7 @@ pub struct AgentStateDiagnostic {
     agent_coordinator: Option<AgentCoordinator>,
 }
 
+#[allow(dead_code)]
 impl AgentStateDiagnostic {
     /// Create new agent state diagnostic checker
     pub fn new(github_client: GitHubClient) -> Self {
@@ -112,7 +112,7 @@ impl AgentStateDiagnostic {
     }
 
     /// Initialize with agent coordinator for enhanced diagnostics
-    pub async fn with_coordinator(mut self) -> Result<Self, GitHubError> {
+    pub async fn with_coordinator(self) -> Result<Self, GitHubError> {
         self.with_coordinator_verbose(false).await
     }
 
@@ -161,7 +161,9 @@ impl AgentStateDiagnostic {
                         status: DiagnosticStatus::Fail,
                         message: "Failed to check agent availability".to_string(),
                         details: Some(format!("Error: {:?}", e)),
-                        suggestion: Some("Ensure GitHub authentication is working and try again".to_string()),
+                        suggestion: Some(
+                            "Ensure GitHub authentication is working and try again".to_string(),
+                        ),
                     },
                 );
             }
@@ -227,7 +229,9 @@ impl AgentStateDiagnostic {
                             status: DiagnosticStatus::Fail,
                             message: "Failed to check work continuity status".to_string(),
                             details: Some(format!("Error: {:?}", e)),
-                            suggestion: Some("Check configuration and file permissions".to_string()),
+                            suggestion: Some(
+                                "Check configuration and file permissions".to_string(),
+                            ),
                         },
                     );
                 }
@@ -240,8 +244,11 @@ impl AgentStateDiagnostic {
                 "work_continuity_integrity".to_string(),
                 DiagnosticResult {
                     status: DiagnosticStatus::Info,
-                    message: "Work continuity not available (autonomous feature disabled)".to_string(),
-                    details: Some("Compile with --features autonomous to enable work continuity".to_string()),
+                    message: "Work continuity not available (autonomous feature disabled)"
+                        .to_string(),
+                    details: Some(
+                        "Compile with --features autonomous to enable work continuity".to_string(),
+                    ),
                     suggestion: None,
                 },
             );
@@ -345,7 +352,10 @@ impl AgentStateDiagnostic {
     }
 
     /// Detect conflicting agent assignments
-    pub async fn check_conflicting_assignments(&self, checks: &mut HashMap<String, DiagnosticResult>) {
+    pub async fn check_conflicting_assignments(
+        &self,
+        checks: &mut HashMap<String, DiagnosticResult>,
+    ) {
         debug!("Checking for conflicting agent assignments");
 
         match self.detect_conflicting_assignments().await {
@@ -433,7 +443,9 @@ impl AgentStateDiagnostic {
                         status: DiagnosticStatus::Fail,
                         message: "Failed to check work cleanup status".to_string(),
                         details: Some(format!("Error: {:?}", e)),
-                        suggestion: Some("Check GitHub API access and repository status".to_string()),
+                        suggestion: Some(
+                            "Check GitHub API access and repository status".to_string(),
+                        ),
                     },
                 );
             }
@@ -441,12 +453,14 @@ impl AgentStateDiagnostic {
     }
 
     /// Generate comprehensive agent state diagnostic report
-    pub async fn generate_comprehensive_report(&self) -> Result<AgentStateDiagnosticReport, GitHubError> {
+    pub async fn generate_comprehensive_report(
+        &self,
+    ) -> Result<AgentStateDiagnosticReport, GitHubError> {
         info!("Generating comprehensive agent state diagnostic report");
 
         let agent_status = self.check_agent_availability().await?;
         let state_machine_health = self.check_state_machine_health().await?;
-        
+
         #[cfg(feature = "autonomous")]
         let work_continuity_status = self.check_work_continuity_status().await?;
         #[cfg(not(feature = "autonomous"))]
@@ -472,7 +486,12 @@ impl AgentStateDiagnostic {
             cleanup_needed,
         };
 
-        let detected_issues = self.analyze_issues(&agent_status, &state_machine_health, &work_continuity_status, &github_sync_status);
+        let detected_issues = self.analyze_issues(
+            &agent_status,
+            &state_machine_health,
+            &work_continuity_status,
+            &github_sync_status,
+        );
         let recommendations = self.generate_recommendations(&detected_issues);
 
         Ok(AgentStateDiagnosticReport {
@@ -528,15 +547,20 @@ impl AgentStateDiagnostic {
         }
     }
 
-    async fn check_state_machine_consistency(&self, checks: &mut HashMap<String, DiagnosticResult>) {
+    async fn check_state_machine_consistency(
+        &self,
+        checks: &mut HashMap<String, DiagnosticResult>,
+    ) {
         // Create a test state machine to verify consistency
         let agent_state = AgentStateMachine::new("agent001".to_string());
-        
+
         let mut validation_errors = Vec::new();
-        
+
         // Basic state machine validation
         if !agent_state.is_available() && agent_state.current_issue().is_none() {
-            validation_errors.push("State machine inconsistency: not available but no current issue".to_string());
+            validation_errors.push(
+                "State machine inconsistency: not available but no current issue".to_string(),
+            );
         }
 
         let status = if validation_errors.is_empty() {
@@ -552,11 +576,17 @@ impl AgentStateDiagnostic {
                 message: if validation_errors.is_empty() {
                     "State machine is consistent".to_string()
                 } else {
-                    format!("State machine has {} validation errors", validation_errors.len())
+                    format!(
+                        "State machine has {} validation errors",
+                        validation_errors.len()
+                    )
                 },
                 details: if validation_errors.is_empty() {
-                    Some(format!("Available: {}, Current issue: {:?}", 
-                        agent_state.is_available(), agent_state.current_issue()))
+                    Some(format!(
+                        "Available: {}, Current issue: {:?}",
+                        agent_state.is_available(),
+                        agent_state.current_issue()
+                    ))
                 } else {
                     Some(validation_errors.join("; "))
                 },
@@ -618,14 +648,20 @@ impl AgentStateDiagnostic {
             backup_interval_minutes: config.agents.work_continuity.backup_interval_minutes,
             max_recovery_attempts: config.agents.work_continuity.max_recovery_attempts,
             validation_timeout_seconds: config.agents.work_continuity.validation_timeout_seconds,
-            force_fresh_start_after_hours: config.agents.work_continuity.force_fresh_start_after_hours,
+            force_fresh_start_after_hours: config
+                .agents
+                .work_continuity
+                .force_fresh_start_after_hours,
             preserve_partial_work: config.agents.work_continuity.preserve_partial_work,
         };
 
         let persistence_config = PersistenceConfig {
             enable_persistence: continuity_config.enable_continuity,
-            persistence_directory: continuity_config.state_file_path.parent()
-                .unwrap_or(&PathBuf::from(".my-little-soda")).to_path_buf(),
+            persistence_directory: continuity_config
+                .state_file_path
+                .parent()
+                .unwrap_or(&PathBuf::from(".my-little-soda"))
+                .to_path_buf(),
             auto_save_interval_minutes: continuity_config.backup_interval_minutes,
             max_state_history_entries: 1000,
             max_recovery_history_entries: 500,
@@ -687,15 +723,15 @@ impl AgentStateDiagnostic {
         let mut orphaned_issues = Vec::new();
 
         // Get all open issues and filter for those labeled with agent001
-        let all_issues = self.github_client.issues
+        let all_issues = self
+            .github_client
+            .issues
             .fetch_issues_with_state(Some(octocrab::params::State::Open))
             .await?;
-        
-        let issues: Vec<_> = all_issues.into_iter()
-            .filter(|issue| {
-                issue.labels.iter()
-                    .any(|label| label.name == "agent001")
-            })
+
+        let issues: Vec<_> = all_issues
+            .into_iter()
+            .filter(|issue| issue.labels.iter().any(|label| label.name == "agent001"))
             .collect();
 
         let current_branch = self.get_current_git_branch();
@@ -743,24 +779,27 @@ impl AgentStateDiagnostic {
         let mut conflicts = Vec::new();
 
         // Get all open issues and filter for those labeled with agent001
-        let all_issues = self.github_client.issues
+        let all_issues = self
+            .github_client
+            .issues
             .fetch_issues_with_state(Some(octocrab::params::State::Open))
             .await?;
-        
-        let issues: Vec<_> = all_issues.into_iter()
-            .filter(|issue| {
-                issue.labels.iter()
-                    .any(|label| label.name == "agent001")
-            })
+
+        let issues: Vec<_> = all_issues
+            .into_iter()
+            .filter(|issue| issue.labels.iter().any(|label| label.name == "agent001"))
             .collect();
 
         for issue in issues {
             if let Some(assignee) = &issue.assignee {
                 // If issue has both agent label and human assignee, it might be a conflict
                 let labels: Vec<String> = issue.labels.iter().map(|l| l.name.clone()).collect();
-                if labels.contains(&"agent001".to_string()) && !assignee.login.starts_with("agent") {
-                    conflicts.push(format!("Issue #{} has both agent001 label and human assignee {}", 
-                        issue.number, assignee.login));
+                if labels.contains(&"agent001".to_string()) && !assignee.login.starts_with("agent")
+                {
+                    conflicts.push(format!(
+                        "Issue #{} has both agent001 label and human assignee {}",
+                        issue.number, assignee.login
+                    ));
                 }
             }
         }
@@ -774,7 +813,8 @@ impl AgentStateDiagnostic {
         // Check for merged PRs that still have agent branches (simplified version)
         match self.github_client.branches.list_branches().await {
             Ok(branches) => {
-                let agent_branches: Vec<_> = branches.into_iter()
+                let agent_branches: Vec<_> = branches
+                    .into_iter()
                     .filter(|branch_name| branch_name.starts_with("agent001/"))
                     .collect();
 
@@ -782,7 +822,8 @@ impl AgentStateDiagnostic {
                     // For now, just identify agent branches that exist
                     // In a full implementation, we would check for merged PRs
                     // This provides basic cleanup awareness
-                    cleanup_needed.push(format!("Branch '{}' may need cleanup review", branch_name));
+                    cleanup_needed
+                        .push(format!("Branch '{}' may need cleanup review", branch_name));
                 }
             }
             Err(_) => {
@@ -802,7 +843,11 @@ impl AgentStateDiagnostic {
                 if output.status.success() {
                     let branch = String::from_utf8(output.stdout).ok()?;
                     let trimmed = branch.trim();
-                    if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
                 } else {
                     None
                 }
@@ -826,12 +871,13 @@ impl AgentStateDiagnostic {
         // Get commits ahead of main
         match std::process::Command::new("git")
             .args(["rev-list", "--count", "HEAD", "^main"])
-            .output() {
+            .output()
+        {
             Ok(output) if output.status.success() => {
                 let count_str = String::from_utf8_lossy(&output.stdout);
                 Ok(count_str.trim().parse().unwrap_or(0))
             }
-            _ => Ok(0)
+            _ => Ok(0),
         }
     }
 
@@ -851,7 +897,8 @@ impl AgentStateDiagnostic {
                 severity: IssueSeverity::High,
                 description: "Agent state machine is inconsistent".to_string(),
                 affected_components: vec!["State Machine".to_string()],
-                suggested_resolution: "Reset agent state with 'my-little-soda reset --agent-state'".to_string(),
+                suggested_resolution: "Reset agent state with 'my-little-soda reset --agent-state'"
+                    .to_string(),
             });
         }
 
@@ -862,7 +909,8 @@ impl AgentStateDiagnostic {
                 severity: IssueSeverity::Medium,
                 description: "Work continuity state file is corrupted or invalid".to_string(),
                 affected_components: vec!["Work Continuity".to_string()],
-                suggested_resolution: "Clear corrupted state and restart with fresh state".to_string(),
+                suggested_resolution: "Clear corrupted state and restart with fresh state"
+                    .to_string(),
             });
         }
 
@@ -871,10 +919,13 @@ impl AgentStateDiagnostic {
             issues.push(AgentStateIssue {
                 issue_type: AgentStateIssueType::OrphanedAssignment,
                 severity: IssueSeverity::Medium,
-                description: format!("Found {} orphaned agent assignments", 
-                    github_sync_status.orphaned_assignments.len()),
+                description: format!(
+                    "Found {} orphaned agent assignments",
+                    github_sync_status.orphaned_assignments.len()
+                ),
                 affected_components: vec!["GitHub Integration".to_string()],
-                suggested_resolution: "Clean up orphaned assignments with reset command".to_string(),
+                suggested_resolution: "Clean up orphaned assignments with reset command"
+                    .to_string(),
             });
         }
 
@@ -882,8 +933,10 @@ impl AgentStateDiagnostic {
             issues.push(AgentStateIssue {
                 issue_type: AgentStateIssueType::AbandonedBranch,
                 severity: IssueSeverity::Low,
-                description: format!("Found {} potentially abandoned agent branches", 
-                    github_sync_status.abandoned_branches.len()),
+                description: format!(
+                    "Found {} potentially abandoned agent branches",
+                    github_sync_status.abandoned_branches.len()
+                ),
                 affected_components: vec!["Git Repository".to_string()],
                 suggested_resolution: "Review and clean up old agent branches".to_string(),
             });
@@ -893,8 +946,10 @@ impl AgentStateDiagnostic {
             issues.push(AgentStateIssue {
                 issue_type: AgentStateIssueType::ConflictingAssignment,
                 severity: IssueSeverity::High,
-                description: format!("Found {} conflicting agent assignments", 
-                    github_sync_status.conflicting_assignments.len()),
+                description: format!(
+                    "Found {} conflicting agent assignments",
+                    github_sync_status.conflicting_assignments.len()
+                ),
                 affected_components: vec!["GitHub Integration".to_string()],
                 suggested_resolution: "Resolve assignment conflicts manually".to_string(),
             });
@@ -906,24 +961,41 @@ impl AgentStateDiagnostic {
     fn generate_recommendations(&self, issues: &[AgentStateIssue]) -> Vec<String> {
         let mut recommendations = Vec::new();
 
-        if issues.iter().any(|i| matches!(i.issue_type, AgentStateIssueType::StuckState)) {
-            recommendations.push("Consider resetting agent state to resolve state machine inconsistencies".to_string());
+        if issues
+            .iter()
+            .any(|i| matches!(i.issue_type, AgentStateIssueType::StuckState))
+        {
+            recommendations.push(
+                "Consider resetting agent state to resolve state machine inconsistencies"
+                    .to_string(),
+            );
         }
 
-        if issues.iter().any(|i| matches!(i.issue_type, AgentStateIssueType::OrphanedAssignment)) {
-            recommendations.push("Run cleanup command to resolve orphaned GitHub assignments".to_string());
+        if issues
+            .iter()
+            .any(|i| matches!(i.issue_type, AgentStateIssueType::OrphanedAssignment))
+        {
+            recommendations
+                .push("Run cleanup command to resolve orphaned GitHub assignments".to_string());
         }
 
-        if issues.iter().any(|i| matches!(i.issue_type, AgentStateIssueType::WorkContinuityFailure)) {
-            recommendations.push("Backup and reset work continuity state if corruption is detected".to_string());
+        if issues
+            .iter()
+            .any(|i| matches!(i.issue_type, AgentStateIssueType::WorkContinuityFailure))
+        {
+            recommendations.push(
+                "Backup and reset work continuity state if corruption is detected".to_string(),
+            );
         }
 
         if issues.iter().any(|i| i.severity == IssueSeverity::Critical) {
-            recommendations.push("Address critical issues immediately to prevent work loss".to_string());
+            recommendations
+                .push("Address critical issues immediately to prevent work loss".to_string());
         }
 
         if issues.is_empty() {
-            recommendations.push("Agent state is healthy - no immediate actions needed".to_string());
+            recommendations
+                .push("Agent state is healthy - no immediate actions needed".to_string());
         }
 
         recommendations

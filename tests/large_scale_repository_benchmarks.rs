@@ -73,7 +73,7 @@ pub struct ScanningMetrics {
 #[derive(Debug, Clone)]
 pub struct MemoryMetrics {
     pub peak_memory_mb: f64,
-    pub memory_growth_rate: f64, // MB per 1000 items
+    pub memory_growth_rate: f64,      // MB per 1000 items
     pub memory_efficiency_score: f64, // 0.0 to 1.0
     pub garbage_collection_events: usize,
 }
@@ -136,7 +136,10 @@ impl LargeRepositorySimulator {
     }
 
     pub async fn run_benchmark(&self) -> Result<LargeScaleBenchmarkResults, String> {
-        println!("🏁 Starting large-scale repository benchmark: {}", self.config.test_name);
+        println!(
+            "🏁 Starting large-scale repository benchmark: {}",
+            self.config.test_name
+        );
         println!("   Configuration:");
         println!("     Issues: {}", self.config.issue_count);
         println!("     Pull Requests: {}", self.config.pr_count);
@@ -179,7 +182,7 @@ impl LargeRepositorySimulator {
 
     async fn benchmark_repository_initialization(&self) -> Result<InitializationMetrics, String> {
         println!("🚀 Phase 1: Repository Initialization Benchmark");
-        
+
         let start_time = Instant::now();
         let mut successful_operations = 0;
         let mut failed_operations = 0;
@@ -187,10 +190,10 @@ impl LargeRepositorySimulator {
         // Simulate init command processing large repository
         for batch in 0..(self.config.issue_count / 100) {
             let batch_start = Instant::now();
-            
+
             // Simulate processing a batch of 100 issues
             let batch_result = self.simulate_issue_batch_processing(batch, 100).await;
-            
+
             match batch_result {
                 Ok(_) => successful_operations += 100,
                 Err(_) => failed_operations += 100,
@@ -201,19 +204,25 @@ impl LargeRepositorySimulator {
                 self.track_memory_allocation(
                     10.0 + (batch as f64 * 0.5), // Simulate memory growth
                     format!("issue_batch_{}", batch),
-                ).await;
+                )
+                .await;
             }
 
             if batch % 10 == 0 {
-                println!("   Processed {} issues in {:?}", (batch + 1) * 100, batch_start.elapsed());
+                println!(
+                    "   Processed {} issues in {:?}",
+                    (batch + 1) * 100,
+                    batch_start.elapsed()
+                );
             }
         }
 
         let total_duration = start_time.elapsed();
         let analysis_duration = Duration::from_millis(500 + (self.config.issue_count as u64 / 10));
-        
+
         let processing_rate = successful_operations as f64 / total_duration.as_secs_f64();
-        let success_rate = successful_operations as f64 / (successful_operations + failed_operations) as f64;
+        let success_rate =
+            successful_operations as f64 / (successful_operations + failed_operations) as f64;
 
         Ok(InitializationMetrics {
             init_duration: total_duration,
@@ -230,7 +239,7 @@ impl LargeRepositorySimulator {
         // Full scan simulation
         let full_scan_start = Instant::now();
         let total_items = self.config.issue_count + self.config.pr_count;
-        
+
         self.simulate_full_repository_scan(total_items).await?;
         let full_scan_duration = full_scan_start.elapsed();
 
@@ -257,7 +266,7 @@ impl LargeRepositorySimulator {
 
         let memory_tracker = self.memory_tracker.lock().await;
         let total_items = self.config.issue_count + self.config.pr_count;
-        
+
         let memory_growth_rate = if total_items > 0 {
             (memory_tracker.peak_memory_mb / total_items as f64) * 1000.0 // MB per 1000 items
         } else {
@@ -280,7 +289,7 @@ impl LargeRepositorySimulator {
 
         let api_tracker = self.api_tracker.lock().await;
         let total_issues = self.config.issue_count;
-        
+
         let total_api_calls = api_tracker.api_calls.len();
         let api_calls_per_issue = if total_issues > 0 {
             total_api_calls as f64 / total_issues as f64
@@ -289,18 +298,17 @@ impl LargeRepositorySimulator {
         };
 
         let average_api_latency = if !api_tracker.api_calls.is_empty() {
-            let total_latency: Duration = api_tracker.api_calls
-                .iter()
-                .map(|call| call.duration)
-                .sum();
+            let total_latency: Duration =
+                api_tracker.api_calls.iter().map(|call| call.duration).sum();
             total_latency / api_tracker.api_calls.len() as u32
         } else {
             Duration::ZERO
         };
 
         // API efficiency: fewer calls per issue and lower latency is better
-        let api_efficiency_score = ((20.0 / api_calls_per_issue.max(1.0)).min(1.0) + 
-                                   (1.0 / (average_api_latency.as_millis() as f64 / 100.0).max(1.0)).min(1.0)) / 2.0;
+        let api_efficiency_score = ((20.0 / api_calls_per_issue.max(1.0)).min(1.0)
+            + (1.0 / (average_api_latency.as_millis() as f64 / 100.0).max(1.0)).min(1.0))
+            / 2.0;
 
         Ok(ApiMetrics {
             total_api_calls,
@@ -328,7 +336,11 @@ impl LargeRepositorySimulator {
         (init_score * 0.3) + (scan_score * 0.2) + (memory_score * 0.2) + (api_score * 0.3)
     }
 
-    async fn simulate_issue_batch_processing(&self, batch_id: usize, batch_size: usize) -> Result<(), String> {
+    async fn simulate_issue_batch_processing(
+        &self,
+        batch_id: usize,
+        batch_size: usize,
+    ) -> Result<(), String> {
         // Simulate processing time with some variance
         let base_processing_time = Duration::from_millis(10);
         let variance = Duration::from_millis(fastrand::u64(0..=20));
@@ -338,16 +350,21 @@ impl LargeRepositorySimulator {
         if self.config.api_call_tracking_enabled {
             for issue_id in 0..batch_size {
                 self.track_api_call(
-                    format!("GET /repos/owner/repo/issues/{}", batch_id * batch_size + issue_id),
+                    format!(
+                        "GET /repos/owner/repo/issues/{}",
+                        batch_id * batch_size + issue_id
+                    ),
                     Duration::from_millis(50 + fastrand::u64(0..=100)),
                     true,
                     fastrand::f64() < 0.01, // 1% chance of rate limit
-                ).await;
+                )
+                .await;
             }
         }
 
         // Simulate occasional failures
-        if fastrand::f64() < 0.05 { // 5% failure rate
+        if fastrand::f64() < 0.05 {
+            // 5% failure rate
             Err(format!("Simulated failure in batch {}", batch_id))
         } else {
             Ok(())
@@ -359,7 +376,7 @@ impl LargeRepositorySimulator {
 
         for batch in 0..batches {
             let items_in_batch = (total_items - batch * 100).min(100);
-            
+
             // Simulate scanning time
             let scan_time = Duration::from_millis(5 * items_in_batch as u64);
             tokio::time::sleep(scan_time).await;
@@ -369,7 +386,8 @@ impl LargeRepositorySimulator {
                 self.track_memory_allocation(
                     items_in_batch as f64 * 0.1, // 0.1MB per item
                     format!("scan_batch_{}", batch),
-                ).await;
+                )
+                .await;
             }
         }
 
@@ -391,7 +409,7 @@ impl LargeRepositorySimulator {
         let mut tracker = self.memory_tracker.lock().await;
         tracker.current_memory_mb += size_mb;
         tracker.peak_memory_mb = tracker.peak_memory_mb.max(tracker.current_memory_mb);
-        
+
         tracker.allocations.push(MemoryAllocation {
             size_mb,
             timestamp: Instant::now(),
@@ -399,13 +417,19 @@ impl LargeRepositorySimulator {
         });
     }
 
-    async fn track_api_call(&self, endpoint: String, duration: Duration, success: bool, rate_limited: bool) {
+    async fn track_api_call(
+        &self,
+        endpoint: String,
+        duration: Duration,
+        success: bool,
+        rate_limited: bool,
+    ) {
         if !self.config.api_call_tracking_enabled {
             return;
         }
 
         let mut tracker = self.api_tracker.lock().await;
-        
+
         if rate_limited {
             tracker.rate_limit_encounters += 1;
             tracker.total_rate_limit_delay += Duration::from_secs(60); // Simulate 60s delay
@@ -424,37 +448,96 @@ impl LargeRepositorySimulator {
         println!("\n📊 Large Scale Repository Benchmark Results");
         println!("═════════════════════════════════════════════════════════════");
         println!("Test: {}", results.test_name);
-        println!("Repository Scale: {} issues, {} PRs", 
-                 results.config.issue_count, results.config.pr_count);
+        println!(
+            "Repository Scale: {} issues, {} PRs",
+            results.config.issue_count, results.config.pr_count
+        );
 
         println!("\n🚀 Initialization Performance:");
-        println!("  Init Duration: {:?}", results.initialization_metrics.init_duration);
-        println!("  Analysis Duration: {:?}", results.initialization_metrics.repository_analysis_duration);
-        println!("  Processing Rate: {:.2} issues/second", results.initialization_metrics.issue_processing_rate);
-        println!("  Success Rate: {:.1}%", results.initialization_metrics.success_rate * 100.0);
-        println!("  Errors: {}", results.initialization_metrics.errors_encountered);
+        println!(
+            "  Init Duration: {:?}",
+            results.initialization_metrics.init_duration
+        );
+        println!(
+            "  Analysis Duration: {:?}",
+            results.initialization_metrics.repository_analysis_duration
+        );
+        println!(
+            "  Processing Rate: {:.2} issues/second",
+            results.initialization_metrics.issue_processing_rate
+        );
+        println!(
+            "  Success Rate: {:.1}%",
+            results.initialization_metrics.success_rate * 100.0
+        );
+        println!(
+            "  Errors: {}",
+            results.initialization_metrics.errors_encountered
+        );
 
         println!("\n🔍 Scanning Performance:");
-        println!("  Full Scan: {:?} ({} items)", results.scanning_metrics.full_scan_duration, results.scanning_metrics.items_processed);
-        println!("  Incremental Scan: {:?}", results.scanning_metrics.incremental_scan_duration);
-        println!("  Processing Rate: {:.2} items/second", results.scanning_metrics.processing_rate);
-        println!("  Cache Hit Rate: {:.1}%", results.scanning_metrics.cache_hit_rate * 100.0);
+        println!(
+            "  Full Scan: {:?} ({} items)",
+            results.scanning_metrics.full_scan_duration, results.scanning_metrics.items_processed
+        );
+        println!(
+            "  Incremental Scan: {:?}",
+            results.scanning_metrics.incremental_scan_duration
+        );
+        println!(
+            "  Processing Rate: {:.2} items/second",
+            results.scanning_metrics.processing_rate
+        );
+        println!(
+            "  Cache Hit Rate: {:.1}%",
+            results.scanning_metrics.cache_hit_rate * 100.0
+        );
 
         println!("\n🧠 Memory Usage:");
-        println!("  Peak Memory: {:.1} MB", results.memory_metrics.peak_memory_mb);
-        println!("  Memory Growth Rate: {:.3} MB per 1000 items", results.memory_metrics.memory_growth_rate);
-        println!("  Efficiency Score: {:.2}/1.0", results.memory_metrics.memory_efficiency_score);
-        println!("  GC Events: {}", results.memory_metrics.garbage_collection_events);
+        println!(
+            "  Peak Memory: {:.1} MB",
+            results.memory_metrics.peak_memory_mb
+        );
+        println!(
+            "  Memory Growth Rate: {:.3} MB per 1000 items",
+            results.memory_metrics.memory_growth_rate
+        );
+        println!(
+            "  Efficiency Score: {:.2}/1.0",
+            results.memory_metrics.memory_efficiency_score
+        );
+        println!(
+            "  GC Events: {}",
+            results.memory_metrics.garbage_collection_events
+        );
 
         println!("\n🌐 API Performance:");
         println!("  Total API Calls: {}", results.api_metrics.total_api_calls);
-        println!("  API Calls per Issue: {:.1}", results.api_metrics.api_calls_per_issue);
-        println!("  Average Latency: {:?}", results.api_metrics.average_api_latency);
-        println!("  Rate Limit Encounters: {}", results.api_metrics.rate_limit_encounters);
-        println!("  Rate Limit Recovery: {:?}", results.api_metrics.rate_limit_recovery_time);
-        println!("  API Efficiency Score: {:.2}/1.0", results.api_metrics.api_efficiency_score);
+        println!(
+            "  API Calls per Issue: {:.1}",
+            results.api_metrics.api_calls_per_issue
+        );
+        println!(
+            "  Average Latency: {:?}",
+            results.api_metrics.average_api_latency
+        );
+        println!(
+            "  Rate Limit Encounters: {}",
+            results.api_metrics.rate_limit_encounters
+        );
+        println!(
+            "  Rate Limit Recovery: {:?}",
+            results.api_metrics.rate_limit_recovery_time
+        );
+        println!(
+            "  API Efficiency Score: {:.2}/1.0",
+            results.api_metrics.api_efficiency_score
+        );
 
-        println!("\n🎯 Overall Performance Score: {:.2}/1.0", results.overall_score);
+        println!(
+            "\n🎯 Overall Performance Score: {:.2}/1.0",
+            results.overall_score
+        );
 
         // Performance assessment
         if results.overall_score >= 0.8 {
@@ -488,7 +571,10 @@ mod large_scale_tests {
         };
 
         let simulator = LargeRepositorySimulator::new(config);
-        let results = simulator.run_benchmark().await.expect("Benchmark should complete");
+        let results = simulator
+            .run_benchmark()
+            .await
+            .expect("Benchmark should complete");
 
         // Validate performance requirements
         assert!(
@@ -545,7 +631,10 @@ mod large_scale_tests {
         };
 
         let simulator = LargeRepositorySimulator::new(config);
-        let results = simulator.run_benchmark().await.expect("Benchmark should complete");
+        let results = simulator
+            .run_benchmark()
+            .await
+            .expect("Benchmark should complete");
 
         // Memory-specific validations
         assert!(
@@ -567,7 +656,8 @@ mod large_scale_tests {
         );
 
         // Ensure memory growth is reasonable
-        let memory_per_issue = results.memory_metrics.peak_memory_mb / results.config.issue_count as f64;
+        let memory_per_issue =
+            results.memory_metrics.peak_memory_mb / results.config.issue_count as f64;
         assert!(
             memory_per_issue < 0.5,
             "Memory per issue too high: {:.3} MB per issue",
@@ -592,7 +682,10 @@ mod large_scale_tests {
         };
 
         let simulator = LargeRepositorySimulator::new(config);
-        let results = simulator.run_benchmark().await.expect("Benchmark should complete");
+        let results = simulator
+            .run_benchmark()
+            .await
+            .expect("Benchmark should complete");
 
         // API-specific validations
         assert!(
@@ -644,7 +737,10 @@ mod large_scale_tests {
         let mut baseline_results = Vec::new();
 
         for (scale_name, issue_count, pr_count) in test_scales {
-            println!("Testing {} scale ({} issues, {} PRs)", scale_name, issue_count, pr_count);
+            println!(
+                "Testing {} scale ({} issues, {} PRs)",
+                scale_name, issue_count, pr_count
+            );
 
             let config = LargeScaleBenchmarkConfig {
                 test_name: format!("Scalability Baseline - {}", scale_name),
@@ -657,16 +753,26 @@ mod large_scale_tests {
             };
 
             let simulator = LargeRepositorySimulator::new(config);
-            let results = simulator.run_benchmark().await.expect("Benchmark should complete");
+            let results = simulator
+                .run_benchmark()
+                .await
+                .expect("Benchmark should complete");
 
-            baseline_results.push((scale_name, issue_count, results.overall_score, results.initialization_metrics.init_duration));
+            baseline_results.push((
+                scale_name,
+                issue_count,
+                results.overall_score,
+                results.initialization_metrics.init_duration,
+            ));
         }
 
         // Analyze scalability characteristics
         println!("\n📊 Scalability Baseline Results:");
         for (scale_name, issue_count, score, duration) in &baseline_results {
-            println!("  {} ({} issues): Score {:.2}, Duration {:?}", 
-                     scale_name, issue_count, score, duration);
+            println!(
+                "  {} ({} issues): Score {:.2}, Duration {:?}",
+                scale_name, issue_count, score, duration
+            );
         }
 
         // Validate that performance degrades gracefully with scale
@@ -685,7 +791,8 @@ mod large_scale_tests {
             assert!(
                 *score > 0.3,
                 "{} scale performance too low: {:.2}",
-                scale_name, score
+                scale_name,
+                score
             );
         }
 

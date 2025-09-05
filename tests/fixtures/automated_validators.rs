@@ -1,12 +1,11 @@
 /// Automated validation checks for init command results across test scenarios
-/// 
+///
 /// This module provides automated validation utilities that can verify init command
 /// outputs including file existence, directory structure, file content validation,
 /// and Git configuration validation with clear error reporting.
-
 use anyhow::Result;
-use std::path::Path;
 use std::collections::HashMap;
+use std::path::Path;
 
 /// Automated file and directory existence validator
 pub struct FileSystemValidator;
@@ -19,7 +18,7 @@ impl FileSystemValidator {
         expected_directories: &[&str],
     ) -> Result<FileSystemValidationReport> {
         let mut report = FileSystemValidationReport::new();
-        
+
         // Check expected files
         for file_path in expected_files {
             let full_path = repo_path.join(file_path);
@@ -30,7 +29,7 @@ impl FileSystemValidator {
                 report.add_error(&format!("Expected file not found: {}", file_path));
             }
         }
-        
+
         // Check expected directories
         for dir_path in expected_directories {
             let full_path = repo_path.join(dir_path);
@@ -41,29 +40,24 @@ impl FileSystemValidator {
                 report.add_error(&format!("Expected directory not found: {}", dir_path));
             }
         }
-        
+
         report.success = report.errors.is_empty();
         Ok(report)
     }
-    
+
     /// Validate directory structure matches expected layout
     pub fn validate_directory_structure(
         repo_path: &Path,
         expected_structure: &DirectoryStructure,
     ) -> Result<StructureValidationReport> {
         let mut report = StructureValidationReport::new();
-        
-        Self::validate_directory_recursive(
-            repo_path,
-            &expected_structure.root,
-            "",
-            &mut report,
-        )?;
-        
+
+        Self::validate_directory_recursive(repo_path, &expected_structure.root, "", &mut report)?;
+
         report.success = report.errors.is_empty();
         Ok(report)
     }
-    
+
     fn validate_directory_recursive(
         base_path: &Path,
         expected_dir: &DirectoryNode,
@@ -75,23 +69,26 @@ impl FileSystemValidator {
         } else {
             base_path.join(current_path)
         };
-        
+
         // Check directory exists
         if !dir_path.exists() || !dir_path.is_dir() {
             report.add_error(&format!("Directory not found: {}", current_path));
             return Ok(());
         }
-        
+
         // Check expected files in this directory
         for expected_file in &expected_dir.files {
             let file_path = dir_path.join(expected_file);
             if file_path.exists() && file_path.is_file() {
                 report.files_validated += 1;
             } else {
-                report.add_error(&format!("File not found: {}/{}", current_path, expected_file));
+                report.add_error(&format!(
+                    "File not found: {}/{}",
+                    current_path, expected_file
+                ));
             }
         }
-        
+
         // Recursively check subdirectories
         for (subdir_name, subdir_node) in &expected_dir.subdirectories {
             let subdir_path = if current_path.is_empty() {
@@ -99,10 +96,10 @@ impl FileSystemValidator {
             } else {
                 format!("{}/{}", current_path, subdir_name)
             };
-            
+
             Self::validate_directory_recursive(base_path, subdir_node, &subdir_path, report)?;
         }
-        
+
         Ok(())
     }
 }
@@ -117,15 +114,18 @@ impl ContentValidator {
         content_expectations: &HashMap<String, ContentExpectation>,
     ) -> Result<ContentValidationReport> {
         let mut report = ContentValidationReport::new();
-        
+
         for (file_path, expectation) in content_expectations {
             let full_path = repo_path.join(file_path);
-            
+
             if !full_path.exists() {
-                report.add_error(&format!("File not found for content validation: {}", file_path));
+                report.add_error(&format!(
+                    "File not found for content validation: {}",
+                    file_path
+                ));
                 continue;
             }
-            
+
             let content = match std::fs::read_to_string(&full_path) {
                 Ok(content) => content,
                 Err(e) => {
@@ -133,30 +133,35 @@ impl ContentValidator {
                     continue;
                 }
             };
-            
+
             let validation_result = Self::validate_single_file_content(&content, expectation)?;
-            report.file_results.insert(file_path.clone(), validation_result.clone());
-            
+            report
+                .file_results
+                .insert(file_path.clone(), validation_result.clone());
+
             if !validation_result.passed {
                 report.failed_files.push(file_path.clone());
                 for error in &validation_result.errors {
-                    report.add_error(&format!("Content validation failed for {}: {}", file_path, error));
+                    report.add_error(&format!(
+                        "Content validation failed for {}: {}",
+                        file_path, error
+                    ));
                 }
             } else {
                 report.passed_files.push(file_path.clone());
             }
         }
-        
+
         report.success = report.errors.is_empty();
         Ok(report)
     }
-    
+
     fn validate_single_file_content(
         content: &str,
         expectation: &ContentExpectation,
     ) -> Result<FileContentValidationResult> {
         let mut result = FileContentValidationResult::new();
-        
+
         // Check required patterns
         for pattern in &expectation.must_contain {
             if content.contains(pattern) {
@@ -166,7 +171,7 @@ impl ContentValidator {
                 result.add_error(&format!("Required pattern not found: '{}'", pattern));
             }
         }
-        
+
         // Check forbidden patterns
         for pattern in &expectation.must_not_contain {
             if content.contains(pattern) {
@@ -174,7 +179,7 @@ impl ContentValidator {
                 result.add_error(&format!("Forbidden pattern found: '{}'", pattern));
             }
         }
-        
+
         // Check regex patterns
         for regex_pattern in &expectation.regex_patterns {
             match regex::Regex::new(regex_pattern) {
@@ -183,7 +188,8 @@ impl ContentValidator {
                         result.regex_patterns_matched.push(regex_pattern.clone());
                     } else {
                         result.regex_patterns_unmatched.push(regex_pattern.clone());
-                        result.add_error(&format!("Regex pattern not matched: '{}'", regex_pattern));
+                        result
+                            .add_error(&format!("Regex pattern not matched: '{}'", regex_pattern));
                     }
                 }
                 Err(e) => {
@@ -191,7 +197,7 @@ impl ContentValidator {
                 }
             }
         }
-        
+
         // Validate line count if specified
         if let Some(expected_min_lines) = expectation.min_lines {
             let line_count = content.lines().count();
@@ -202,7 +208,7 @@ impl ContentValidator {
                 ));
             }
         }
-        
+
         result.passed = result.errors.is_empty();
         Ok(result)
     }
@@ -218,44 +224,46 @@ impl GitConfigValidator {
         expectations: &GitConfigExpectations,
     ) -> Result<GitConfigValidationReport> {
         let mut report = GitConfigValidationReport::new();
-        
+
         // Check if git repository exists
         let git_dir = repo_path.join(".git");
         if !git_dir.exists() {
             if expectations.should_be_git_repo {
-                report.add_error("Repository should be a Git repository but .git directory not found");
+                report.add_error(
+                    "Repository should be a Git repository but .git directory not found",
+                );
             } else {
                 report.git_repo_exists = false;
             }
         } else {
             report.git_repo_exists = true;
-            
+
             // Validate git configuration if expected
             if expectations.should_be_git_repo {
                 Self::validate_git_repo_details(repo_path, expectations, &mut report)?;
             }
         }
-        
+
         report.success = report.errors.is_empty();
         Ok(report)
     }
-    
+
     fn validate_git_repo_details(
         repo_path: &Path,
         expectations: &GitConfigExpectations,
         report: &mut GitConfigValidationReport,
     ) -> Result<()> {
         use std::process::Command;
-        
+
         let original_dir = std::env::current_dir()?;
         std::env::set_current_dir(repo_path)?;
-        
+
         // Check current branch
         if let Some(expected_branch) = &expectations.expected_branch {
             let output = Command::new("git")
                 .args(&["rev-parse", "--abbrev-ref", "HEAD"])
                 .output()?;
-            
+
             if output.status.success() {
                 let current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if current_branch == *expected_branch {
@@ -270,13 +278,13 @@ impl GitConfigValidator {
                 report.add_error("Failed to get current Git branch");
             }
         }
-        
+
         // Check remote configuration
         if let Some(expected_remote) = &expectations.expected_remote_url {
             let output = Command::new("git")
                 .args(&["remote", "get-url", "origin"])
                 .output()?;
-            
+
             if output.status.success() {
                 let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if remote_url == *expected_remote {
@@ -291,24 +299,25 @@ impl GitConfigValidator {
                 report.add_error("Expected remote 'origin' but none found");
             }
         }
-        
+
         // Check working directory status
         if expectations.should_be_clean {
             let output = Command::new("git")
                 .args(&["status", "--porcelain"])
                 .output()?;
-            
+
             if output.status.success() {
                 if output.stdout.is_empty() {
                     report.working_directory_clean = true;
                 } else {
-                    report.add_error("Working directory should be clean but has uncommitted changes");
+                    report
+                        .add_error("Working directory should be clean but has uncommitted changes");
                 }
             } else {
                 report.add_error("Failed to check Git status");
             }
         }
-        
+
         std::env::set_current_dir(original_dir)?;
         Ok(())
     }
@@ -336,27 +345,27 @@ impl ValidationResultReporter {
             total_errors: 0,
             error_summary: Vec::new(),
         };
-        
+
         // Collect all errors
         let mut all_errors = Vec::new();
         all_errors.extend(filesystem_report.errors.iter().cloned());
         all_errors.extend(content_report.errors.iter().cloned());
         all_errors.extend(git_report.errors.iter().cloned());
-        
+
         summary.total_errors = all_errors.len();
         summary.error_summary = all_errors;
         summary.overall_success = summary.total_errors == 0;
-        
+
         summary
     }
-    
+
     /// Generate detailed failure analysis
     pub fn generate_failure_analysis(reports: &[ValidationSummaryReport]) -> FailureAnalysisReport {
         let mut analysis = FailureAnalysisReport::new();
-        
+
         for report in reports {
             analysis.total_validations += 1;
-            
+
             if report.overall_success {
                 analysis.successful_validations += 1;
             } else {
@@ -368,13 +377,13 @@ impl ValidationResultReporter {
                 });
             }
         }
-        
+
         analysis.success_rate = if analysis.total_validations > 0 {
             analysis.successful_validations as f64 / analysis.total_validations as f64
         } else {
             0.0
         };
-        
+
         analysis
     }
 }
@@ -436,7 +445,7 @@ impl FileSystemValidationReport {
             errors: Vec::new(),
         }
     }
-    
+
     fn add_error(&mut self, error: &str) {
         self.errors.push(error.to_string());
     }
@@ -458,7 +467,7 @@ impl StructureValidationReport {
             errors: Vec::new(),
         }
     }
-    
+
     fn add_error(&mut self, error: &str) {
         self.errors.push(error.to_string());
     }
@@ -484,7 +493,7 @@ impl ContentValidationReport {
             errors: Vec::new(),
         }
     }
-    
+
     fn add_error(&mut self, error: &str) {
         self.errors.push(error.to_string());
     }
@@ -514,7 +523,7 @@ impl FileContentValidationResult {
             errors: Vec::new(),
         }
     }
-    
+
     fn add_error(&mut self, error: &str) {
         self.errors.push(error.to_string());
     }
@@ -542,7 +551,7 @@ impl GitConfigValidationReport {
             errors: Vec::new(),
         }
     }
-    
+
     fn add_error(&mut self, error: &str) {
         self.errors.push(error.to_string());
     }
@@ -591,17 +600,20 @@ impl FailureAnalysisReport {
 }
 
 /// Utility function to create standard init command validation expectations
-pub fn create_standard_init_expectations() -> (Vec<String>, Vec<String>, HashMap<String, ContentExpectation>, GitConfigExpectations) {
-    let expected_files = vec![
-        "my-little-soda.toml".to_string(),
-    ];
-    
+pub fn create_standard_init_expectations() -> (
+    Vec<String>,
+    Vec<String>,
+    HashMap<String, ContentExpectation>,
+    GitConfigExpectations,
+) {
+    let expected_files = vec!["my-little-soda.toml".to_string()];
+
     let expected_directories = vec![
         ".my-little-soda".to_string(),
         ".my-little-soda/credentials".to_string(),
         ".my-little-soda/agents".to_string(),
     ];
-    
+
     let mut content_expectations = HashMap::new();
     content_expectations.insert(
         "my-little-soda.toml".to_string(),
@@ -612,10 +624,7 @@ pub fn create_standard_init_expectations() -> (Vec<String>, Vec<String>, HashMap
                 "[agents]".to_string(),
                 "max_agents".to_string(),
             ],
-            must_not_contain: vec![
-                "PLACEHOLDER".to_string(),
-                "TODO".to_string(),
-            ],
+            must_not_contain: vec!["PLACEHOLDER".to_string(), "TODO".to_string()],
             regex_patterns: vec![
                 r#"owner\s*=\s*"[^"]+""#.to_string(),
                 r#"repo\s*=\s*"[^"]+""#.to_string(),
@@ -623,7 +632,7 @@ pub fn create_standard_init_expectations() -> (Vec<String>, Vec<String>, HashMap
             min_lines: Some(10),
         },
     );
-    
+
     let git_expectations = GitConfigExpectations {
         should_be_git_repo: true,
         expected_branch: Some("main".to_string()),
@@ -631,46 +640,52 @@ pub fn create_standard_init_expectations() -> (Vec<String>, Vec<String>, HashMap
         should_have_remote: true,
         should_be_clean: false, // May have modifications during testing
     };
-    
-    (expected_files, expected_directories, content_expectations, git_expectations)
+
+    (
+        expected_files,
+        expected_directories,
+        content_expectations,
+        git_expectations,
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
-    
+
     #[test]
     fn test_filesystem_validator_success() {
         let temp_dir = TempDir::new().unwrap();
         let repo_path = temp_dir.path();
-        
+
         // Create expected files
         std::fs::write(repo_path.join("test.txt"), "test content").unwrap();
         std::fs::create_dir(repo_path.join("test_dir")).unwrap();
-        
+
         let expected_files = vec!["test.txt"];
         let expected_dirs = vec!["test_dir"];
-        
+
         let report = FileSystemValidator::validate_file_existence(
             repo_path,
             &expected_files,
             &expected_dirs,
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         assert!(report.success);
         assert_eq!(report.files_found.len(), 1);
         assert_eq!(report.directories_found.len(), 1);
         assert!(report.errors.is_empty());
     }
-    
+
     #[test]
     fn test_content_validator() {
         let temp_dir = TempDir::new().unwrap();
         let repo_path = temp_dir.path();
-        
+
         std::fs::write(repo_path.join("config.toml"), "[section]\nkey = \"value\"").unwrap();
-        
+
         let mut expectations = HashMap::new();
         expectations.insert(
             "config.toml".to_string(),
@@ -681,14 +696,14 @@ mod tests {
                 min_lines: Some(1),
             },
         );
-        
+
         let report = ContentValidator::validate_file_contents(repo_path, &expectations).unwrap();
-        
+
         assert!(report.success);
         assert_eq!(report.passed_files.len(), 1);
         assert_eq!(report.failed_files.len(), 0);
     }
-    
+
     #[test]
     fn test_validation_result_reporter() {
         let fs_report = FileSystemValidationReport {
@@ -699,7 +714,7 @@ mod tests {
             directories_missing: Vec::new(),
             errors: Vec::new(),
         };
-        
+
         let content_report = ContentValidationReport {
             success: true,
             passed_files: vec!["test.txt".to_string()],
@@ -707,7 +722,7 @@ mod tests {
             file_results: HashMap::new(),
             errors: Vec::new(),
         };
-        
+
         let git_report = GitConfigValidationReport {
             success: true,
             git_repo_exists: true,
@@ -716,7 +731,7 @@ mod tests {
             working_directory_clean: true,
             errors: Vec::new(),
         };
-        
+
         let summary = ValidationResultReporter::generate_comprehensive_report(
             &fs_report,
             &content_report,
@@ -724,7 +739,7 @@ mod tests {
             "test_scenario",
             "test_fixture",
         );
-        
+
         assert!(summary.overall_success);
         assert!(summary.filesystem_passed);
         assert!(summary.content_validation_passed);

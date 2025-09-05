@@ -6,233 +6,392 @@
 
 #[cfg(test)]
 mod tests {
-    use my_little_soda::config::MyLittleSodaConfig;
     use anyhow::Result;
-    use tempfile::TempDir;
+    use my_little_soda::config::MyLittleSodaConfig;
     use std::fs;
-
+    use tempfile::TempDir;
 
     #[test]
     fn test_toml_serialization_syntax_valid() {
         // Given: A default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // When: We serialize to TOML
         let toml_result = toml::to_string_pretty(&config);
-        
+
         // Then: TOML serialization should succeed
-        assert!(toml_result.is_ok(), "Configuration should serialize to valid TOML");
-        
+        assert!(
+            toml_result.is_ok(),
+            "Configuration should serialize to valid TOML"
+        );
+
         // And: TOML content should be parseable back
         let toml_content = toml_result.unwrap();
         let parsed_result: Result<MyLittleSodaConfig, _> = toml::from_str(&toml_content);
-        assert!(parsed_result.is_ok(), "Generated TOML should be parseable back to config struct");
+        assert!(
+            parsed_result.is_ok(),
+            "Generated TOML should be parseable back to config struct"
+        );
     }
 
-    #[test] 
+    #[test]
     fn test_json_serialization_syntax_valid() {
         // Given: A default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // When: We serialize to JSON
         let json_result = serde_json::to_string_pretty(&config);
-        
+
         // Then: JSON serialization should succeed
-        assert!(json_result.is_ok(), "Configuration should serialize to valid JSON");
-        
+        assert!(
+            json_result.is_ok(),
+            "Configuration should serialize to valid JSON"
+        );
+
         // And: JSON content should be parseable back
         let json_content = json_result.unwrap();
         let parsed_result: Result<MyLittleSodaConfig, _> = serde_json::from_str(&json_content);
-        assert!(parsed_result.is_ok(), "Generated JSON should be parseable back to config struct");
+        assert!(
+            parsed_result.is_ok(),
+            "Generated JSON should be parseable back to config struct"
+        );
     }
 
     #[test]
     fn test_config_schema_validation_github_section() {
         // Given: A configuration with GitHub section
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: GitHub section should have required fields
-        assert!(!config.github.owner.is_empty(), "GitHub owner should not be empty");
-        assert!(!config.github.repo.is_empty(), "GitHub repo should not be empty");
-        assert!(config.github.rate_limit.requests_per_hour > 0, "Rate limit requests per hour should be positive");
-        assert!(config.github.rate_limit.burst_capacity > 0, "Rate limit burst capacity should be positive");
+        assert!(
+            !config.github.owner.is_empty(),
+            "GitHub owner should not be empty"
+        );
+        assert!(
+            !config.github.repo.is_empty(),
+            "GitHub repo should not be empty"
+        );
+        assert!(
+            config.github.rate_limit.requests_per_hour > 0,
+            "Rate limit requests per hour should be positive"
+        );
+        assert!(
+            config.github.rate_limit.burst_capacity > 0,
+            "Rate limit burst capacity should be positive"
+        );
     }
 
     #[test]
     fn test_config_schema_validation_observability_section() {
         // Given: A configuration with observability section
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Observability section should have valid fields
-        assert!(!config.observability.log_level.is_empty(), "Log level should not be empty");
+        assert!(
+            !config.observability.log_level.is_empty(),
+            "Log level should not be empty"
+        );
         let valid_log_levels = ["trace", "debug", "info", "warn", "error"];
-        assert!(valid_log_levels.contains(&config.observability.log_level.as_str()), 
-                "Log level should be a valid level");
-        assert!(config.observability.tracing_enabled || !config.observability.tracing_enabled, 
-                "Tracing enabled should be a boolean");
-        assert!(config.observability.metrics_enabled || !config.observability.metrics_enabled, 
-                "Metrics enabled should be a boolean");
+        assert!(
+            valid_log_levels.contains(&config.observability.log_level.as_str()),
+            "Log level should be a valid level"
+        );
+        assert!(
+            config.observability.tracing_enabled || !config.observability.tracing_enabled,
+            "Tracing enabled should be a boolean"
+        );
+        assert!(
+            config.observability.metrics_enabled || !config.observability.metrics_enabled,
+            "Metrics enabled should be a boolean"
+        );
     }
 
     #[test]
     fn test_config_schema_validation_agents_section() {
         // Given: A configuration with agents section
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Agents section should have valid constraints
-        assert!(config.agents.coordination_timeout_seconds > 0, 
-                "Coordination timeout should be positive");
-        assert!(config.agents.bundle_processing.max_queue_size > 0, 
-                "Bundle queue size should be positive");
-        assert!(config.agents.bundle_processing.processing_timeout_seconds > 0, 
-                "Bundle processing timeout should be positive");
+        assert!(
+            config.agents.coordination_timeout_seconds > 0,
+            "Coordination timeout should be positive"
+        );
+        assert!(
+            config.agents.bundle_processing.max_queue_size > 0,
+            "Bundle queue size should be positive"
+        );
+        assert!(
+            config.agents.bundle_processing.processing_timeout_seconds > 0,
+            "Bundle processing timeout should be positive"
+        );
     }
 
     #[test]
     fn test_config_schema_validation_process_management() {
         // Given: A configuration with process management
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Process management should have valid settings
-        assert!(!config.agents.process_management.claude_code_path.is_empty(), 
-                "Claude code path should not be empty");
-        assert!(config.agents.process_management.timeout_minutes > 0, 
-                "Process timeout should be positive");
-        assert!(!config.agents.process_management.work_dir_prefix.is_empty(), 
-                "Work directory prefix should not be empty");
+        assert!(
+            !config.agents.process_management.claude_code_path.is_empty(),
+            "Claude code path should not be empty"
+        );
+        assert!(
+            config.agents.process_management.timeout_minutes > 0,
+            "Process timeout should be positive"
+        );
+        assert!(
+            !config.agents.process_management.work_dir_prefix.is_empty(),
+            "Work directory prefix should not be empty"
+        );
     }
 
     #[test]
     fn test_config_completeness_all_required_fields_present() {
         // Given: A default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // When: We serialize and deserialize to validate completeness
         let toml_content = toml::to_string_pretty(&config).unwrap();
         let parsed_config: MyLittleSodaConfig = toml::from_str(&toml_content).unwrap();
-        
+
         // Then: All required sections should be present
-        assert!(!parsed_config.github.owner.is_empty(), "GitHub owner is required");
-        assert!(!parsed_config.github.repo.is_empty(), "GitHub repo is required");
-        assert!(!parsed_config.observability.log_level.is_empty(), "Log level is required");
-        assert!(parsed_config.agents.bundle_processing.max_queue_size > 0, "Bundle queue size is required");
-        assert!(parsed_config.agents.work_continuity.enable_continuity || !parsed_config.agents.work_continuity.enable_continuity, 
-                "Work continuity enable flag is required");
+        assert!(
+            !parsed_config.github.owner.is_empty(),
+            "GitHub owner is required"
+        );
+        assert!(
+            !parsed_config.github.repo.is_empty(),
+            "GitHub repo is required"
+        );
+        assert!(
+            !parsed_config.observability.log_level.is_empty(),
+            "Log level is required"
+        );
+        assert!(
+            parsed_config.agents.bundle_processing.max_queue_size > 0,
+            "Bundle queue size is required"
+        );
+        assert!(
+            parsed_config.agents.work_continuity.enable_continuity
+                || !parsed_config.agents.work_continuity.enable_continuity,
+            "Work continuity enable flag is required"
+        );
     }
 
     #[test]
     fn test_config_completeness_work_continuity_fields() {
         // Given: A configuration with work continuity
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Work continuity should have all required fields
         let wc = &config.agents.work_continuity;
-        assert!(!wc.state_file_path.is_empty(), "State file path is required");
-        assert!(wc.backup_interval_minutes > 0, "Backup interval is required");
-        assert!(wc.max_recovery_attempts > 0, "Max recovery attempts is required");
-        assert!(wc.validation_timeout_seconds > 0, "Validation timeout is required");
-        assert!(wc.force_fresh_start_after_hours > 0, "Force fresh start hours is required");
+        assert!(
+            !wc.state_file_path.is_empty(),
+            "State file path is required"
+        );
+        assert!(
+            wc.backup_interval_minutes > 0,
+            "Backup interval is required"
+        );
+        assert!(
+            wc.max_recovery_attempts > 0,
+            "Max recovery attempts is required"
+        );
+        assert!(
+            wc.validation_timeout_seconds > 0,
+            "Validation timeout is required"
+        );
+        assert!(
+            wc.force_fresh_start_after_hours > 0,
+            "Force fresh start hours is required"
+        );
     }
 
     #[test]
     fn test_config_completeness_ci_mode_fields() {
         // Given: A configuration with CI mode
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: CI mode should have all required fields
         let ci = &config.agents.ci_mode;
-        assert!(!ci.artifact_handling.is_empty(), "Artifact handling strategy is required");
-        assert!(!ci.github_token_strategy.is_empty(), "GitHub token strategy is required");
-        assert!(ci.ci_timeout_adjustment > 0, "CI timeout adjustment is required");
-        
+        assert!(
+            !ci.artifact_handling.is_empty(),
+            "Artifact handling strategy is required"
+        );
+        assert!(
+            !ci.github_token_strategy.is_empty(),
+            "GitHub token strategy is required"
+        );
+        assert!(
+            ci.ci_timeout_adjustment > 0,
+            "CI timeout adjustment is required"
+        );
+
         // And: Artifact handling should be valid strategy
         let valid_strategies = ["standard", "optimized", "enhanced"];
-        assert!(valid_strategies.contains(&ci.artifact_handling.as_str()), 
-                "Artifact handling should be valid strategy");
+        assert!(
+            valid_strategies.contains(&ci.artifact_handling.as_str()),
+            "Artifact handling should be valid strategy"
+        );
     }
 
     #[test]
     fn test_default_value_validation_github_defaults() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: GitHub defaults should be appropriate
-        assert_eq!(config.github.owner, "johnhkchen", "Default GitHub owner should match expected");
-        assert_eq!(config.github.repo, "my-little-soda", "Default GitHub repo should match expected");
-        assert_eq!(config.github.rate_limit.requests_per_hour, 5000, "Default rate limit should be reasonable");
-        assert_eq!(config.github.rate_limit.burst_capacity, 100, "Default burst capacity should be reasonable");
-        assert!(config.github.token.is_none(), "Default token should be None (read from env)");
+        assert_eq!(
+            config.github.owner, "johnhkchen",
+            "Default GitHub owner should match expected"
+        );
+        assert_eq!(
+            config.github.repo, "my-little-soda",
+            "Default GitHub repo should match expected"
+        );
+        assert_eq!(
+            config.github.rate_limit.requests_per_hour, 5000,
+            "Default rate limit should be reasonable"
+        );
+        assert_eq!(
+            config.github.rate_limit.burst_capacity, 100,
+            "Default burst capacity should be reasonable"
+        );
+        assert!(
+            config.github.token.is_none(),
+            "Default token should be None (read from env)"
+        );
     }
 
     #[test]
     fn test_default_value_validation_observability_defaults() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Observability defaults should be appropriate
-        assert_eq!(config.observability.log_level, "info", "Default log level should be info");
-        assert!(config.observability.tracing_enabled, "Tracing should be enabled by default");
-        assert!(config.observability.metrics_enabled, "Metrics should be enabled by default");
-        assert!(config.observability.otlp_endpoint.is_none(), "OTLP endpoint should default to None");
+        assert_eq!(
+            config.observability.log_level, "info",
+            "Default log level should be info"
+        );
+        assert!(
+            config.observability.tracing_enabled,
+            "Tracing should be enabled by default"
+        );
+        assert!(
+            config.observability.metrics_enabled,
+            "Metrics should be enabled by default"
+        );
+        assert!(
+            config.observability.otlp_endpoint.is_none(),
+            "OTLP endpoint should default to None"
+        );
     }
 
     #[test]
     fn test_default_value_validation_agents_defaults() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Agent defaults should be appropriate
-        assert_eq!(config.agents.coordination_timeout_seconds, 300, "Default coordination timeout should be 5 minutes");
-        assert_eq!(config.agents.bundle_processing.max_queue_size, 50, "Default queue size should be reasonable");
-        assert_eq!(config.agents.bundle_processing.processing_timeout_seconds, 1800, "Default processing timeout should be 30 minutes");
+        assert_eq!(
+            config.agents.coordination_timeout_seconds, 300,
+            "Default coordination timeout should be 5 minutes"
+        );
+        assert_eq!(
+            config.agents.bundle_processing.max_queue_size, 50,
+            "Default queue size should be reasonable"
+        );
+        assert_eq!(
+            config.agents.bundle_processing.processing_timeout_seconds, 1800,
+            "Default processing timeout should be 30 minutes"
+        );
     }
 
     #[test]
     fn test_default_value_validation_process_management_defaults() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Process management defaults should be appropriate
-        assert_eq!(config.agents.process_management.claude_code_path, "claude-code", 
-                  "Default claude code path should be command name");
-        assert_eq!(config.agents.process_management.timeout_minutes, 30, 
-                  "Default timeout should be reasonable");
-        assert!(config.agents.process_management.cleanup_on_failure, 
-                "Cleanup on failure should be enabled by default");
-        assert_eq!(config.agents.process_management.work_dir_prefix, ".my-little-soda/agents", 
-                  "Default work dir should be in .my-little-soda");
-        assert!(!config.agents.process_management.enable_real_agents, 
-                "Real agents should be disabled by default for safety");
+        assert_eq!(
+            config.agents.process_management.claude_code_path, "claude-code",
+            "Default claude code path should be command name"
+        );
+        assert_eq!(
+            config.agents.process_management.timeout_minutes, 30,
+            "Default timeout should be reasonable"
+        );
+        assert!(
+            config.agents.process_management.cleanup_on_failure,
+            "Cleanup on failure should be enabled by default"
+        );
+        assert_eq!(
+            config.agents.process_management.work_dir_prefix, ".my-little-soda/agents",
+            "Default work dir should be in .my-little-soda"
+        );
+        assert!(
+            !config.agents.process_management.enable_real_agents,
+            "Real agents should be disabled by default for safety"
+        );
     }
 
     #[test]
     fn test_default_value_validation_work_continuity_defaults() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Work continuity defaults should be appropriate
         let wc = &config.agents.work_continuity;
-        assert!(wc.enable_continuity, "Work continuity should be enabled by default");
-        assert_eq!(wc.state_file_path, ".my-little-soda/agent-state.json", 
-                  "State file should be in .my-little-soda directory");
-        assert_eq!(wc.backup_interval_minutes, 5, "Backup interval should be frequent");
-        assert_eq!(wc.max_recovery_attempts, 3, "Recovery attempts should be reasonable");
-        assert_eq!(wc.validation_timeout_seconds, 30, "Validation timeout should be reasonable");
-        assert_eq!(wc.force_fresh_start_after_hours, 24, "Fresh start should be daily");
-        assert!(wc.preserve_partial_work, "Partial work should be preserved by default");
+        assert!(
+            wc.enable_continuity,
+            "Work continuity should be enabled by default"
+        );
+        assert_eq!(
+            wc.state_file_path, ".my-little-soda/agent-state.json",
+            "State file should be in .my-little-soda directory"
+        );
+        assert_eq!(
+            wc.backup_interval_minutes, 5,
+            "Backup interval should be frequent"
+        );
+        assert_eq!(
+            wc.max_recovery_attempts, 3,
+            "Recovery attempts should be reasonable"
+        );
+        assert_eq!(
+            wc.validation_timeout_seconds, 30,
+            "Validation timeout should be reasonable"
+        );
+        assert_eq!(
+            wc.force_fresh_start_after_hours, 24,
+            "Fresh start should be daily"
+        );
+        assert!(
+            wc.preserve_partial_work,
+            "Partial work should be preserved by default"
+        );
     }
 
     #[test]
     fn test_default_value_validation_database_defaults() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Database defaults should be appropriate
-        assert!(config.database.is_some(), "Database should be configured by default");
+        assert!(
+            config.database.is_some(),
+            "Database should be configured by default"
+        );
         let db = config.database.unwrap();
-        assert_eq!(db.url, ".my-little-soda/my-little-soda.db", 
-                  "Database should be SQLite in .my-little-soda directory");
-        assert_eq!(db.max_connections, 10, "Max connections should be reasonable");
+        assert_eq!(
+            db.url, ".my-little-soda/my-little-soda.db",
+            "Database should be SQLite in .my-little-soda directory"
+        );
+        assert_eq!(
+            db.max_connections, 10,
+            "Max connections should be reasonable"
+        );
         assert!(db.auto_migrate, "Auto migrate should be enabled by default");
     }
 
@@ -240,42 +399,68 @@ mod tests {
     fn test_config_field_constraints_validation() {
         // Given: Various invalid configurations
         let mut config = MyLittleSodaConfig::default();
-        
+
         // When: We test boundary conditions
-        
+
         // Test agent configuration constraints
-        assert!(config.agents.coordination_timeout_seconds > 0, 
-                "Agent coordination timeout should be positive");
-        assert!(config.agents.bundle_processing.max_queue_size > 0, 
-                "Bundle queue size should be positive");
-        
+        assert!(
+            config.agents.coordination_timeout_seconds > 0,
+            "Agent coordination timeout should be positive"
+        );
+        assert!(
+            config.agents.bundle_processing.max_queue_size > 0,
+            "Bundle queue size should be positive"
+        );
+
         // Test timeout values are positive
-        assert!(config.agents.coordination_timeout_seconds > 0, 
-                "Coordination timeout must be positive");
-        assert!(config.agents.bundle_processing.processing_timeout_seconds > 0, 
-                "Processing timeout must be positive");
-        
+        assert!(
+            config.agents.coordination_timeout_seconds > 0,
+            "Coordination timeout must be positive"
+        );
+        assert!(
+            config.agents.bundle_processing.processing_timeout_seconds > 0,
+            "Processing timeout must be positive"
+        );
+
         // Test rate limits are positive
-        assert!(config.github.rate_limit.requests_per_hour > 0, 
-                "Rate limit must be positive");
-        assert!(config.github.rate_limit.burst_capacity > 0, 
-                "Burst capacity must be positive");
+        assert!(
+            config.github.rate_limit.requests_per_hour > 0,
+            "Rate limit must be positive"
+        );
+        assert!(
+            config.github.rate_limit.burst_capacity > 0,
+            "Burst capacity must be positive"
+        );
     }
 
     #[test]
     fn test_config_paths_validation() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: All paths should be reasonable
-        assert!(config.agents.work_continuity.state_file_path.ends_with(".json"), 
-                "State file should be JSON");
-        assert!(config.agents.process_management.work_dir_prefix.starts_with("."), 
-                "Work directory should be hidden");
-        
+        assert!(
+            config
+                .agents
+                .work_continuity
+                .state_file_path
+                .ends_with(".json"),
+            "State file should be JSON"
+        );
+        assert!(
+            config
+                .agents
+                .process_management
+                .work_dir_prefix
+                .starts_with("."),
+            "Work directory should be hidden"
+        );
+
         if let Some(ref db) = config.database {
-            assert!(db.url.ends_with(".db") || db.url.contains("://"), 
-                    "Database URL should be SQLite file or connection string");
+            assert!(
+                db.url.ends_with(".db") || db.url.contains("://"),
+                "Database URL should be SQLite file or connection string"
+            );
         }
     }
 
@@ -284,33 +469,35 @@ mod tests {
         // Given: A temporary directory with a valid config file
         let temp_dir = TempDir::new().unwrap();
         let config_path = temp_dir.path().join("my-little-soda.toml");
-        
+
         // Create a valid config
         let default_config = MyLittleSodaConfig::default();
         let config_content = toml::to_string_pretty(&default_config).unwrap();
         fs::write(&config_path, config_content).unwrap();
-        
+
         // When: We change to temp directory and load config
         let original_dir = std::env::current_dir().unwrap();
         std::env::set_current_dir(temp_dir.path()).unwrap();
-        
+
         let loaded_result = MyLittleSodaConfig::load();
-        
+
         // Clean up - ensure this happens even if load() fails
         let _cleanup_result = std::env::set_current_dir(original_dir);
-        
+
         // Then: Config should load (may fail due to work_continuity field issue)
         match loaded_result {
             Ok(loaded_config) => {
-                assert_eq!(loaded_config.github.owner, default_config.github.owner, 
-                          "Loaded config should match saved config");
+                assert_eq!(
+                    loaded_config.github.owner, default_config.github.owner,
+                    "Loaded config should match saved config"
+                );
             }
             Err(e) => {
                 // If loading fails, it should be due to work_continuity field serialization issue
                 let error_msg = e.to_string();
                 assert!(
                     error_msg.contains("work_continuity") || error_msg.contains("missing field"),
-                    "Loading failure should be related to work_continuity field, got: {}", 
+                    "Loading failure should be related to work_continuity field, got: {}",
                     error_msg
                 );
                 // This documents a serialization/deserialization consistency issue
@@ -322,21 +509,39 @@ mod tests {
     fn test_config_validation_edge_cases() {
         // Given: Default configuration
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: String fields should not be unexpectedly empty
         assert!(!config.github.owner.is_empty(), "Owner should not be empty");
         assert!(!config.github.repo.is_empty(), "Repo should not be empty");
-        assert!(!config.observability.log_level.is_empty(), "Log level should not be empty");
-        assert!(!config.agents.process_management.claude_code_path.is_empty(), "Claude code path should not be empty");
-        
+        assert!(
+            !config.observability.log_level.is_empty(),
+            "Log level should not be empty"
+        );
+        assert!(
+            !config.agents.process_management.claude_code_path.is_empty(),
+            "Claude code path should not be empty"
+        );
+
         // And: Optional fields should be handled properly
-        assert!(config.github.token.is_none(), "Token should be None by default");
-        assert!(config.observability.otlp_endpoint.is_none(), "OTLP endpoint should be None by default");
-        
+        assert!(
+            config.github.token.is_none(),
+            "Token should be None by default"
+        );
+        assert!(
+            config.observability.otlp_endpoint.is_none(),
+            "OTLP endpoint should be None by default"
+        );
+
         // And: Database should be properly configured or None
         if let Some(ref db) = config.database {
-            assert!(!db.url.is_empty(), "Database URL should not be empty if database is configured");
-            assert!(db.max_connections > 0, "Database max connections should be positive");
+            assert!(
+                !db.url.is_empty(),
+                "Database URL should not be empty if database is configured"
+            );
+            assert!(
+                db.max_connections > 0,
+                "Database max connections should be positive"
+            );
         }
     }
 
@@ -345,48 +550,58 @@ mod tests {
         // Given: A temporary directory for testing file generation
         let temp_dir = TempDir::new().unwrap();
         let my_little_soda_toml_path = temp_dir.path().join("my-little-soda.toml");
-        
+
         // When: We create and save a configuration as my-little-soda.toml
         let config = MyLittleSodaConfig::default();
         config.save_to_file(&my_little_soda_toml_path).unwrap();
-        
+
         // Then: The file should exist and be readable
-        assert!(my_little_soda_toml_path.exists(), "my-little-soda.toml should be created");
-        
+        assert!(
+            my_little_soda_toml_path.exists(),
+            "my-little-soda.toml should be created"
+        );
+
         // And: The file content should be valid TOML
         let file_content = fs::read_to_string(&my_little_soda_toml_path).unwrap();
         let parsed_config: MyLittleSodaConfig = toml::from_str(&file_content).unwrap();
-        
+
         // And: The parsed config should match the original
-        assert_eq!(parsed_config.github.owner, config.github.owner, 
-                  "Parsed GitHub owner should match original");
-        assert_eq!(parsed_config.github.repo, config.github.repo, 
-                  "Parsed GitHub repo should match original");
-        assert_eq!(parsed_config.agents.coordination_timeout_seconds, config.agents.coordination_timeout_seconds, 
-                  "Parsed coordination timeout should match original");
+        assert_eq!(
+            parsed_config.github.owner, config.github.owner,
+            "Parsed GitHub owner should match original"
+        );
+        assert_eq!(
+            parsed_config.github.repo, config.github.repo,
+            "Parsed GitHub repo should match original"
+        );
+        assert_eq!(
+            parsed_config.agents.coordination_timeout_seconds,
+            config.agents.coordination_timeout_seconds,
+            "Parsed coordination timeout should match original"
+        );
     }
 
     #[tokio::test]
     async fn test_my_little_soda_toml_loading_validation() {
-        // Given: A temporary directory with a my-little-soda.toml file  
+        // Given: A temporary directory with a my-little-soda.toml file
         let temp_dir = TempDir::new().unwrap();
         let original_dir = std::env::current_dir().unwrap();
-        
+
         // Create a valid my-little-soda.toml file in temp directory
         let default_config = MyLittleSodaConfig::default();
         let config_content = toml::to_string_pretty(&default_config).unwrap();
         fs::write(temp_dir.path().join("my-little-soda.toml"), config_content).unwrap();
-        
+
         // When: We change to temp directory and try to load config
         std::env::set_current_dir(temp_dir.path()).unwrap();
-        
+
         // Note: Current config loader looks for my-little-soda.toml
         // This test documents the current behavior and the need for consistency
         let loaded_result = MyLittleSodaConfig::load();
-        
+
         // Clean up directory change
         std::env::set_current_dir(original_dir).unwrap();
-        
+
         // Then: Config loading should work (may load defaults or handle missing work_continuity field)
         match loaded_result {
             Ok(_) => {
@@ -397,7 +612,7 @@ mod tests {
                 let error_msg = e.to_string();
                 assert!(
                     error_msg.contains("work_continuity") || error_msg.contains("missing field"),
-                    "Loading failure should be related to missing work_continuity field, got: {}", 
+                    "Loading failure should be related to missing work_continuity field, got: {}",
                     error_msg
                 );
                 // This documents that my-little-soda.toml generation needs to be consistent with loading
@@ -409,83 +624,148 @@ mod tests {
     fn test_my_little_soda_toml_syntax_validation() {
         // Given: A configuration that would be saved as my-little-soda.toml
         let config = MyLittleSodaConfig::default();
-        
+
         // When: We serialize to TOML format (as done by init command)
         let toml_result = toml::to_string_pretty(&config);
-        
+
         // Then: TOML should be syntactically valid
-        assert!(toml_result.is_ok(), "my-little-soda.toml content should be valid TOML syntax");
-        
+        assert!(
+            toml_result.is_ok(),
+            "my-little-soda.toml content should be valid TOML syntax"
+        );
+
         // And: Should contain expected sections
         let toml_content = toml_result.unwrap();
-        assert!(toml_content.contains("[github]"), "my-little-soda.toml should contain [github] section");
-        assert!(toml_content.contains("[observability]"), "my-little-soda.toml should contain [observability] section");  
-        assert!(toml_content.contains("[agents]"), "my-little-soda.toml should contain [agents] section");
-        assert!(toml_content.contains("[database]"), "my-little-soda.toml should contain [database] section");
-        
+        assert!(
+            toml_content.contains("[github]"),
+            "my-little-soda.toml should contain [github] section"
+        );
+        assert!(
+            toml_content.contains("[observability]"),
+            "my-little-soda.toml should contain [observability] section"
+        );
+        assert!(
+            toml_content.contains("[agents]"),
+            "my-little-soda.toml should contain [agents] section"
+        );
+        assert!(
+            toml_content.contains("[database]"),
+            "my-little-soda.toml should contain [database] section"
+        );
+
         // And: Should be parseable back to config
         let parsed: Result<MyLittleSodaConfig, _> = toml::from_str(&toml_content);
-        assert!(parsed.is_ok(), "Generated my-little-soda.toml should be parseable back to config");
+        assert!(
+            parsed.is_ok(),
+            "Generated my-little-soda.toml should be parseable back to config"
+        );
     }
 
-    #[test] 
+    #[test]
     fn test_my_little_soda_toml_completeness_validation() {
         // Given: Configuration as it would appear in my-little-soda.toml
         let config = MyLittleSodaConfig::default();
         let toml_content = toml::to_string_pretty(&config).unwrap();
         let parsed_config: MyLittleSodaConfig = toml::from_str(&toml_content).unwrap();
-        
+
         // Then: All critical fields should be present and valid
-        
+
         // GitHub section completeness
-        assert!(!parsed_config.github.owner.is_empty(), "my-little-soda.toml should have github.owner");
-        assert!(!parsed_config.github.repo.is_empty(), "my-little-soda.toml should have github.repo");
-        assert!(parsed_config.github.rate_limit.requests_per_hour > 0, "my-little-soda.toml should have positive rate limit");
-        
+        assert!(
+            !parsed_config.github.owner.is_empty(),
+            "my-little-soda.toml should have github.owner"
+        );
+        assert!(
+            !parsed_config.github.repo.is_empty(),
+            "my-little-soda.toml should have github.repo"
+        );
+        assert!(
+            parsed_config.github.rate_limit.requests_per_hour > 0,
+            "my-little-soda.toml should have positive rate limit"
+        );
+
         // Observability section completeness
-        assert!(!parsed_config.observability.log_level.is_empty(), "my-little-soda.toml should have log_level");
-        assert!(["trace", "debug", "info", "warn", "error"].contains(&parsed_config.observability.log_level.as_str()), 
-               "my-little-soda.toml should have valid log level");
-        
+        assert!(
+            !parsed_config.observability.log_level.is_empty(),
+            "my-little-soda.toml should have log_level"
+        );
+        assert!(
+            ["trace", "debug", "info", "warn", "error"]
+                .contains(&parsed_config.observability.log_level.as_str()),
+            "my-little-soda.toml should have valid log level"
+        );
+
         // Agents section completeness
-        assert!(parsed_config.agents.coordination_timeout_seconds > 0, "my-little-soda.toml should have positive coordination timeout");
-        assert!(!parsed_config.agents.process_management.claude_code_path.is_empty(), "my-little-soda.toml should have claude_code_path");
-        
+        assert!(
+            parsed_config.agents.coordination_timeout_seconds > 0,
+            "my-little-soda.toml should have positive coordination timeout"
+        );
+        assert!(
+            !parsed_config
+                .agents
+                .process_management
+                .claude_code_path
+                .is_empty(),
+            "my-little-soda.toml should have claude_code_path"
+        );
+
         // Work continuity completeness
         let wc = &parsed_config.agents.work_continuity;
-        assert!(!wc.state_file_path.is_empty(), "my-little-soda.toml should have work continuity state file path");
-        assert!(wc.backup_interval_minutes > 0, "my-little-soda.toml should have positive backup interval");
-        
+        assert!(
+            !wc.state_file_path.is_empty(),
+            "my-little-soda.toml should have work continuity state file path"
+        );
+        assert!(
+            wc.backup_interval_minutes > 0,
+            "my-little-soda.toml should have positive backup interval"
+        );
+
         // Database section completeness
-        assert!(parsed_config.database.is_some(), "my-little-soda.toml should have database section");
+        assert!(
+            parsed_config.database.is_some(),
+            "my-little-soda.toml should have database section"
+        );
         let db = parsed_config.database.unwrap();
-        assert!(!db.url.is_empty(), "my-little-soda.toml should have database url");
-        assert!(db.max_connections > 0, "my-little-soda.toml should have positive max connections");
+        assert!(
+            !db.url.is_empty(),
+            "my-little-soda.toml should have database url"
+        );
+        assert!(
+            db.max_connections > 0,
+            "my-little-soda.toml should have positive max connections"
+        );
     }
 
     #[test]
     fn test_my_little_soda_toml_directory_paths_validation() {
         // Given: Default configuration for my-little-soda.toml
         let config = MyLittleSodaConfig::default();
-        
+
         // Then: Directory paths should be appropriate for my-little-soda
-        
+
         // Work continuity paths should use .my-little-soda directory (consistent with init command)
         let expected_state_path = ".my-little-soda/agent-state.json"; // Current default
-        assert_eq!(config.agents.work_continuity.state_file_path, expected_state_path, 
-                  "State file path should be in .my-little-soda directory");
-        
-        // Process management paths should use .my-little-soda directory  
+        assert_eq!(
+            config.agents.work_continuity.state_file_path, expected_state_path,
+            "State file path should be in .my-little-soda directory"
+        );
+
+        // Process management paths should use .my-little-soda directory
         let expected_work_dir = ".my-little-soda/agents"; // Current default
-        assert_eq!(config.agents.process_management.work_dir_prefix, expected_work_dir,
-                  "Work directory should be in .my-little-soda directory");
-        
+        assert_eq!(
+            config.agents.process_management.work_dir_prefix, expected_work_dir,
+            "Work directory should be in .my-little-soda directory"
+        );
+
         // Database should use .my-little-soda directory
         if let Some(ref db) = config.database {
             let expected_db_path = ".my-little-soda/my-little-soda.db"; // Current default
-            assert_eq!(db.url, expected_db_path, "Database should be in .my-little-soda directory");
+            assert_eq!(
+                db.url, expected_db_path,
+                "Database should be in .my-little-soda directory"
+            );
         }
-        
+
         // Note: The init command creates .my-little-soda directory and config defaults use .my-little-soda
         // This test documents the current state and potential inconsistency
     }
@@ -494,22 +774,33 @@ mod tests {
     fn test_init_generated_config_constraints() {
         // Given: A configuration with init command constraints
         let mut config = MyLittleSodaConfig::default();
-        
+
         // Test agent configuration constraints
         let toml_content = toml::to_string_pretty(&config).unwrap();
         let parsed: MyLittleSodaConfig = toml::from_str(&toml_content).unwrap();
-        assert!(parsed.agents.coordination_timeout_seconds > 0, 
-               "my-little-soda.toml coordination timeout should be positive");
-        assert!(parsed.agents.bundle_processing.max_queue_size > 0, 
-               "my-little-soda.toml bundle queue size should be positive");
-        
+        assert!(
+            parsed.agents.coordination_timeout_seconds > 0,
+            "my-little-soda.toml coordination timeout should be positive"
+        );
+        assert!(
+            parsed.agents.bundle_processing.max_queue_size > 0,
+            "my-little-soda.toml bundle queue size should be positive"
+        );
+
         // Test CI mode defaults
-        assert!(!config.agents.ci_mode.enabled, "CI mode should be disabled by default in my-little-soda.toml");
-        assert_eq!(config.agents.ci_mode.artifact_handling, "standard", 
-                  "my-little-soda.toml should have standard artifact handling");
-        
+        assert!(
+            !config.agents.ci_mode.enabled,
+            "CI mode should be disabled by default in my-little-soda.toml"
+        );
+        assert_eq!(
+            config.agents.ci_mode.artifact_handling, "standard",
+            "my-little-soda.toml should have standard artifact handling"
+        );
+
         // Test process management defaults for safety
-        assert!(!config.agents.process_management.enable_real_agents, 
-               "my-little-soda.toml should have real agents disabled by default for safety");
+        assert!(
+            !config.agents.process_management.enable_real_agents,
+            "my-little-soda.toml should have real agents disabled by default for safety"
+        );
     }
 }

@@ -142,12 +142,10 @@ impl StateMachine {
             .assign_agent_to_issue(agent_id, issue_number)
             .await
         {
-            Ok(_) => {
-                Ok(TransitionResult::Success {
-                    previous_state,
-                    new_state,
-                })
-            }
+            Ok(_) => Ok(TransitionResult::Success {
+                previous_state,
+                new_state,
+            }),
             Err(e) => {
                 // Atomic failure: State is preserved, no partial changes
                 Ok(TransitionResult::Failed {
@@ -278,12 +276,10 @@ impl StateMachine {
         // All atomically with rollback on failure
 
         match self.complete_final_integration(issue_number).await {
-            Ok(_) => {
-                Ok(TransitionResult::Success {
-                    previous_state,
-                    new_state,
-                })
-            }
+            Ok(_) => Ok(TransitionResult::Success {
+                previous_state,
+                new_state,
+            }),
             Err(e) => Ok(TransitionResult::Failed {
                 error: format!("Integration failed: {e:?}"),
                 state_preserved: previous_state,

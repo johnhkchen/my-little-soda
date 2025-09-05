@@ -20,7 +20,7 @@ impl BranchHandler {
     }
 
     /// Create a new branch
-    /// 
+    ///
     /// NOTE: Branch creation is now handled by local git2 operations in AssignmentOperations.
     /// This method exists for API compatibility but delegates to local git operations.
     pub async fn create_branch(
@@ -32,7 +32,9 @@ impl BranchHandler {
 
         // Branch creation is now handled by local git2 operations in the assignment system
         // for better reliability. This method remains for API compatibility.
-        println!("ℹ️  Branch creation is handled by local git2 operations (see AssignmentOperations)");
+        println!(
+            "ℹ️  Branch creation is handled by local git2 operations (see AssignmentOperations)"
+        );
         Ok(())
     }
 

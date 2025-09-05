@@ -1,14 +1,13 @@
 /// Performance metrics collection system for init command tests
-/// 
+///
 /// This module provides real-time performance monitoring and metrics collection
 /// during test execution, including memory usage, CPU usage, and timing measurements.
-
 use super::test_result_reporting::TestPerformanceMetrics;
 use anyhow::Result;
-use std::time::{Instant, Duration};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 /// Real-time performance metrics collector
 pub struct TestMetricsCollector {
@@ -44,127 +43,134 @@ impl TestMetricsCollector {
             monitoring_handle: None,
         }
     }
-    
+
     /// Start overall test timing and performance monitoring
     pub fn start_test(&mut self) -> Result<()> {
         self.start_time = Some(Instant::now());
         self.start_monitoring()?;
         Ok(())
     }
-    
+
     /// Mark the beginning of test setup phase
     pub fn start_setup(&mut self) {
         self.setup_start = Some(Instant::now());
     }
-    
+
     /// Mark the end of test setup phase
     pub fn end_setup(&mut self) {
         if let Some(start) = self.setup_start {
             self.setup_duration = Some(start.elapsed());
         }
     }
-    
+
     /// Mark the beginning of validation phase
     pub fn start_validation(&mut self) {
         self.validation_start = Some(Instant::now());
     }
-    
+
     /// Mark the end of validation phase
     pub fn end_validation(&mut self) {
         if let Some(start) = self.validation_start {
             self.validation_duration = Some(start.elapsed());
         }
     }
-    
+
     /// Mark the beginning of teardown phase
     pub fn start_teardown(&mut self) {
         self.teardown_start = Some(Instant::now());
     }
-    
+
     /// Mark the end of teardown phase
     pub fn end_teardown(&mut self) {
         if let Some(start) = self.teardown_start {
             self.teardown_duration = Some(start.elapsed());
         }
     }
-    
+
     /// Stop monitoring and collect final metrics
     pub fn stop_test(&mut self) -> Result<TestPerformanceMetrics> {
         self.stop_monitoring()?;
-        
-        let execution_time = self.start_time
+
+        let execution_time = self
+            .start_time
             .map(|start| start.elapsed())
             .unwrap_or_else(|| Duration::new(0, 0));
-        
+
         let memory_samples = self.memory_samples.lock().unwrap();
         let cpu_samples = self.cpu_samples.lock().unwrap();
-        
+
         let memory_usage_mb = if !memory_samples.is_empty() {
             Some(memory_samples.iter().sum::<f64>() / memory_samples.len() as f64)
         } else {
             None
         };
-        
+
         let cpu_usage_percent = if !cpu_samples.is_empty() {
             Some(cpu_samples.iter().sum::<f64>() / cpu_samples.len() as f64)
         } else {
             None
         };
-        
+
         Ok(TestPerformanceMetrics {
             test_name: self.test_name.clone(),
             execution_time,
             memory_usage_mb,
             cpu_usage_percent,
             setup_time: self.setup_duration.unwrap_or_else(|| Duration::new(0, 0)),
-            teardown_time: self.teardown_duration.unwrap_or_else(|| Duration::new(0, 0)),
-            validation_time: self.validation_duration.unwrap_or_else(|| Duration::new(0, 0)),
+            teardown_time: self
+                .teardown_duration
+                .unwrap_or_else(|| Duration::new(0, 0)),
+            validation_time: self
+                .validation_duration
+                .unwrap_or_else(|| Duration::new(0, 0)),
         })
     }
-    
+
     /// Start background monitoring of system resources
     fn start_monitoring(&mut self) -> Result<()> {
         *self.monitoring_active.lock().unwrap() = true;
-        
+
         let memory_samples = self.memory_samples.clone();
         let cpu_samples = self.cpu_samples.clone();
         let monitoring_active = self.monitoring_active.clone();
-        
+
         self.monitoring_handle = Some(thread::spawn(move || {
             while *monitoring_active.lock().unwrap() {
                 if let Ok(memory_usage) = Self::get_process_memory_usage() {
                     memory_samples.lock().unwrap().push(memory_usage);
                 }
-                
+
                 if let Ok(cpu_usage) = Self::get_process_cpu_usage() {
                     cpu_samples.lock().unwrap().push(cpu_usage);
                 }
-                
+
                 thread::sleep(Duration::from_millis(100));
             }
         }));
-        
+
         Ok(())
     }
-    
+
     /// Stop background monitoring
     fn stop_monitoring(&mut self) -> Result<()> {
         *self.monitoring_active.lock().unwrap() = false;
-        
+
         if let Some(handle) = self.monitoring_handle.take() {
-            handle.join().map_err(|_| anyhow::anyhow!("Failed to join monitoring thread"))?;
+            handle
+                .join()
+                .map_err(|_| anyhow::anyhow!("Failed to join monitoring thread"))?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Get current process memory usage in MB
     fn get_process_memory_usage() -> Result<f64> {
         #[cfg(target_os = "linux")]
         {
             let pid = std::process::id();
             let status_path = format!("/proc/{}/status", pid);
-            
+
             if let Ok(content) = std::fs::read_to_string(&status_path) {
                 for line in content.lines() {
                     if line.starts_with("VmRSS:") {
@@ -177,13 +183,13 @@ impl TestMetricsCollector {
                 }
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             let output = Command::new("ps")
                 .args(&["-o", "rss=", "-p", &std::process::id().to_string()])
                 .output()?;
-            
+
             if output.status.success() {
                 let rss_str = String::from_utf8_lossy(&output.stdout).trim();
                 if let Ok(rss_kb) = rss_str.parse::<f64>() {
@@ -191,11 +197,11 @@ impl TestMetricsCollector {
                 }
             }
         }
-        
+
         // Fallback: return 0 if we can't measure memory
         Ok(0.0)
     }
-    
+
     /// Get current process CPU usage percentage
     fn get_process_cpu_usage() -> Result<f64> {
         #[cfg(unix)]
@@ -204,7 +210,7 @@ impl TestMetricsCollector {
             let output = Command::new("ps")
                 .args(&["-o", "pcpu=", "-p", &pid.to_string()])
                 .output()?;
-            
+
             if output.status.success() {
                 let cpu_output = String::from_utf8_lossy(&output.stdout);
                 let cpu_str = cpu_output.trim();
@@ -213,7 +219,7 @@ impl TestMetricsCollector {
                 }
             }
         }
-        
+
         // Fallback: return 0 if we can't measure CPU
         Ok(0.0)
     }
@@ -238,11 +244,11 @@ impl SimpleTestTimer {
             start_time: Instant::now(),
         }
     }
-    
+
     pub fn elapsed(&self) -> Duration {
         self.start_time.elapsed()
     }
-    
+
     pub fn finish(self) -> (String, Duration) {
         let test_name = self.test_name.clone();
         let duration = self.elapsed();
@@ -263,54 +269,64 @@ impl BatchMetricsCollector {
             suite_start_time: Instant::now(),
         }
     }
-    
+
     pub fn add_test_metrics(&mut self, metrics: TestPerformanceMetrics) {
         self.test_metrics.push(metrics);
     }
-    
+
     pub fn get_suite_duration(&self) -> Duration {
         self.suite_start_time.elapsed()
     }
-    
+
     pub fn get_all_metrics(&self) -> &[TestPerformanceMetrics] {
         &self.test_metrics
     }
-    
+
     pub fn get_slowest_tests(&self, count: usize) -> Vec<&TestPerformanceMetrics> {
         let mut sorted = self.test_metrics.iter().collect::<Vec<_>>();
         sorted.sort_by(|a, b| b.execution_time.cmp(&a.execution_time));
         sorted.into_iter().take(count).collect()
     }
-    
+
     pub fn get_average_execution_time(&self) -> Duration {
         if self.test_metrics.is_empty() {
             return Duration::new(0, 0);
         }
-        
+
         let total: Duration = self.test_metrics.iter().map(|m| m.execution_time).sum();
         total / self.test_metrics.len() as u32
     }
-    
+
     pub fn get_total_setup_time(&self) -> Duration {
         self.test_metrics.iter().map(|m| m.setup_time).sum()
     }
-    
+
     pub fn get_total_validation_time(&self) -> Duration {
         self.test_metrics.iter().map(|m| m.validation_time).sum()
     }
-    
+
     pub fn get_total_teardown_time(&self) -> Duration {
         self.test_metrics.iter().map(|m| m.teardown_time).sum()
     }
-    
+
     /// Generate summary statistics
     pub fn generate_summary(&self) -> MetricsSummary {
         MetricsSummary {
             total_tests: self.test_metrics.len(),
             total_execution_time: self.test_metrics.iter().map(|m| m.execution_time).sum(),
             average_execution_time: self.get_average_execution_time(),
-            slowest_test_time: self.test_metrics.iter().map(|m| m.execution_time).max().unwrap_or_default(),
-            fastest_test_time: self.test_metrics.iter().map(|m| m.execution_time).min().unwrap_or_default(),
+            slowest_test_time: self
+                .test_metrics
+                .iter()
+                .map(|m| m.execution_time)
+                .max()
+                .unwrap_or_default(),
+            fastest_test_time: self
+                .test_metrics
+                .iter()
+                .map(|m| m.execution_time)
+                .min()
+                .unwrap_or_default(),
             total_setup_time: self.get_total_setup_time(),
             total_validation_time: self.get_total_validation_time(),
             total_teardown_time: self.get_total_teardown_time(),
@@ -321,39 +337,45 @@ impl BatchMetricsCollector {
             peak_cpu_usage: self.get_peak_cpu_usage(),
         }
     }
-    
+
     fn get_average_memory_usage(&self) -> f64 {
-        let samples: Vec<f64> = self.test_metrics.iter()
+        let samples: Vec<f64> = self
+            .test_metrics
+            .iter()
             .filter_map(|m| m.memory_usage_mb)
             .collect();
-        
+
         if samples.is_empty() {
             0.0
         } else {
             samples.iter().sum::<f64>() / samples.len() as f64
         }
     }
-    
+
     fn get_peak_memory_usage(&self) -> f64 {
-        self.test_metrics.iter()
+        self.test_metrics
+            .iter()
             .filter_map(|m| m.memory_usage_mb)
             .fold(0.0, |max, usage| if usage > max { usage } else { max })
     }
-    
+
     fn get_average_cpu_usage(&self) -> f64 {
-        let samples: Vec<f64> = self.test_metrics.iter()
+        let samples: Vec<f64> = self
+            .test_metrics
+            .iter()
             .filter_map(|m| m.cpu_usage_percent)
             .collect();
-        
+
         if samples.is_empty() {
             0.0
         } else {
             samples.iter().sum::<f64>() / samples.len() as f64
         }
     }
-    
+
     fn get_peak_cpu_usage(&self) -> f64 {
-        self.test_metrics.iter()
+        self.test_metrics
+            .iter()
             .filter_map(|m| m.cpu_usage_percent)
             .fold(0.0, |max, usage| if usage > max { usage } else { max })
     }
@@ -418,7 +440,7 @@ impl MetricsSummary {
             self.peak_cpu_usage,
         )
     }
-    
+
     fn calculate_percentage(&self, part: Duration, total: Duration) -> f64 {
         if total.as_millis() == 0 {
             0.0
@@ -432,22 +454,22 @@ impl MetricsSummary {
 mod tests {
     use super::*;
     use std::time::Duration;
-    
+
     #[test]
     fn test_simple_timer() {
         let timer = SimpleTestTimer::new("test_timer".to_string());
         std::thread::sleep(Duration::from_millis(10));
         let (name, duration) = timer.finish();
-        
+
         assert_eq!(name, "test_timer");
         assert!(duration >= Duration::from_millis(10));
         assert!(duration < Duration::from_millis(50)); // Should be reasonably close
     }
-    
+
     #[test]
     fn test_batch_metrics_collector() {
         let mut collector = BatchMetricsCollector::new();
-        
+
         let metrics1 = TestPerformanceMetrics {
             test_name: "test1".to_string(),
             execution_time: Duration::from_millis(100),
@@ -457,7 +479,7 @@ mod tests {
             teardown_time: Duration::from_millis(5),
             validation_time: Duration::from_millis(85),
         };
-        
+
         let metrics2 = TestPerformanceMetrics {
             test_name: "test2".to_string(),
             execution_time: Duration::from_millis(200),
@@ -467,10 +489,10 @@ mod tests {
             teardown_time: Duration::from_millis(10),
             validation_time: Duration::from_millis(175),
         };
-        
+
         collector.add_test_metrics(metrics1);
         collector.add_test_metrics(metrics2);
-        
+
         let summary = collector.generate_summary();
         assert_eq!(summary.total_tests, 2);
         assert_eq!(summary.total_execution_time, Duration::from_millis(300));
@@ -482,7 +504,7 @@ mod tests {
         assert_eq!(summary.average_cpu_usage, 30.0);
         assert_eq!(summary.peak_cpu_usage, 35.0);
     }
-    
+
     #[test]
     fn test_metrics_summary_report() {
         let summary = MetricsSummary {
@@ -500,7 +522,7 @@ mod tests {
             average_cpu_usage: 22.3,
             peak_cpu_usage: 45.6,
         };
-        
+
         let report = summary.generate_report();
         assert!(report.contains("Total Tests: 3"));
         assert!(report.contains("Suite Duration: 10.00s"));

@@ -76,18 +76,16 @@ mod tests {
             issue: 123,
             branch: "agent001/123".to_string(),
         };
-        
-        let start_work_event = AgentEvent::StartWork {
-            commits_ahead: 2,
-        };
-        
+
+        let start_work_event = AgentEvent::StartWork { commits_ahead: 2 };
+
         let complete_work_event = AgentEvent::CompleteWork;
-        
+
         let bundle_event = AgentEvent::Bundle {
             bundle_pr: 456,
             issues: vec![123, 124],
         };
-        
+
         let merge_event = AgentEvent::Merge;
         let abandon_event = AgentEvent::Abandon;
         let force_reset_event = AgentEvent::ForceReset;
@@ -102,7 +100,7 @@ mod tests {
     #[test]
     fn test_agent_state_machine_basic_workflow() {
         let machine = AgentStateMachine::new("agent001".to_string());
-        
+
         // Initial state
         assert_eq!(machine.current_issue, None);
         assert_eq!(machine.current_branch, None);

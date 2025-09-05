@@ -1,10 +1,10 @@
+use anyhow::Result;
 /// Test harness for managing temporary directories in integration tests
 use std::path::{Path, PathBuf};
-use tempfile::TempDir;
-use anyhow::Result;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tempfile::TempDir;
 
 /// Resource tracking for leak detection
 #[derive(Debug, Clone)]
@@ -26,34 +26,34 @@ impl ResourceTracker {
             created_at: Instant::now(),
         }
     }
-    
+
     pub fn track_file(&mut self, path: PathBuf) {
         self.created_files.push(path);
     }
-    
+
     pub fn track_dir(&mut self, path: PathBuf) {
         self.created_dirs.push(path);
     }
-    
+
     pub fn track_process(&mut self, pid: u32) {
         self.spawned_processes.push(pid);
     }
-    
+
     pub fn detect_leaks(&self) -> Vec<String> {
         let mut leaks = Vec::new();
-        
+
         for file in &self.created_files {
             if file.exists() && !file.starts_with(&std::env::temp_dir()) {
                 leaks.push(format!("File leak detected: {}", file.display()));
             }
         }
-        
+
         for dir in &self.created_dirs {
             if dir.exists() && !dir.starts_with(&std::env::temp_dir()) {
                 leaks.push(format!("Directory leak detected: {}", dir.display()));
             }
         }
-        
+
         leaks
     }
 }
@@ -85,7 +85,10 @@ impl TestHarness {
             temp_dir,
             cleanup_registered: false,
             resource_tracker: ResourceTracker::new(),
-            cleanup_strategy: CleanupStrategy::GracefulWithRetry { max_attempts: 3, delay_ms: 100 },
+            cleanup_strategy: CleanupStrategy::GracefulWithRetry {
+                max_attempts: 3,
+                delay_ms: 100,
+            },
             cleanup_hooks: Vec::new(),
             isolation_verified: false,
         })
@@ -112,7 +115,7 @@ impl TestHarness {
     /// Create a file in the temporary directory
     pub fn create_file(&mut self, relative_path: &str, content: &str) -> Result<PathBuf> {
         let file_path = self.temp_dir.path().join(relative_path);
-        
+
         // Create parent directories if needed
         if let Some(parent) = file_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -142,10 +145,12 @@ impl TestHarness {
             .args(["init"])
             .current_dir(repo_path)
             .output()?;
-        
+
         if !output.status.success() {
-            anyhow::bail!("Failed to initialize git repository: {}", 
-                String::from_utf8_lossy(&output.stderr));
+            anyhow::bail!(
+                "Failed to initialize git repository: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         self.setup_git_config(repo_path)?;
@@ -158,7 +163,7 @@ impl TestHarness {
             .args(["config", "user.name", "Test User"])
             .current_dir(repo_path)
             .output()?;
-            
+
         Command::new("git")
             .args(["config", "user.email", "test@example.com"])
             .current_dir(repo_path)
@@ -173,10 +178,12 @@ impl TestHarness {
             .args(["remote", "add", name, url])
             .current_dir(self.temp_dir.path())
             .output()?;
-        
+
         if !output.status.success() {
-            anyhow::bail!("Failed to add git remote: {}", 
-                String::from_utf8_lossy(&output.stderr));
+            anyhow::bail!(
+                "Failed to add git remote: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         Ok(())
@@ -188,15 +195,17 @@ impl TestHarness {
             .args(["add", "."])
             .current_dir(self.temp_dir.path())
             .output()?;
-            
+
         let output = Command::new("git")
             .args(["commit", "-m", message])
             .current_dir(self.temp_dir.path())
             .output()?;
-        
+
         if !output.status.success() {
-            anyhow::bail!("Failed to commit files: {}", 
-                String::from_utf8_lossy(&output.stderr));
+            anyhow::bail!(
+                "Failed to commit files: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         Ok(())
@@ -204,22 +213,34 @@ impl TestHarness {
 
     /// Create a basic Rust project structure
     pub fn create_rust_project(&mut self, name: &str) -> Result<()> {
-        self.create_file("Cargo.toml", &format!(r#"[package]
+        self.create_file(
+            "Cargo.toml",
+            &format!(
+                r#"[package]
 name = "{}"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-"#, name))?;
+"#,
+                name
+            ),
+        )?;
 
         self.create_dir("src")?;
-        self.create_file("src/main.rs", r#"fn main() {
+        self.create_file(
+            "src/main.rs",
+            r#"fn main() {
     println!("Hello, world!");
 }
-"#)?;
+"#,
+        )?;
 
-        self.create_file("README.md", &format!("# {}\n\nA test Rust project.\n", name))?;
+        self.create_file(
+            "README.md",
+            &format!("# {}\n\nA test Rust project.\n", name),
+        )?;
         self.create_file(".gitignore", "target/\n*.log\n")?;
 
         Ok(())
@@ -228,7 +249,7 @@ anyhow = "1.0"
     /// Verify that the temporary directory is properly isolated
     pub fn verify_isolation(&mut self) -> Result<()> {
         let path = self.temp_dir.path();
-        
+
         // Check that path exists and is writable
         if !path.exists() {
             anyhow::bail!("Temporary directory does not exist");
@@ -243,7 +264,7 @@ anyhow = "1.0"
         // Try to create a test file to verify write access
         let test_file = path.join("isolation_test");
         std::fs::write(&test_file, "test")?;
-        
+
         if !test_file.exists() {
             anyhow::bail!("Unable to create files in temporary directory");
         }
@@ -257,7 +278,7 @@ anyhow = "1.0"
         // Test concurrent access to ensure proper isolation
         let concurrent_test = path.join("concurrent_test");
         std::fs::write(&concurrent_test, "concurrent")?;
-        
+
         // Cleanup test files
         std::fs::remove_file(&test_file)?;
         std::fs::remove_file(&concurrent_test)?;
@@ -273,15 +294,17 @@ anyhow = "1.0"
         }
 
         let self_path = self.temp_dir.path();
-        
+
         // Verify no overlap with other test harnesses
         for (i, other) in other_harnesses.iter().enumerate() {
             let other_path = other.temp_dir.path();
-            
+
             if self_path == other_path {
-                anyhow::bail!("Test harness directories are not isolated: duplicate paths detected");
+                anyhow::bail!(
+                    "Test harness directories are not isolated: duplicate paths detected"
+                );
             }
-            
+
             // Verify no nested paths
             if self_path.starts_with(other_path) || other_path.starts_with(self_path) {
                 anyhow::bail!("Test harness {} has nested path relationship", i);
@@ -294,13 +317,17 @@ anyhow = "1.0"
                 let other_files: Vec<_> = std::fs::read_dir(other.temp_dir.path())?
                     .filter_map(|entry| entry.ok())
                     .collect();
-                
+
                 for file_entry in other_files {
                     let file_path = file_entry.path();
                     let relative_to_self = self_path.join(file_entry.file_name());
-                    
+
                     if relative_to_self.exists() {
-                        anyhow::bail!("File name collision detected with harness {}: {}", i, file_entry.file_name().to_string_lossy());
+                        anyhow::bail!(
+                            "File name collision detected with harness {}: {}",
+                            i,
+                            file_entry.file_name().to_string_lossy()
+                        );
                     }
                 }
             }
@@ -320,8 +347,8 @@ anyhow = "1.0"
     }
 
     /// Add custom cleanup hook
-    pub fn add_cleanup_hook<F>(&mut self, hook: F) 
-    where 
+    pub fn add_cleanup_hook<F>(&mut self, hook: F)
+    where
         F: FnOnce() -> Result<()> + Send + 'static,
     {
         self.cleanup_hooks.push(Box::new(hook));
@@ -330,7 +357,7 @@ anyhow = "1.0"
     /// Execute cleanup with error recovery
     pub fn cleanup(&mut self) -> Result<Vec<String>> {
         let mut cleanup_errors = Vec::new();
-        
+
         // Execute custom cleanup hooks first
         for hook in self.cleanup_hooks.drain(..) {
             if let Err(e) = hook() {
@@ -353,7 +380,10 @@ anyhow = "1.0"
                     cleanup_errors.push(format!("Force cleanup failed: {}", e));
                 }
             }
-            CleanupStrategy::GracefulWithRetry { max_attempts, delay_ms } => {
+            CleanupStrategy::GracefulWithRetry {
+                max_attempts,
+                delay_ms,
+            } => {
                 if let Err(e) = self.graceful_cleanup_with_retry(*max_attempts, *delay_ms) {
                     cleanup_errors.push(format!("Graceful cleanup failed: {}", e));
                 }
@@ -378,14 +408,14 @@ anyhow = "1.0"
         let temp_path = self.temp_dir.path();
         if temp_path.exists() {
             // Check for any processes that might have open file handles
-            let lsof_output = std::process::Command::new("lsof")
-                .arg(temp_path)
-                .output();
-                
+            let lsof_output = std::process::Command::new("lsof").arg(temp_path).output();
+
             if let Ok(output) = lsof_output {
                 if !output.stdout.is_empty() {
-                    anyhow::bail!("Active file handles detected during cleanup: {}", 
-                        String::from_utf8_lossy(&output.stdout));
+                    anyhow::bail!(
+                        "Active file handles detected during cleanup: {}",
+                        String::from_utf8_lossy(&output.stdout)
+                    );
                 }
             }
         }
@@ -421,7 +451,7 @@ anyhow = "1.0"
     /// Graceful cleanup with retry logic
     fn graceful_cleanup_with_retry(&self, max_attempts: u32, delay_ms: u64) -> Result<()> {
         let mut last_error = None;
-        
+
         for attempt in 1..=max_attempts {
             match self.attempt_graceful_cleanup() {
                 Ok(()) => return Ok(()),
@@ -447,16 +477,16 @@ anyhow = "1.0"
             let term_result = std::process::Command::new("kill")
                 .args(["-TERM", &pid.to_string()])
                 .output();
-                
+
             if term_result.is_ok() {
                 // Give process time to terminate gracefully
                 std::thread::sleep(std::time::Duration::from_millis(100));
-                
+
                 // Check if still running
                 let check_result = std::process::Command::new("kill")
                     .args(["-0", &pid.to_string()])
                     .output();
-                    
+
                 if let Ok(output) = check_result {
                     if output.status.success() {
                         // Process still running, force kill
@@ -493,7 +523,10 @@ anyhow = "1.0"
 
     /// Get the current working directory relative to the temp directory
     pub fn relative_path(&self, absolute_path: &Path) -> Option<PathBuf> {
-        absolute_path.strip_prefix(self.temp_dir.path()).ok().map(|p| p.to_path_buf())
+        absolute_path
+            .strip_prefix(self.temp_dir.path())
+            .ok()
+            .map(|p| p.to_path_buf())
     }
 }
 
@@ -581,9 +614,7 @@ pub mod helpers {
 
     /// Create a test harness with a Git repository
     pub fn git_harness() -> Result<TestHarness> {
-        TestHarnessBuilder::new()
-            .with_git()
-            .build()
+        TestHarnessBuilder::new().with_git().build()
     }
 
     /// Create a test harness with a full Rust project and Git repository
@@ -620,7 +651,7 @@ mod tests {
     fn test_file_creation() {
         let mut harness = TestHarness::new().unwrap();
         let file_path = harness.create_file("test.txt", "Hello, world!").unwrap();
-        
+
         assert!(file_path.exists());
         let content = std::fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, "Hello, world!");
@@ -630,7 +661,7 @@ mod tests {
     fn test_directory_creation() {
         let mut harness = TestHarness::new().unwrap();
         let dir_path = harness.create_dir("test_dir").unwrap();
-        
+
         assert!(dir_path.exists());
         assert!(dir_path.is_dir());
     }
@@ -638,8 +669,10 @@ mod tests {
     #[test]
     fn test_nested_directory_creation() {
         let mut harness = TestHarness::new().unwrap();
-        let file_path = harness.create_file("nested/dir/test.txt", "nested content").unwrap();
-        
+        let file_path = harness
+            .create_file("nested/dir/test.txt", "nested content")
+            .unwrap();
+
         assert!(file_path.exists());
         let content = std::fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, "nested content");
@@ -649,7 +682,7 @@ mod tests {
     fn test_git_repository_initialization() {
         let harness = TestHarness::new().unwrap();
         harness.init_git_repository().unwrap();
-        
+
         let git_dir = harness.path().join(".git");
         assert!(git_dir.exists());
         assert!(git_dir.is_dir());
@@ -659,7 +692,7 @@ mod tests {
     fn test_rust_project_creation() {
         let mut harness = TestHarness::new().unwrap();
         harness.create_rust_project("test-project").unwrap();
-        
+
         assert!(harness.path().join("Cargo.toml").exists());
         assert!(harness.path().join("src").exists());
         assert!(harness.path().join("src/main.rs").exists());
@@ -673,13 +706,13 @@ mod tests {
         harness.init_git_repository().unwrap();
         harness.create_file("test.txt", "content").unwrap();
         harness.commit_all("Test commit").unwrap();
-        
+
         let output = Command::new("git")
             .args(["log", "--oneline"])
             .current_dir(harness.path())
             .output()
             .unwrap();
-        
+
         let log_output = String::from_utf8_lossy(&output.stdout);
         assert!(log_output.contains("Test commit"));
     }
@@ -699,16 +732,16 @@ mod tests {
             .with_initial_commit("Initial commit")
             .build()
             .unwrap();
-        
+
         assert!(harness.path().join("Cargo.toml").exists());
         assert!(harness.path().join(".git").exists());
-        
+
         let output = Command::new("git")
             .args(["remote", "-v"])
             .current_dir(harness.path())
             .output()
             .unwrap();
-        
+
         let remote_output = String::from_utf8_lossy(&output.stdout);
         assert!(remote_output.contains("https://github.com/test/repo.git"));
     }
@@ -717,10 +750,12 @@ mod tests {
     fn test_parallel_harnesses() {
         let mut harnesses = helpers::parallel_harnesses(3).unwrap();
         assert_eq!(harnesses.len(), 3);
-        
+
         for (i, harness) in harnesses.iter_mut().enumerate() {
             let test_file = format!("test_{}.txt", i);
-            harness.create_file(&test_file, &format!("content {}", i)).unwrap();
+            harness
+                .create_file(&test_file, &format!("content {}", i))
+                .unwrap();
             assert!(harness.path().join(&test_file).exists());
         }
     }
@@ -729,11 +764,11 @@ mod tests {
     fn test_helper_functions() {
         let simple = helpers::simple_harness().unwrap();
         assert!(simple.path().exists());
-        
+
         let git = helpers::git_harness().unwrap();
         assert!(git.path().exists());
         assert!(git.path().join(".git").exists());
-        
+
         let rust = helpers::rust_project_harness("helper-test").unwrap();
         assert!(rust.path().exists());
         assert!(rust.path().join("Cargo.toml").exists());
@@ -752,11 +787,11 @@ mod tests {
         let mut harness1 = TestHarness::new().unwrap();
         let mut harness2 = TestHarness::new().unwrap();
         let mut harness3 = TestHarness::new().unwrap();
-        
+
         harness1.verify_isolation().unwrap();
         harness2.verify_isolation().unwrap();
         harness3.verify_isolation().unwrap();
-        
+
         let others = vec![&harness2, &harness3];
         harness1.verify_cross_test_isolation(&others).unwrap();
     }
@@ -765,17 +800,19 @@ mod tests {
     fn test_cleanup_strategies() {
         let mut harness = TestHarness::with_cleanup_strategy(CleanupStrategy::Immediate).unwrap();
         harness.create_file("test.txt", "content").unwrap();
-        
+
         let cleanup_errors = harness.cleanup().unwrap();
         assert!(cleanup_errors.is_empty());
     }
 
     #[test]
     fn test_graceful_cleanup_with_retry() {
-        let mut harness = TestHarness::with_cleanup_strategy(
-            CleanupStrategy::GracefulWithRetry { max_attempts: 3, delay_ms: 50 }
-        ).unwrap();
-        
+        let mut harness = TestHarness::with_cleanup_strategy(CleanupStrategy::GracefulWithRetry {
+            max_attempts: 3,
+            delay_ms: 50,
+        })
+        .unwrap();
+
         harness.create_file("test.txt", "content").unwrap();
         let cleanup_errors = harness.cleanup().unwrap();
         assert!(cleanup_errors.is_empty());
@@ -785,15 +822,15 @@ mod tests {
     fn test_cleanup_hooks() {
         let mut harness = TestHarness::new().unwrap();
         let mut hook_executed = false;
-        
+
         let hook_flag = Arc::new(Mutex::new(false));
         let hook_flag_clone = hook_flag.clone();
-        
+
         harness.add_cleanup_hook(move || {
             *hook_flag_clone.lock().unwrap() = true;
             Ok(())
         });
-        
+
         harness.cleanup().unwrap();
         assert!(*hook_flag.lock().unwrap());
     }
@@ -802,20 +839,21 @@ mod tests {
     fn test_resource_leak_detection() {
         let mut harness = TestHarness::new().unwrap();
         harness.create_file("test.txt", "content").unwrap();
-        
+
         let leaks = harness.detect_resource_leaks();
-        assert!(leaks.is_empty(), "No leaks should be detected for temp directory files");
+        assert!(
+            leaks.is_empty(),
+            "No leaks should be detected for temp directory files"
+        );
     }
 
     #[test]
     fn test_cleanup_error_recovery() {
         let mut harness = TestHarness::new().unwrap();
-        
+
         // Add a hook that will fail
-        harness.add_cleanup_hook(|| {
-            anyhow::bail!("Intentional cleanup failure for testing")
-        });
-        
+        harness.add_cleanup_hook(|| anyhow::bail!("Intentional cleanup failure for testing"));
+
         let cleanup_errors = harness.cleanup().unwrap();
         assert!(!cleanup_errors.is_empty());
         assert!(cleanup_errors[0].contains("Intentional cleanup failure"));
@@ -824,13 +862,13 @@ mod tests {
     #[test]
     fn test_isolation_under_error_conditions() {
         let mut harness = TestHarness::new().unwrap();
-        
+
         // Create file and simulate partial failure
         harness.create_file("test.txt", "content").unwrap();
-        
+
         // Should still maintain isolation
         harness.verify_isolation().unwrap();
-        
+
         // Cleanup should work even after errors
         let cleanup_errors = harness.cleanup().unwrap();
         assert!(cleanup_errors.is_empty());

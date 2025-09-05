@@ -86,9 +86,10 @@ impl AssignmentOperations {
         let branch_name = self.generate_branch_name(agent_id, issue_number, issue_title);
 
         // Create local branch using git2 operations
-        let git_ops = Git2Operations::new(".")
-            .map_err(|e| GitHubError::ConfigNotFound(format!("Failed to initialize git operations: {}", e)))?;
-        
+        let git_ops = Git2Operations::new(".").map_err(|e| {
+            GitHubError::ConfigNotFound(format!("Failed to initialize git operations: {}", e))
+        })?;
+
         // Create the branch locally from main
         match git_ops.create_branch(&branch_name, "main") {
             Ok(()) => {
