@@ -555,3 +555,288 @@ fn test_doctor_repository_validation_private_vs_public() {
             ));
     }
 }
+
+// Configuration Validation Diagnostic Tests
+
+#[test]
+fn test_doctor_config_validation_basics() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_file_exists"))
+        .stdout(predicate::str::contains("config_toml_syntax"))
+        .stdout(predicate::str::contains("config_completeness"))
+        .stdout(predicate::str::contains("config_field_validation"))
+        .stdout(predicate::str::contains("config_environment_consistency"));
+}
+
+#[test]
+fn test_doctor_config_file_exists_pass() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // This should pass in the current directory since we have my-little-soda.toml
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_file_exists: Configuration file exists"));
+}
+
+#[test]
+fn test_doctor_config_file_missing() {
+    let temp_dir = TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test in directory without config file
+    cmd.current_dir(temp_dir.path())
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_file_exists: Configuration file not found")
+               .or(predicate::str::contains("Cannot load configuration for validation")));
+}
+
+#[test]
+fn test_doctor_config_toml_syntax_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test TOML syntax validation with existing valid file
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_toml_syntax: TOML syntax is valid"));
+}
+
+#[test]
+fn test_doctor_config_toml_invalid_syntax() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("my-little-soda.toml");
+    
+    // Create invalid TOML file
+    std::fs::write(&config_path, "invalid toml content [[[broken").unwrap();
+    
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_toml_syntax: TOML syntax error"));
+}
+
+#[test]
+fn test_doctor_config_completeness_warnings() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test should show warnings for default values
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("config_completeness").and(
+            predicate::str::contains("Warning").or(
+                predicate::str::contains("default value")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_config_field_validation_pass() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should pass with valid configuration
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_field_validation: Configuration field validation passed"));
+}
+
+#[test]
+fn test_doctor_config_environment_consistency() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_environment_consistency"));
+}
+
+#[test]
+fn test_doctor_config_verbose_details() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("my-little-soda.toml found"))
+        .stdout(predicate::str::contains("Configuration file parses successfully"))
+        .stdout(predicate::str::contains("All configuration fields have valid values and types")
+               .or(predicate::str::contains("Configuration values match environment variable overrides")));
+}
+
+#[test]
+fn test_doctor_config_json_structure() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    let binding = cmd.arg("doctor").arg("--format").arg("json")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    
+    // Extract the multiline JSON from the output (skip telemetry logs)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let mut json_start = None;
+    let mut brace_count = 0;
+    let mut json_end = None;
+    
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() == "{" {
+            json_start = Some(i);
+            brace_count = 1;
+        } else if json_start.is_some() {
+            brace_count += line.matches('{').count() as i32;
+            brace_count -= line.matches('}').count() as i32;
+            if brace_count == 0 {
+                json_end = Some(i);
+                break;
+            }
+        }
+    }
+    
+    let json_str = if let (Some(start), Some(end)) = (json_start, json_end) {
+        lines[start..=end].join("\n")
+    } else {
+        panic!("No JSON object found in output: {}", stdout);
+    };
+    
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    
+    let checks = &parsed["checks"];
+    
+    // Count configuration diagnostic checks that are present
+    let config_checks = ["config_file_exists", "config_toml_syntax", "config_completeness", "config_field_validation", "config_environment_consistency"];
+    let present_config_checks: Vec<&str> = config_checks.iter()
+        .filter(|check_name| checks[*check_name].is_object())
+        .copied()
+        .collect();
+    
+    // At least some configuration checks should be present
+    assert!(present_config_checks.len() >= 3, 
+            "At least 3 configuration checks should be present, found: {:?}", 
+            present_config_checks);
+    
+    // Verify each present check has required fields
+    for check_name in present_config_checks {
+        let check = &checks[check_name];
+        assert!(check["status"].is_string(), "{} should have status field", check_name);
+        assert!(check["message"].is_string(), "{} should have message field", check_name);
+        // details and suggestion are optional
+    }
+}
+
+#[test]
+fn test_doctor_config_validation_comprehensive() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test comprehensive config validation with all components
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("🩺 MY LITTLE SODA DOCTOR"))
+        // Configuration validation checks
+        .stdout(predicate::str::contains("config_file_exists"))
+        .stdout(predicate::str::contains("config_toml_syntax"))
+        .stdout(predicate::str::contains("config_completeness"))
+        .stdout(predicate::str::contains("config_field_validation"))
+        .stdout(predicate::str::contains("config_environment_consistency"))
+        // Original checks should still be present
+        .stdout(predicate::str::contains("git_repository"))
+        .stdout(predicate::str::contains("github_authentication"));
+}
+
+#[test]
+fn test_doctor_config_placeholder_detection() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_path = temp_dir.path().join("my-little-soda.toml");
+    
+    // Create config with placeholder values
+    let placeholder_config = r#"
+[github]
+owner = "your-github-username"
+repo = "your-repo-name"
+
+[github.rate_limit]
+requests_per_hour = 5000
+burst_capacity = 100
+
+[observability]
+tracing_enabled = true
+log_level = "info"
+metrics_enabled = true
+
+[agents]
+coordination_timeout_seconds = 300
+
+[agents.bundle_processing]
+max_queue_size = 50
+processing_timeout_seconds = 1800
+
+[agents.process_management]
+claude_code_path = "claude-code"
+timeout_minutes = 30
+cleanup_on_failure = true
+work_dir_prefix = ".my-little-soda/agents"
+enable_real_agents = false
+
+[agents.ci_mode]
+enabled = false
+artifact_handling = "standard"
+github_token_strategy = "standard"
+workflow_state_persistence = true
+ci_timeout_adjustment = 300
+enhanced_error_reporting = true
+
+[agents.work_continuity]
+enable_continuity = true
+state_file_path = ".my-little-soda/agent-state.json"
+backup_interval_minutes = 5
+max_recovery_attempts = 3
+validation_timeout_seconds = 30
+force_fresh_start_after_hours = 24
+preserve_partial_work = true
+"#;
+    
+    std::fs::write(&config_path, placeholder_config).unwrap();
+    
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("config_completeness").and(
+            predicate::str::contains("placeholder value").or(
+                predicate::str::contains("your-github-username").or(
+                    predicate::str::contains("your-repo-name")
+                )
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_config_validation_suggestions() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test that suggestions are provided when appropriate
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("Suggestion:").or(
+            predicate::str::contains("Consider updating").or(
+                predicate::str::contains("Environment variables override"))
+        ));
+}
