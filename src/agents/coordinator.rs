@@ -5,6 +5,8 @@ use crate::agent_lifecycle::{AgentEvent, AgentStateMachine};
 #[cfg(feature = "autonomous")]
 use crate::autonomous::CheckpointReason;
 #[cfg(feature = "autonomous")]
+use crate::config::config;
+#[cfg(feature = "autonomous")]
 use crate::autonomous::ContinuityStatus;
 #[cfg(feature = "autonomous")]
 use crate::autonomous::PersistenceConfig;

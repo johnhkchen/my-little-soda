@@ -10,7 +10,10 @@ use crate::cli::commands::doctor::{DiagnosticResult, DiagnosticStatus};
 use crate::autonomous::work_continuity::{WorkContinuityManager, WorkContinuityConfig};
 #[cfg(feature = "autonomous")]
 use crate::autonomous::persistence::PersistenceConfig;
+#[cfg(feature = "autonomous")]
+use crate::config::config;
 use crate::github::{GitHubClient, GitHubError};
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc};
