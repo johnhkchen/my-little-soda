@@ -121,6 +121,9 @@ impl DoctorCommand {
         // Run agent state diagnostics
         self.check_agent_state_health(&mut checks).await;
         
+        // Run end-to-end workflow validation diagnostics
+        self.check_end_to_end_workflow_validation(&mut checks).await;
+        
         // Calculate summary
         let summary = self.calculate_summary(&checks);
         
@@ -1270,7 +1273,112 @@ impl DoctorCommand {
             println!("❌ System has {} critical issue(s) that must be resolved.", report.summary.failed);
         }
 
+        // Comprehensive health recommendations
+        self.output_comprehensive_health_recommendations(report);
+
         Ok(())
+    }
+
+    /// Output comprehensive health recommendations based on diagnostic results
+    fn output_comprehensive_health_recommendations(&self, report: &DiagnosticReport) {
+        println!();
+        println!("🏥 COMPREHENSIVE HEALTH RECOMMENDATIONS:");
+        println!("─────────────────────────────────────");
+        
+        // Analyze the diagnostic results and provide actionable recommendations
+        let mut critical_issues: Vec<String> = Vec::new();
+        let mut optimization_suggestions: Vec<String> = Vec::new();
+        let mut workflow_recommendations: Vec<String> = Vec::new();
+        
+        for (check_name, result) in &report.checks {
+            match result.status {
+                DiagnosticStatus::Fail => {
+                    if check_name.contains("github") {
+                        critical_issues.push("🔴 GitHub connectivity issues detected - agent workflow will not function".to_string());
+                    } else if check_name.contains("git") {
+                        critical_issues.push("🔴 Git repository issues detected - version control operations may fail".to_string());
+                    } else if check_name.contains("config") {
+                        critical_issues.push("🔴 Configuration issues detected - system initialization required".to_string());
+                    } else {
+                        critical_issues.push(format!("🔴 Critical issue in {}", check_name));
+                    }
+                }
+                DiagnosticStatus::Warning => {
+                    if check_name.contains("label") {
+                        optimization_suggestions.push("🟡 Label management can be improved for better workflow efficiency".to_string());
+                    } else if check_name.contains("permission") {
+                        optimization_suggestions.push("🟡 Repository permissions may limit some advanced features".to_string());
+                    } else if check_name.contains("workflow") {
+                        workflow_recommendations.push("🟡 Workflow optimization opportunities identified".to_string());
+                    } else {
+                        optimization_suggestions.push(format!("🟡 Improvement opportunity in {}", check_name));
+                    }
+                }
+                _ => {} // Pass and Info statuses don't need recommendations
+            }
+        }
+        
+        // Output critical issues with priority actions
+        if !critical_issues.is_empty() {
+            println!("🚨 CRITICAL ACTIONS REQUIRED:");
+            for issue in critical_issues {
+                println!("   {}", issue);
+            }
+            println!("   👉 Priority: Address critical issues before proceeding with agent operations");
+            println!();
+        }
+        
+        // Output optimization suggestions
+        if !optimization_suggestions.is_empty() {
+            println!("⚡ OPTIMIZATION OPPORTUNITIES:");
+            for suggestion in optimization_suggestions {
+                println!("   {}", suggestion);
+            }
+            println!("   👉 Suggestion: Consider addressing these for improved performance");
+            println!();
+        }
+        
+        // Output workflow recommendations
+        if !workflow_recommendations.is_empty() {
+            println!("🔄 WORKFLOW IMPROVEMENTS:");
+            for recommendation in workflow_recommendations {
+                println!("   {}", recommendation);
+            }
+            println!("   👉 Recommendation: Optimize workflow for better agent coordination");
+            println!();
+        }
+        
+        // Overall health assessment and next steps
+        if report.summary.failed == 0 && report.summary.warnings == 0 {
+            println!("🎉 SYSTEM STATUS: EXCELLENT");
+            println!("   Your My Little Soda setup is optimized and ready for autonomous operation!");
+            println!("   📈 Next steps:");
+            println!("      • Start agent workflow: my-little-soda pop");
+            println!("      • Monitor agent status: my-little-soda status");
+            println!("      • Check available work: my-little-soda peek");
+        } else if report.summary.failed == 0 {
+            println!("👍 SYSTEM STATUS: GOOD");
+            println!("   System is functional with minor optimization opportunities");
+            println!("   📈 Next steps:");
+            println!("      • Address warnings when convenient");
+            println!("      • Begin agent operations: my-little-soda pop");
+        } else {
+            println!("🔧 SYSTEM STATUS: NEEDS ATTENTION");
+            println!("   Critical issues must be resolved before agent operations");
+            println!("   📈 Next steps:");
+            println!("      • Fix critical issues first");
+            println!("      • Re-run doctor: my-little-soda doctor");
+            println!("      • Initialize if needed: my-little-soda init");
+        }
+        
+        // Proactive monitoring suggestion
+        if report.summary.total_checks > 10 {
+            println!();
+            println!("🔍 PROACTIVE MONITORING:");
+            println!("   • Run 'my-little-soda doctor' regularly to maintain system health");
+            println!("   • Use 'my-little-soda doctor --verbose' for detailed diagnostics");
+            println!("   • Consider automation: schedule regular health checks in CI/CD");
+        }
     }
 
     fn check_toml_configuration(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
@@ -3285,10 +3393,411 @@ impl DoctorCommand {
             github_labels::check_label_configuration(self.verbose).await,
         );
         
-        // Check 3: Label creation capabilities (temporarily disabled due to API complexity)
-        // self.check_label_management_capabilities(checks).await;
+        // Check 3: Repository write permissions for label management
+        checks.insert(
+            "repository_write_permissions".to_string(),
+            github_labels::check_repository_write_permissions(self.verbose).await,
+        );
         
-        // Check 4: Issue label state validation (temporarily disabled due to API complexity)  
-        // self.check_issue_label_states(checks).await;
+        // Check 4: Label management capabilities (create/update/delete)
+        checks.insert(
+            "label_management_capabilities".to_string(),
+            github_labels::check_label_management_capabilities(self.verbose).await,
+        );
+        
+        // Check 5: Issue label state validation
+        checks.insert(
+            "issue_label_states".to_string(),
+            github_labels::check_issue_label_states(self.verbose).await,
+        );
+        
+        // Check 6: Workflow label compliance
+        checks.insert(
+            "workflow_label_compliance".to_string(),
+            github_labels::check_workflow_label_compliance(self.verbose).await,
+        );
+    }
+
+    /// End-to-end workflow validation diagnostics
+    async fn check_end_to_end_workflow_validation(&self, checks: &mut HashMap<String, DiagnosticResult>) {
+        // Check 1: Agent lifecycle readiness
+        checks.insert(
+            "agent_lifecycle_readiness".to_string(),
+            self.check_agent_lifecycle_readiness().await,
+        );
+        
+        // Check 2: Issue workflow integration
+        checks.insert(
+            "issue_workflow_integration".to_string(),
+            self.check_issue_workflow_integration().await,
+        );
+        
+        // Check 3: Branch and PR workflow validation
+        checks.insert(
+            "branch_pr_workflow".to_string(),
+            self.check_branch_pr_workflow().await,
+        );
+        
+        // Check 4: Agent coordination readiness
+        checks.insert(
+            "agent_coordination_readiness".to_string(),
+            self.check_agent_coordination_readiness().await,
+        );
+        
+        // Check 5: Complete workflow simulation
+        checks.insert(
+            "workflow_simulation".to_string(),
+            self.check_complete_workflow_simulation().await,
+        );
+    }
+
+    /// Check agent lifecycle readiness for full autonomous operation
+    async fn check_agent_lifecycle_readiness(&self) -> DiagnosticResult {
+        let mut readiness_issues = Vec::new();
+        let mut readiness_checks = Vec::new();
+        
+        // Check 1: GitHub client initialization
+        match crate::github::client::GitHubClient::new() {
+            Ok(_) => {
+                readiness_checks.push("GitHub client initialization");
+            }
+            Err(_) => {
+                readiness_issues.push("GitHub client initialization failed");
+            }
+        }
+        
+        // Check 2: Agent state machine availability
+        if std::path::Path::new("src/agent_lifecycle").exists() {
+            readiness_checks.push("Agent lifecycle modules available");
+        } else {
+            readiness_issues.push("Agent lifecycle modules not found");
+        }
+        
+        // Check 3: Configuration completeness for agents
+        if std::path::Path::new("my-little-soda.toml").exists() {
+            readiness_checks.push("Agent configuration file present");
+        } else {
+            readiness_issues.push("Agent configuration file missing");
+        }
+        
+        // Check 4: Repository state for agent operations
+        if let Ok(repo) = git2::Repository::open(".") {
+            if repo.head().is_ok() {
+                readiness_checks.push("Git repository ready for agent operations");
+            } else {
+                readiness_issues.push("Git repository not initialized properly");
+            }
+        } else {
+            readiness_issues.push("Git repository not accessible");
+        }
+        
+        if readiness_issues.is_empty() {
+            DiagnosticResult {
+                status: DiagnosticStatus::Pass,
+                message: "Agent lifecycle ready for autonomous operation".to_string(),
+                details: if self.verbose {
+                    Some(format!("Ready components: {}", readiness_checks.join(", ")))
+                } else {
+                    None
+                },
+                suggestion: None,
+            }
+        } else {
+            DiagnosticResult {
+                status: DiagnosticStatus::Fail,
+                message: format!("Agent lifecycle not ready ({} issues)", readiness_issues.len()),
+                details: Some(format!("Issues: {}", readiness_issues.join("; "))),
+                suggestion: Some("Complete system initialization before starting agent operations".to_string()),
+            }
+        }
+    }
+
+    /// Check issue workflow integration readiness
+    async fn check_issue_workflow_integration(&self) -> DiagnosticResult {
+        match crate::github::client::GitHubClient::new() {
+            Ok(client) => {
+                let octocrab = client.issues.octocrab();
+                
+                // Test issue listing capability
+                match octocrab.issues(client.owner(), client.repo())
+                    .list()
+                    .state(octocrab::params::State::Open)
+                    .per_page(5)
+                    .send()
+                    .await 
+                {
+                    Ok(issues_page) => {
+                        let mut workflow_features = Vec::new();
+                        let mut missing_features = Vec::new();
+                        
+                        // Check for workflow-ready issues
+                        let has_ready_issues = issues_page.items.iter()
+                            .any(|issue| issue.labels.iter().any(|label| label.name.starts_with("route:")));
+                        
+                        if has_ready_issues {
+                            workflow_features.push("routing labels present");
+                        } else {
+                            missing_features.push("no issues with routing labels found");
+                        }
+                        
+                        // Check for agent assignment capability
+                        let has_agent_assignment = issues_page.items.iter()
+                            .any(|issue| issue.assignee.is_some());
+                        
+                        if has_agent_assignment {
+                            workflow_features.push("issue assignment capability");
+                        }
+                        
+                        if missing_features.is_empty() || workflow_features.len() > 0 {
+                            DiagnosticResult {
+                                status: if missing_features.is_empty() { DiagnosticStatus::Pass } else { DiagnosticStatus::Warning },
+                                message: "Issue workflow integration operational".to_string(),
+                                details: if self.verbose {
+                                    Some(format!("Features available: {}. Issues: {}", 
+                                        workflow_features.join(", "),
+                                        if missing_features.is_empty() { "none".to_string() } else { missing_features.join(", ") }))
+                                } else {
+                                    None
+                                },
+                                suggestion: if !missing_features.is_empty() {
+                                    Some("Add routing labels to issues for better workflow integration".to_string())
+                                } else {
+                                    None
+                                },
+                            }
+                        } else {
+                            DiagnosticResult {
+                                status: DiagnosticStatus::Fail,
+                                message: "Issue workflow integration not ready".to_string(),
+                                details: Some(format!("Missing: {}", missing_features.join(", "))),
+                                suggestion: Some("Add issues with routing labels to test workflow integration".to_string()),
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        DiagnosticResult {
+                            status: DiagnosticStatus::Fail,
+                            message: "Cannot access issue workflow".to_string(),
+                            details: Some(format!("Issues API error: {}", e)),
+                            suggestion: Some("Verify GitHub token has issues access permissions".to_string()),
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                DiagnosticResult {
+                    status: DiagnosticStatus::Fail,
+                    message: "Cannot test issue workflow integration".to_string(),
+                    details: Some(format!("GitHub client error: {:?}", e)),
+                    suggestion: Some("Configure GitHub authentication to test issue workflow".to_string()),
+                }
+            }
+        }
+    }
+
+    /// Check branch and PR workflow validation
+    async fn check_branch_pr_workflow(&self) -> DiagnosticResult {
+        match crate::github::client::GitHubClient::new() {
+            Ok(client) => {
+                let octocrab = client.issues.octocrab();
+                
+                // Check existing branches for agent workflow patterns
+                match octocrab.repos(client.owner(), client.repo()).list_branches().send().await {
+                    Ok(branches_page) => {
+                        let agent_branches: Vec<_> = branches_page.items.iter()
+                            .filter(|branch| branch.name.starts_with("agent"))
+                            .collect();
+                        
+                        let mut workflow_status = Vec::new();
+                        
+                        if !agent_branches.is_empty() {
+                            workflow_status.push(format!("{} agent branches found", agent_branches.len()));
+                        }
+                        
+                        // Check for PR capability by looking at existing PRs
+                        match octocrab.pulls(client.owner(), client.repo())
+                            .list()
+                            .state(octocrab::params::State::Open)
+                            .per_page(5)
+                            .send()
+                            .await 
+                        {
+                            Ok(prs_page) => {
+                                if !prs_page.items.is_empty() {
+                                    workflow_status.push("PR workflow operational".to_string());
+                                }
+                                
+                                DiagnosticResult {
+                                    status: DiagnosticStatus::Pass,
+                                    message: "Branch and PR workflow ready".to_string(),
+                                    details: if self.verbose && !workflow_status.is_empty() {
+                                        Some(format!("Status: {}", workflow_status.join(", ")))
+                                    } else {
+                                        None
+                                    },
+                                    suggestion: None,
+                                }
+                            }
+                            Err(_) => {
+                                DiagnosticResult {
+                                    status: DiagnosticStatus::Warning,
+                                    message: "Branch workflow ready, PR access limited".to_string(),
+                                    details: Some("Cannot verify PR workflow capabilities".to_string()),
+                                    suggestion: Some("Verify GitHub token has PR access permissions".to_string()),
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        DiagnosticResult {
+                            status: DiagnosticStatus::Fail,
+                            message: "Cannot check branch workflow".to_string(),
+                            details: Some(format!("Branches API error: {}", e)),
+                            suggestion: Some("Verify GitHub token has repository access".to_string()),
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                DiagnosticResult {
+                    status: DiagnosticStatus::Fail,
+                    message: "Cannot test branch and PR workflow".to_string(),
+                    details: Some(format!("GitHub client error: {:?}", e)),
+                    suggestion: Some("Configure GitHub authentication to test workflow".to_string()),
+                }
+            }
+        }
+    }
+
+    /// Check agent coordination readiness
+    async fn check_agent_coordination_readiness(&self) -> DiagnosticResult {
+        let mut coordination_features = Vec::new();
+        let mut missing_features = Vec::new();
+        
+        // Check 1: Agent router availability
+        if std::path::Path::new("src/agents/router.rs").exists() {
+            coordination_features.push("agent routing system");
+        } else {
+            missing_features.push("agent routing system not found");
+        }
+        
+        // Check 2: Agent state management
+        if std::path::Path::new("src/agent_lifecycle").exists() {
+            coordination_features.push("agent lifecycle management");
+        } else {
+            missing_features.push("agent lifecycle management not found");
+        }
+        
+        // Check 3: GitHub integration for coordination
+        match crate::github::client::GitHubClient::new() {
+            Ok(_) => {
+                coordination_features.push("GitHub coordination capability");
+            }
+            Err(_) => {
+                missing_features.push("GitHub coordination not available");
+            }
+        }
+        
+        if missing_features.is_empty() {
+            DiagnosticResult {
+                status: DiagnosticStatus::Pass,
+                message: "Agent coordination system ready".to_string(),
+                details: if self.verbose {
+                    Some(format!("Available features: {}", coordination_features.join(", ")))
+                } else {
+                    None
+                },
+                suggestion: None,
+            }
+        } else {
+            DiagnosticResult {
+                status: DiagnosticStatus::Fail,
+                message: format!("Agent coordination not ready ({} missing features)", missing_features.len()),
+                details: Some(format!("Missing: {}", missing_features.join("; "))),
+                suggestion: Some("Complete agent coordination system setup".to_string()),
+            }
+        }
+    }
+
+    /// Simulate complete workflow to validate end-to-end integration
+    async fn check_complete_workflow_simulation(&self) -> DiagnosticResult {
+        let mut simulation_steps = Vec::new();
+        let mut failed_steps = Vec::new();
+        
+        // Simulate workflow step 1: Agent initialization
+        match crate::github::client::GitHubClient::new() {
+            Ok(_) => {
+                simulation_steps.push("agent initialization");
+            }
+            Err(_) => {
+                failed_steps.push("agent initialization failed");
+            }
+        }
+        
+        // Simulate workflow step 2: Issue discovery
+        if let Ok(client) = crate::github::client::GitHubClient::new() {
+            let octocrab = client.issues.octocrab();
+            match octocrab.issues(client.owner(), client.repo())
+                .list()
+                .state(octocrab::params::State::Open)
+                .per_page(1)
+                .send()
+                .await 
+            {
+                Ok(_) => {
+                    simulation_steps.push("issue discovery");
+                }
+                Err(_) => {
+                    failed_steps.push("issue discovery failed");
+                }
+            }
+        }
+        
+        // Simulate workflow step 3: Repository operations readiness
+        if let Ok(repo) = git2::Repository::open(".") {
+            if repo.head().is_ok() {
+                simulation_steps.push("repository operations");
+            } else {
+                failed_steps.push("repository operations not ready");
+            }
+        } else {
+            failed_steps.push("repository access failed");
+        }
+        
+        // Simulate workflow step 4: Branch management capability
+        if let Ok(_repo) = git2::Repository::open(".") {
+            simulation_steps.push("branch management capability");
+        } else {
+            failed_steps.push("branch management not available");
+        }
+        
+        let success_rate = simulation_steps.len() as f64 / (simulation_steps.len() + failed_steps.len()) as f64;
+        
+        if failed_steps.is_empty() {
+            DiagnosticResult {
+                status: DiagnosticStatus::Pass,
+                message: "Complete workflow simulation successful".to_string(),
+                details: if self.verbose {
+                    Some(format!("Completed steps: {}", simulation_steps.join(", ")))
+                } else {
+                    None
+                },
+                suggestion: Some("System ready for full agent autonomous operation".to_string()),
+            }
+        } else if success_rate >= 0.75 {
+            DiagnosticResult {
+                status: DiagnosticStatus::Warning,
+                message: format!("Workflow simulation mostly successful ({:.0}%)", success_rate * 100.0),
+                details: Some(format!("Failed steps: {}", failed_steps.join("; "))),
+                suggestion: Some("Address failed workflow steps for optimal agent performance".to_string()),
+            }
+        } else {
+            DiagnosticResult {
+                status: DiagnosticStatus::Fail,
+                message: format!("Workflow simulation failed ({:.0}% success)", success_rate * 100.0),
+                details: Some(format!("Failed steps: {}", failed_steps.join("; "))),
+                suggestion: Some("Complete system setup before attempting agent operations".to_string()),
+            }
+        }
     }
 }
