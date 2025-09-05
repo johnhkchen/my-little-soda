@@ -1,5 +1,9 @@
 # My Little Soda
 
+[![Development Status](https://img.shields.io/badge/status-early%20alpha-orange)](https://github.com/johnhkchen/my-little-soda)
+[![Stability](https://img.shields.io/badge/stability-experimental-red)](https://github.com/johnhkchen/my-little-soda)
+[![License](https://img.shields.io/badge/license-open%20source-blue)](LICENSE)
+
 **Autonomous coding agents for multiple repositories simultaneously.**
 
 Run one Claude Code agent per repository to multiply development capacity. Agents work unattended on GitHub issues while you focus on high-level tasks.
