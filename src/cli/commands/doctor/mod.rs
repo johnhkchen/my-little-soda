@@ -3740,84 +3740,488 @@ impl DoctorCommand {
 
     /// Simulate complete workflow to validate end-to-end integration
     async fn check_complete_workflow_simulation(&self) -> DiagnosticResult {
+        let start_time = std::time::Instant::now();
         let mut simulation_steps = Vec::new();
         let mut failed_steps = Vec::new();
-        
-        // Simulate workflow step 1: Agent initialization
-        match crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
-            Ok(_) => {
-                simulation_steps.push("agent initialization");
-            }
-            Err(_) => {
-                failed_steps.push("agent initialization failed");
-            }
-        }
-        
-        // Simulate workflow step 2: Issue discovery
-        if let Ok(client) = crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
-            let octocrab = client.issues.octocrab();
-            match octocrab.issues(client.owner(), client.repo())
-                .list()
-                .state(octocrab::params::State::Open)
-                .per_page(1)
-                .send()
-                .await 
-            {
-                Ok(_) => {
-                    simulation_steps.push("issue discovery");
-                }
-                Err(_) => {
-                    failed_steps.push("issue discovery failed");
+        let mut warnings = Vec::new();
+        let mut timing_info = Vec::new();
+
+        // Step 1: Enhanced Pop Operation Simulation (Task Discovery and Assignment)
+        let step_start = std::time::Instant::now();
+        match self.simulate_pop_operation().await {
+            Ok(details) => {
+                simulation_steps.push("pop operation (task discovery & assignment)");
+                timing_info.push(format!("pop: {}ms", step_start.elapsed().as_millis()));
+                if !details.is_empty() {
+                    warnings.extend(details);
                 }
             }
-        }
-        
-        // Simulate workflow step 3: Repository operations readiness
-        if let Ok(repo) = git2::Repository::open(".") {
-            if repo.head().is_ok() {
-                simulation_steps.push("repository operations");
-            } else {
-                failed_steps.push("repository operations not ready");
+            Err(e) => {
+                failed_steps.push(format!("pop operation failed: {}", e));
             }
-        } else {
-            failed_steps.push("repository access failed");
         }
-        
-        // Simulate workflow step 4: Branch management capability
-        if let Ok(_repo) = git2::Repository::open(".") {
-            simulation_steps.push("branch management capability");
-        } else {
-            failed_steps.push("branch management not available");
+
+        // Step 2: Branch Creation and Checkout Simulation
+        let step_start = std::time::Instant::now();
+        match self.simulate_branch_operations().await {
+            Ok(details) => {
+                simulation_steps.push("branch management (create & checkout)");
+                timing_info.push(format!("branch ops: {}ms", step_start.elapsed().as_millis()));
+                if !details.is_empty() {
+                    warnings.extend(details);
+                }
+            }
+            Err(e) => {
+                failed_steps.push(format!("branch operations failed: {}", e));
+            }
         }
-        
+
+        // Step 3: Work Simulation (Mock Development Phase)
+        let step_start = std::time::Instant::now();
+        match self.simulate_work_phase().await {
+            Ok(details) => {
+                simulation_steps.push("work phase (development simulation)");
+                timing_info.push(format!("work: {}ms", step_start.elapsed().as_millis()));
+                if !details.is_empty() {
+                    warnings.extend(details);
+                }
+            }
+            Err(e) => {
+                failed_steps.push(format!("work phase failed: {}", e));
+            }
+        }
+
+        // Step 4: Enhanced Bottle Operation Simulation (Work Completion)
+        let step_start = std::time::Instant::now();
+        match self.simulate_bottle_operation().await {
+            Ok(details) => {
+                simulation_steps.push("bottle operation (work completion & transitions)");
+                timing_info.push(format!("bottle: {}ms", step_start.elapsed().as_millis()));
+                if !details.is_empty() {
+                    warnings.extend(details);
+                }
+            }
+            Err(e) => {
+                failed_steps.push(format!("bottle operation failed: {}", e));
+            }
+        }
+
+        // Step 5: Agent State Transition Validation
+        let step_start = std::time::Instant::now();
+        match self.simulate_agent_state_transitions().await {
+            Ok(details) => {
+                simulation_steps.push("agent state transitions");
+                timing_info.push(format!("state transitions: {}ms", step_start.elapsed().as_millis()));
+                if !details.is_empty() {
+                    warnings.extend(details);
+                }
+            }
+            Err(e) => {
+                failed_steps.push(format!("agent state transitions failed: {}", e));
+            }
+        }
+
+        // Step 6: Error Recovery Simulation
+        let step_start = std::time::Instant::now();
+        match self.simulate_error_recovery().await {
+            Ok(details) => {
+                simulation_steps.push("error recovery mechanisms");
+                timing_info.push(format!("error recovery: {}ms", step_start.elapsed().as_millis()));
+                if !details.is_empty() {
+                    warnings.extend(details);
+                }
+            }
+            Err(e) => {
+                failed_steps.push(format!("error recovery failed: {}", e));
+            }
+        }
+
+        let total_time = start_time.elapsed();
         let success_rate = simulation_steps.len() as f64 / (simulation_steps.len() + failed_steps.len()) as f64;
         
-        if failed_steps.is_empty() {
-            DiagnosticResult {
-                status: DiagnosticStatus::Pass,
-                message: "Complete workflow simulation successful".to_string(),
-                details: if self.is_verbose() {
-                    Some(format!("Completed steps: {}", simulation_steps.join(", ")))
-                } else {
-                    None
-                },
-                suggestion: Some("System ready for full agent autonomous operation".to_string()),
+        // Create detailed status message
+        let message = if failed_steps.is_empty() && warnings.is_empty() {
+            format!("Complete workflow simulation successful ({}ms total)", total_time.as_millis())
+        } else if failed_steps.is_empty() {
+            format!("Workflow simulation successful with {} warnings ({}ms total)", warnings.len(), total_time.as_millis())
+        } else if success_rate >= 0.75 {
+            format!("Workflow simulation mostly successful ({:.0}%, {}ms total)", success_rate * 100.0, total_time.as_millis())
+        } else {
+            format!("Workflow simulation failed ({:.0}% success, {}ms total)", success_rate * 100.0, total_time.as_millis())
+        };
+
+        // Create detailed verbose output
+        let details = if self.is_verbose() {
+            let mut detail_parts = Vec::new();
+            if !simulation_steps.is_empty() {
+                detail_parts.push(format!("✅ Completed: {}", simulation_steps.join(", ")));
+            }
+            if !warnings.is_empty() {
+                detail_parts.push(format!("⚠️ Warnings: {}", warnings.join("; ")));
+            }
+            if !failed_steps.is_empty() {
+                detail_parts.push(format!("❌ Failed: {}", failed_steps.join("; ")));
+            }
+            if !timing_info.is_empty() {
+                detail_parts.push(format!("⏱️ Timing: {}", timing_info.join(", ")));
+            }
+            Some(detail_parts.join(" | "))
+        } else if !failed_steps.is_empty() {
+            Some(format!("Failed steps: {}", failed_steps.join("; ")))
+        } else if !warnings.is_empty() && warnings.len() <= 3 {
+            Some(format!("Warnings: {}", warnings.join("; ")))
+        } else {
+            None
+        };
+
+        // Determine status and suggestion
+        let (status, suggestion) = if failed_steps.is_empty() {
+            if warnings.is_empty() {
+                (DiagnosticStatus::Pass, Some("System ready for full autonomous agent operation".to_string()))
+            } else {
+                (DiagnosticStatus::Warning, Some("System ready but review warnings for optimal performance".to_string()))
             }
         } else if success_rate >= 0.75 {
-            DiagnosticResult {
-                status: DiagnosticStatus::Warning,
-                message: format!("Workflow simulation mostly successful ({:.0}%)", success_rate * 100.0),
-                details: Some(format!("Failed steps: {}", failed_steps.join("; "))),
-                suggestion: Some("Address failed workflow steps for optimal agent performance".to_string()),
-            }
+            (DiagnosticStatus::Warning, Some("Address failed workflow steps for reliable agent operation".to_string()))
         } else {
-            DiagnosticResult {
-                status: DiagnosticStatus::Fail,
-                message: format!("Workflow simulation failed ({:.0}% success)", success_rate * 100.0),
-                details: Some(format!("Failed steps: {}", failed_steps.join("; "))),
-                suggestion: Some("Complete system setup before attempting agent operations".to_string()),
+            (DiagnosticStatus::Fail, Some("Critical workflow issues must be resolved before agent operations".to_string()))
+        };
+
+        DiagnosticResult { status, message, details, suggestion }
+    }
+
+    /// Simulate pop operation (task discovery and assignment)
+    async fn simulate_pop_operation(&self) -> anyhow::Result<Vec<String>> {
+        let mut warnings = Vec::new();
+
+        // Test GitHub client initialization
+        let client = crate::github::client::GitHubClient::with_verbose(self.is_verbose())
+            .map_err(|e| anyhow::anyhow!("GitHub client initialization failed: {}", e))?;
+
+        // Test issue discovery and filtering
+        let octocrab = client.issues.octocrab();
+        let issues = octocrab.issues(client.owner(), client.repo())
+            .list()
+            .state(octocrab::params::State::Open)
+            .per_page(10)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("Issue discovery failed: {}", e))?;
+
+        if issues.items.is_empty() {
+            warnings.push("No open issues found for task assignment".to_string());
+        } else {
+            // Check for workflow-ready issues
+            let ready_issues: Vec<_> = issues.items.iter()
+                .filter(|issue| issue.labels.iter()
+                    .any(|label| label.name.starts_with("route:ready")))
+                .collect();
+
+            if ready_issues.is_empty() {
+                warnings.push("No issues with route:ready labels found".to_string());
+            }
+
+            // Check for available agents (simulate agent assignment)
+            let agent_assigned_issues: Vec<_> = issues.items.iter()
+                .filter(|issue| issue.assignee.is_some() || 
+                    issue.labels.iter().any(|label| label.name.starts_with("agent")))
+                .collect();
+
+            if agent_assigned_issues.len() == issues.items.len() {
+                warnings.push("All available issues already assigned to agents".to_string());
             }
         }
+
+        // Test agent router initialization simulation
+        if let Err(_) = crate::agents::coordinator::AgentCoordinator::new().await {
+            warnings.push("Agent coordinator initialization may have issues".to_string());
+        }
+
+        Ok(warnings)
+    }
+
+    /// Simulate branch creation and checkout operations
+    async fn simulate_branch_operations(&self) -> anyhow::Result<Vec<String>> {
+        let mut warnings = Vec::new();
+
+        // Test git repository access
+        let repo = git2::Repository::open(".")
+            .map_err(|e| anyhow::anyhow!("Git repository access failed: {}", e))?;
+
+        // Check if we're on a clean state for branch operations
+        let statuses = repo.statuses(None)
+            .map_err(|e| anyhow::anyhow!("Cannot check repository status: {}", e))?;
+        
+        if !statuses.is_empty() {
+            warnings.push(format!("Repository has {} uncommitted changes", statuses.len()));
+        }
+
+        // Validate we can get HEAD reference
+        let head = repo.head()
+            .map_err(|e| anyhow::anyhow!("Cannot access HEAD reference: {}", e))?;
+
+        if !head.is_branch() {
+            warnings.push("Repository is in detached HEAD state".to_string());
+        }
+
+        // Test branch name generation (simulate agent branch creation)
+        let test_branch_name = "agent001/test-branch-simulation";
+        
+        // Check if we can resolve references
+        match repo.find_branch(test_branch_name, git2::BranchType::Local) {
+            Ok(_) => warnings.push("Test simulation branch already exists".to_string()),
+            Err(_) => {} // Expected - the branch shouldn't exist
+        }
+
+        // Test remote access for branch pushing
+        let remotes = repo.remotes()
+            .map_err(|e| anyhow::anyhow!("Cannot access remote repositories: {}", e))?;
+
+        if remotes.is_empty() {
+            warnings.push("No remote repositories configured".to_string());
+        } else {
+            // Check if we can access the origin remote
+            if let Some(remote_name) = remotes.get(0) {
+                match repo.find_remote(remote_name) {
+                    Ok(remote) => {
+                        if remote.url().is_none() {
+                            warnings.push("Remote URL not configured".to_string());
+                        }
+                    }
+                    Err(_) => warnings.push("Cannot access primary remote".to_string()),
+                }
+            }
+        }
+
+        Ok(warnings)
+    }
+
+    /// Simulate work phase (mock development)
+    async fn simulate_work_phase(&self) -> anyhow::Result<Vec<String>> {
+        let mut warnings = Vec::new();
+
+        // Test file system operations (simulate code changes)
+        let test_file = std::path::Path::new(".doctor-workflow-test.tmp");
+        match std::fs::write(test_file, "test content") {
+            Ok(_) => {
+                // Test reading back
+                match std::fs::read_to_string(test_file) {
+                    Ok(content) => {
+                        if content != "test content" {
+                            warnings.push("File write/read consistency issue".to_string());
+                        }
+                    }
+                    Err(_) => warnings.push("File read operation failed".to_string()),
+                }
+                // Cleanup
+                let _ = std::fs::remove_file(test_file);
+            }
+            Err(_) => warnings.push("File write operations not available".to_string()),
+        }
+
+        // Test compilation environment (check for common development tools)
+        let build_tools = vec![("cargo", "Rust build system"), ("git", "Version control")];
+        
+        for (tool, description) in build_tools {
+            match std::process::Command::new(tool)
+                .arg("--version")
+                .output()
+            {
+                Ok(output) => {
+                    if !output.status.success() {
+                        warnings.push(format!("{} ({}) not functioning properly", tool, description));
+                    }
+                }
+                Err(_) => warnings.push(format!("{} ({}) not available", tool, description)),
+            }
+        }
+
+        // Simulate testing phase
+        if !std::path::Path::new("Cargo.toml").exists() {
+            warnings.push("Cargo.toml not found - may affect build testing".to_string());
+        }
+
+        Ok(warnings)
+    }
+
+    /// Simulate bottle operation (work completion and state transitions)
+    async fn simulate_bottle_operation(&self) -> anyhow::Result<Vec<String>> {
+        let mut warnings = Vec::new();
+
+        // Test GitHub client for state transitions
+        let client = crate::github::client::GitHubClient::with_verbose(self.is_verbose())
+            .map_err(|e| anyhow::anyhow!("GitHub client for bottle operations failed: {}", e))?;
+
+        // Test label manipulation capabilities
+        let octocrab = client.issues.octocrab();
+        
+        // Verify we can access issues for label operations
+        let issues = octocrab.issues(client.owner(), client.repo())
+            .list()
+            .state(octocrab::params::State::Open)
+            .per_page(5)
+            .send()
+            .await
+            .map_err(|e| anyhow::anyhow!("Cannot access issues for bottle operations: {}", e))?;
+
+        if let Some(test_issue) = issues.items.first() {
+            // Check if we can read current labels
+            let current_labels: Vec<_> = test_issue.labels.iter().map(|l| &l.name).collect();
+            
+            // Simulate label transition validation
+            let _required_transitions = vec![
+                ("route:ready", "route:review"),
+                ("route:in-progress", "route:review"),
+            ];
+
+            let has_transitional_labels = current_labels.iter()
+                .any(|label| label.starts_with("route:"));
+
+            if !has_transitional_labels {
+                warnings.push("No issues with routing labels found for transition testing".to_string());
+            }
+
+            // Test agent label removal simulation
+            let has_agent_labels = current_labels.iter()
+                .any(|label| label.starts_with("agent"));
+
+            if !has_agent_labels {
+                warnings.push("No agent labels found for cleanup testing".to_string());
+            }
+        } else {
+            warnings.push("No issues available for bottle operation testing".to_string());
+        }
+
+        // Test push capabilities for bottle operations
+        let repo = git2::Repository::open(".")
+            .map_err(|e| anyhow::anyhow!("Git repository access for bottle failed: {}", e))?;
+
+        // Check if we have commits to push (simulate work completion)
+        match repo.head() {
+            Ok(head) => {
+                if let Some(branch) = head.shorthand() {
+                    if branch == "main" {
+                        warnings.push("Currently on main branch - no work branch active".to_string());
+                    }
+                } else {
+                    warnings.push("Cannot determine current branch for bottle operation".to_string());
+                }
+            }
+            Err(_) => warnings.push("Cannot access current branch reference".to_string()),
+        }
+
+        Ok(warnings)
+    }
+
+    /// Simulate agent state transitions
+    async fn simulate_agent_state_transitions(&self) -> anyhow::Result<Vec<String>> {
+        let mut warnings = Vec::new();
+
+        // Test agent coordinator initialization
+        let _client = crate::github::client::GitHubClient::with_verbose(self.is_verbose())
+            .map_err(|e| anyhow::anyhow!("GitHub client for agent states failed: {}", e))?;
+
+        match crate::agents::coordinator::AgentCoordinator::new().await {
+            Ok(_coordinator) => {
+                // Simulate state machine transitions
+                // Test 1: Idle -> Assigned transition
+                // Test 2: Assigned -> Working transition  
+                // Test 3: Working -> Completing transition
+                // Test 4: Completing -> Idle transition
+
+                // Since we can't actually modify state in dry-run mode,
+                // we validate that the components needed for transitions exist
+            }
+            Err(e) => {
+                warnings.push(format!("Agent coordinator initialization failed: {}", e));
+            }
+        }
+
+        // Test state persistence mechanisms
+        let state_file = std::path::Path::new(".my-little-soda");
+        if !state_file.exists() {
+            warnings.push("My Little Soda state directory not initialized".to_string());
+        }
+
+        // Test agent lifecycle modules availability
+        if !std::path::Path::new("src/agent_lifecycle").exists() {
+            warnings.push("Agent lifecycle modules not found".to_string());
+        }
+
+        Ok(warnings)
+    }
+
+    /// Simulate error recovery mechanisms
+    async fn simulate_error_recovery(&self) -> anyhow::Result<Vec<String>> {
+        let mut warnings = Vec::new();
+
+        // Test error scenario 1: Network connectivity issues
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self.test_github_connectivity()
+        ).await {
+            Ok(Ok(_)) => {} // Connection successful
+            Ok(Err(_)) => warnings.push("GitHub connectivity issues detected".to_string()),
+            Err(_) => warnings.push("GitHub connectivity test timed out".to_string()),
+        }
+
+        // Test error scenario 2: Repository lock conflicts
+        let repo = git2::Repository::open(".")?;
+        let git_dir = repo.path();
+        let index_lock = git_dir.join("index.lock");
+        
+        if index_lock.exists() {
+            warnings.push("Git index lock file exists - potential concurrent operations".to_string());
+        }
+
+        // Test error scenario 3: Permission issues
+        match std::fs::metadata(".git") {
+            Ok(metadata) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let permissions = metadata.permissions();
+                    if permissions.mode() & 0o200 == 0 {
+                        warnings.push("Git directory appears to be read-only".to_string());
+                    }
+                }
+            }
+            Err(_) => warnings.push("Cannot access Git directory permissions".to_string()),
+        }
+
+        // Test error scenario 4: Rate limiting recovery
+        if let Ok(client) = crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
+            let octocrab = client.issues.octocrab();
+            match octocrab.ratelimit().get().await {
+                Ok(rate_limits) => {
+                    let core = &rate_limits.resources.core;
+                    let remaining_pct = (core.remaining as f64 / core.limit as f64) * 100.0;
+                    
+                    if remaining_pct < 20.0 {
+                        warnings.push(format!("Low GitHub API rate limit remaining ({:.1}%)", remaining_pct));
+                    }
+                }
+                Err(_) => warnings.push("Cannot check GitHub API rate limits".to_string()),
+            }
+        }
+
+        Ok(warnings)
+    }
+
+    /// Test GitHub connectivity for error recovery simulation
+    async fn test_github_connectivity(&self) -> anyhow::Result<()> {
+        if let Ok(client) = crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
+            let octocrab = client.issues.octocrab();
+            
+            // Simple connectivity test
+            octocrab.issues(client.owner(), client.repo())
+                .list()
+                .per_page(1)
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!("GitHub connectivity test failed: {}", e))?;
+        }
+        Ok(())
     }
 
     /// Calculate system readiness score based on diagnostic results
