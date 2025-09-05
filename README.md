@@ -26,13 +26,31 @@
 
 ## Setup
 
+**Prerequisites:**
+- GitHub personal access token with repo permissions
+
+**Installation:**
 ```bash
+# Build the binary
+cargo build --release
+
+# Set up GitHub authentication
+export MY_LITTLE_SODA_GITHUB_TOKEN=your_github_token_here
+
+# Initialize in your repository
+./target/release/my-little-soda init
+```
+
+**For development:**
+```bash
+# Alternative: Install globally
 cargo install --path .
-my-little-soda init
+# Then use: my-little-soda init
 ```
 
 ## Commands
 
+**Core workflow:**
 ```bash
 my-little-soda init      # Initialize repository
 my-little-soda peek      # Preview available issues  
@@ -40,6 +58,8 @@ my-little-soda pop       # Claim and start work on issue
 my-little-soda bottle    # Bundle completed work for review
 my-little-soda status    # Check agent status
 ```
+
+Run `my-little-soda --help` to see all available commands.
 
 ## Development
 
