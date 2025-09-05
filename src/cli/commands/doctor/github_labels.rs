@@ -89,7 +89,7 @@ pub fn get_required_labels() -> Vec<LabelSpec> {
 
 /// Check for existence of required routing labels (basic implementation)
 pub async fn check_required_labels_existence(verbose: bool) -> DiagnosticResult {
-    match crate::github::client::GitHubClient::new() {
+    match crate::github::client::GitHubClient::with_verbose(verbose) {
         Ok(client) => {
             let required_labels = get_required_labels();
             let octocrab = client.issues.octocrab();
@@ -150,7 +150,7 @@ pub async fn check_required_labels_existence(verbose: bool) -> DiagnosticResult 
 
 /// Validate existing label configuration matches requirements (basic implementation)
 pub async fn check_label_configuration(verbose: bool) -> DiagnosticResult {
-    match crate::github::client::GitHubClient::new() {
+    match crate::github::client::GitHubClient::with_verbose(verbose) {
         Ok(client) => {
             let required_labels = get_required_labels();
             let octocrab = client.issues.octocrab();
@@ -230,7 +230,7 @@ pub async fn check_label_configuration(verbose: bool) -> DiagnosticResult {
 
 /// Test label management capabilities (create/update/delete)
 pub async fn check_label_management_capabilities(verbose: bool) -> DiagnosticResult {
-    match crate::github::client::GitHubClient::new() {
+    match crate::github::client::GitHubClient::with_verbose(verbose) {
         Ok(client) => {
             let octocrab = client.issues.octocrab();
             let test_label_name = format!("test-label-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs());
@@ -329,7 +329,7 @@ pub async fn check_label_management_capabilities(verbose: bool) -> DiagnosticRes
 
 /// Validate repository write permissions for label management
 pub async fn check_repository_write_permissions(verbose: bool) -> DiagnosticResult {
-    match crate::github::client::GitHubClient::new() {
+    match crate::github::client::GitHubClient::with_verbose(verbose) {
         Ok(client) => {
             let octocrab = client.issues.octocrab();
             
@@ -387,7 +387,7 @@ pub async fn check_repository_write_permissions(verbose: bool) -> DiagnosticResu
 
 /// Validate issue label states for routing workflow compliance
 pub async fn check_issue_label_states(verbose: bool) -> DiagnosticResult {
-    match crate::github::client::GitHubClient::new() {
+    match crate::github::client::GitHubClient::with_verbose(verbose) {
         Ok(client) => {
             let octocrab = client.issues.octocrab();
             
@@ -503,7 +503,7 @@ pub async fn check_issue_label_states(verbose: bool) -> DiagnosticResult {
 
 /// Check for workflow compliance and label consistency
 pub async fn check_workflow_label_compliance(verbose: bool) -> DiagnosticResult {
-    match crate::github::client::GitHubClient::new() {
+    match crate::github::client::GitHubClient::with_verbose(verbose) {
         Ok(client) => {
             let octocrab = client.issues.octocrab();
             

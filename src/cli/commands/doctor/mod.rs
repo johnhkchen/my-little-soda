@@ -50,6 +50,8 @@ pub enum DiagnosticStatus {
 pub struct DiagnosticReport {
     pub summary: DiagnosticSummary,
     pub checks: HashMap<String, DiagnosticResult>,
+    pub readiness: SystemReadiness,
+    pub recommendations: Vec<ActionableRecommendation>,
 }
 
 /// Summary of diagnostic results
@@ -60,6 +62,42 @@ pub struct DiagnosticSummary {
     pub failed: usize,
     pub warnings: usize,
     pub info: usize,
+}
+
+/// System readiness assessment
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SystemReadiness {
+    pub score: u8,
+    pub status: ReadinessStatus,
+    pub description: String,
+}
+
+/// Overall system readiness status
+#[derive(Debug, Serialize, Deserialize)]
+pub enum ReadinessStatus {
+    Ready,
+    PartiallyReady,
+    NotReady,
+}
+
+/// Actionable recommendation for fixing issues
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ActionableRecommendation {
+    pub priority: RecommendationPriority,
+    pub category: String,
+    pub title: String,
+    pub description: String,
+    pub steps: Vec<String>,
+    pub links: Vec<String>,
+}
+
+/// Priority level for recommendations
+#[derive(Debug, Serialize, Deserialize)]
+pub enum RecommendationPriority {
+    Critical,
+    High,
+    Medium,
+    Low,
 }
 
 impl DoctorCommand {
@@ -127,7 +165,18 @@ impl DoctorCommand {
         // Calculate summary
         let summary = self.calculate_summary(&checks);
         
-        Ok(DiagnosticReport { summary, checks })
+        // Calculate system readiness
+        let readiness = self.calculate_readiness(&summary, &checks);
+        
+        // Generate actionable recommendations
+        let recommendations = self.generate_recommendations(&checks);
+        
+        Ok(DiagnosticReport { 
+            summary, 
+            checks, 
+            readiness, 
+            recommendations 
+        })
     }
 
     fn check_git_repository(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
@@ -142,7 +191,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Pass,
                         message: "Git repository detected".to_string(),
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(format!(
                                 "Git directory: {}, Working directory: {}", 
                                 git_dir.display(),
@@ -185,7 +234,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Fail,
                         message,
-                        details: if self.verbose { Some(e.message().to_string()) } else { None },
+                        details: if self.is_verbose() { Some(e.message().to_string()) } else { None },
                         suggestion,
                     },
                 );
@@ -215,7 +264,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Pass,
                         message: "Git origin remote found".to_string(),
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(format!("Origin URL: {}", url))
                         } else {
                             None
@@ -235,7 +284,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Fail,
                         message: "Git origin remote not found".to_string(),
-                        details: if self.verbose { Some(e.message().to_string()) } else { None },
+                        details: if self.is_verbose() { Some(e.message().to_string()) } else { None },
                         suggestion: Some(suggestion.to_string()),
                     },
                 );
@@ -263,7 +312,7 @@ impl DoctorCommand {
                                 DiagnosticResult {
                                     status: DiagnosticStatus::Pass,
                                     message: "Git remote matches GitHub configuration".to_string(),
-                                    details: if self.verbose {
+                                    details: if self.is_verbose() {
                                         Some(format!("Remote URL '{}' matches configured repository {}/{}", 
                                                url, cfg.github.owner, cfg.github.repo))
                                     } else {
@@ -348,7 +397,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status,
                         message: format!("Current branch: {}", current_branch),
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(format!(
                                 "Main branch available: {}, Master branch available: {}", 
                                 has_main, has_master
@@ -370,7 +419,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Fail,
                         message: "Cannot determine current branch".to_string(),
-                        details: if self.verbose { Some(e.message().to_string()) } else { None },
+                        details: if self.is_verbose() { Some(e.message().to_string()) } else { None },
                         suggestion: Some("Check repository integrity and branch setup".to_string()),
                     },
                 );
@@ -430,7 +479,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status,
                         message,
-                        details: if self.verbose && total_changes > 0 {
+                        details: if self.is_verbose() && total_changes > 0 {
                             let mut details = Vec::new();
                             if !modified_files.is_empty() {
                                 details.push(format!("Modified: {}", modified_files.len()));
@@ -455,7 +504,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Warning,
                         message: "Cannot check working directory status".to_string(),
-                        details: if self.verbose { Some(e.message().to_string()) } else { None },
+                        details: if self.is_verbose() { Some(e.message().to_string()) } else { None },
                         suggestion: Some("Check repository integrity".to_string()),
                     },
                 );
@@ -508,7 +557,7 @@ impl DoctorCommand {
             (DiagnosticStatus::Pass, "Git user configuration is complete".to_string())
         };
         
-        let details = if self.verbose || !issues.is_empty() || !warnings.is_empty() {
+        let details = if self.is_verbose() || !issues.is_empty() || !warnings.is_empty() {
             let mut all_details = Vec::new();
             if let Some(name) = user_name {
                 all_details.push(format!("user.name: {}", name));
@@ -600,7 +649,7 @@ impl DoctorCommand {
                 } else {
                     format!("Git operations issues detected ({} failed)", operations_failed.len())
                 },
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     let mut details = operations_tested;
                     details.extend(operations_failed.iter().map(|f| format!("❌ {}", f)));
                     Some(details.join("; "))
@@ -686,7 +735,7 @@ impl DoctorCommand {
                 } else {
                     format!("Repository has {} My Little Soda compatibility issues", requirements_failed.len())
                 },
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     let mut details = requirements_met;
                     details.extend(requirements_failed.iter().map(|f| format!("❌ {}", f)));
                     Some(details.join("; "))
@@ -712,7 +761,7 @@ impl DoctorCommand {
                 DiagnosticResult {
                     status: DiagnosticStatus::Pass,
                     message: "My Little Soda configuration found".to_string(),
-                    details: if self.verbose {
+                    details: if self.is_verbose() {
                         Some(".my-little-soda directory exists".to_string())
                     } else {
                         None
@@ -777,7 +826,7 @@ impl DoctorCommand {
                         DiagnosticResult {
                             status,
                             message: format!("Rust toolchain available ({})", version),
-                            details: if self.verbose {
+                            details: if self.is_verbose() {
                                 Some(version_str.trim().to_string())
                             } else {
                                 None
@@ -854,7 +903,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status,
                         message: "Cargo is available and functional".to_string(),
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(version_str.trim().to_string())
                         } else {
                             None
@@ -905,7 +954,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status,
                         message: "Git is available".to_string(),
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(version_str.trim().to_string())
                         } else {
                             None
@@ -971,7 +1020,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status,
                         message,
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(first_line.to_string())
                         } else {
                             None
@@ -1112,7 +1161,7 @@ impl DoctorCommand {
             format!("System resources have {} potential issues", resource_warnings.len())
         };
         
-        let details = if self.verbose || !resource_warnings.is_empty() {
+        let details = if self.is_verbose() || !resource_warnings.is_empty() {
             let mut all_details = resource_info;
             all_details.extend(resource_warnings.iter().map(|w| format!("⚠️  {}", w)));
             Some(all_details.join("; "))
@@ -1251,7 +1300,7 @@ impl DoctorCommand {
             
             println!("{} {}: {}", status_icon, name, result.message);
             
-            if self.verbose || matches!(result.status, DiagnosticStatus::Fail | DiagnosticStatus::Warning) {
+            if self.is_verbose() || matches!(result.status, DiagnosticStatus::Fail | DiagnosticStatus::Warning) {
                 if let Some(details) = &result.details {
                     println!("   Details: {}", details);
                 }
@@ -1273,112 +1322,77 @@ impl DoctorCommand {
             println!("❌ System has {} critical issue(s) that must be resolved.", report.summary.failed);
         }
 
-        // Comprehensive health recommendations
-        self.output_comprehensive_health_recommendations(report);
+        // System Readiness Score
+        self.output_system_readiness(&report.readiness);
+        
+        // Actionable Recommendations
+        self.output_actionable_recommendations(&report.recommendations);
 
         Ok(())
     }
 
-    /// Output comprehensive health recommendations based on diagnostic results
-    fn output_comprehensive_health_recommendations(&self, report: &DiagnosticReport) {
+    /// Output system readiness score and status
+    fn output_system_readiness(&self, readiness: &SystemReadiness) {
         println!();
-        println!("🏥 COMPREHENSIVE HEALTH RECOMMENDATIONS:");
-        println!("─────────────────────────────────────");
+        println!("🎯 SYSTEM READINESS SCORE:");
+        println!("───────────────────────");
         
-        // Analyze the diagnostic results and provide actionable recommendations
-        let mut critical_issues: Vec<String> = Vec::new();
-        let mut optimization_suggestions: Vec<String> = Vec::new();
-        let mut workflow_recommendations: Vec<String> = Vec::new();
+        let status_icon = match readiness.status {
+            ReadinessStatus::Ready => "🟢",
+            ReadinessStatus::PartiallyReady => "🟡", 
+            ReadinessStatus::NotReady => "🔴",
+        };
         
-        for (check_name, result) in &report.checks {
-            match result.status {
-                DiagnosticStatus::Fail => {
-                    if check_name.contains("github") {
-                        critical_issues.push("🔴 GitHub connectivity issues detected - agent workflow will not function".to_string());
-                    } else if check_name.contains("git") {
-                        critical_issues.push("🔴 Git repository issues detected - version control operations may fail".to_string());
-                    } else if check_name.contains("config") {
-                        critical_issues.push("🔴 Configuration issues detected - system initialization required".to_string());
-                    } else {
-                        critical_issues.push(format!("🔴 Critical issue in {}", check_name));
-                    }
+        println!("{} Score: {}/100", status_icon, readiness.score);
+        println!("Status: {:?}", readiness.status);
+        println!("Assessment: {}", readiness.description);
+        println!();
+    }
+
+    /// Output actionable recommendations with detailed steps
+    fn output_actionable_recommendations(&self, recommendations: &[ActionableRecommendation]) {
+        if recommendations.is_empty() {
+            return;
+        }
+
+        println!("📋 ACTIONABLE RECOMMENDATIONS:");
+        println!("────────────────────────────");
+        println!();
+
+        for (i, rec) in recommendations.iter().enumerate() {
+            let priority_icon = match rec.priority {
+                RecommendationPriority::Critical => "🔴 CRITICAL",
+                RecommendationPriority::High => "🟠 HIGH",
+                RecommendationPriority::Medium => "🟡 MEDIUM",
+                RecommendationPriority::Low => "🟢 LOW",
+            };
+            
+            println!("{}. {} [{}]", i + 1, rec.title, priority_icon);
+            println!("   Category: {}", rec.category);
+            println!("   Description: {}", rec.description);
+            
+            if !rec.steps.is_empty() {
+                println!("   Steps:");
+                for (j, step) in rec.steps.iter().enumerate() {
+                    println!("     {}. {}", j + 1, step);
                 }
-                DiagnosticStatus::Warning => {
-                    if check_name.contains("label") {
-                        optimization_suggestions.push("🟡 Label management can be improved for better workflow efficiency".to_string());
-                    } else if check_name.contains("permission") {
-                        optimization_suggestions.push("🟡 Repository permissions may limit some advanced features".to_string());
-                    } else if check_name.contains("workflow") {
-                        workflow_recommendations.push("🟡 Workflow optimization opportunities identified".to_string());
-                    } else {
-                        optimization_suggestions.push(format!("🟡 Improvement opportunity in {}", check_name));
-                    }
+            }
+            
+            if !rec.links.is_empty() {
+                println!("   Resources:");
+                for link in &rec.links {
+                    println!("     • {}", link);
                 }
-                _ => {} // Pass and Info statuses don't need recommendations
+            }
+            
+            if i < recommendations.len() - 1 {
+                println!();
             }
         }
         
-        // Output critical issues with priority actions
-        if !critical_issues.is_empty() {
-            println!("🚨 CRITICAL ACTIONS REQUIRED:");
-            for issue in critical_issues {
-                println!("   {}", issue);
-            }
-            println!("   👉 Priority: Address critical issues before proceeding with agent operations");
-            println!();
-        }
-        
-        // Output optimization suggestions
-        if !optimization_suggestions.is_empty() {
-            println!("⚡ OPTIMIZATION OPPORTUNITIES:");
-            for suggestion in optimization_suggestions {
-                println!("   {}", suggestion);
-            }
-            println!("   👉 Suggestion: Consider addressing these for improved performance");
-            println!();
-        }
-        
-        // Output workflow recommendations
-        if !workflow_recommendations.is_empty() {
-            println!("🔄 WORKFLOW IMPROVEMENTS:");
-            for recommendation in workflow_recommendations {
-                println!("   {}", recommendation);
-            }
-            println!("   👉 Recommendation: Optimize workflow for better agent coordination");
-            println!();
-        }
-        
-        // Overall health assessment and next steps
-        if report.summary.failed == 0 && report.summary.warnings == 0 {
-            println!("🎉 SYSTEM STATUS: EXCELLENT");
-            println!("   Your My Little Soda setup is optimized and ready for autonomous operation!");
-            println!("   📈 Next steps:");
-            println!("      • Start agent workflow: my-little-soda pop");
-            println!("      • Monitor agent status: my-little-soda status");
-            println!("      • Check available work: my-little-soda peek");
-        } else if report.summary.failed == 0 {
-            println!("👍 SYSTEM STATUS: GOOD");
-            println!("   System is functional with minor optimization opportunities");
-            println!("   📈 Next steps:");
-            println!("      • Address warnings when convenient");
-            println!("      • Begin agent operations: my-little-soda pop");
-        } else {
-            println!("🔧 SYSTEM STATUS: NEEDS ATTENTION");
-            println!("   Critical issues must be resolved before agent operations");
-            println!("   📈 Next steps:");
-            println!("      • Fix critical issues first");
-            println!("      • Re-run doctor: my-little-soda doctor");
-            println!("      • Initialize if needed: my-little-soda init");
-        }
-        
-        // Proactive monitoring suggestion
-        if report.summary.total_checks > 10 {
-            println!();
-            println!("🔍 PROACTIVE MONITORING:");
-            println!("   • Run 'my-little-soda doctor' regularly to maintain system health");
-            println!("   • Use 'my-little-soda doctor --verbose' for detailed diagnostics");
-            println!("   • Consider automation: schedule regular health checks in CI/CD");
-        }
+        println!();
+        println!("💡 TIP: Address critical and high priority recommendations first for maximum impact.");
+        println!();
     }
 
     fn check_toml_configuration(&self, checks: &mut HashMap<String, DiagnosticResult>) -> Result<()> {
@@ -1410,7 +1424,7 @@ impl DoctorCommand {
                 DiagnosticResult {
                     status: DiagnosticStatus::Pass,
                     message: "Configuration file exists".to_string(),
-                    details: if self.verbose {
+                    details: if self.is_verbose() {
                         Some("my-little-soda.toml found".to_string())
                     } else {
                         None
@@ -1454,7 +1468,7 @@ impl DoctorCommand {
                                 DiagnosticResult {
                                     status: DiagnosticStatus::Pass,
                                     message: "TOML syntax is valid".to_string(),
-                                    details: if self.verbose {
+                                    details: if self.is_verbose() {
                                         Some("Configuration file parses successfully".to_string())
                                     } else {
                                         None
@@ -1554,7 +1568,7 @@ impl DoctorCommand {
                     "Configuration is complete".to_string()
                 };
                 
-                let details = if self.verbose || has_issues || has_warnings {
+                let details = if self.is_verbose() || has_issues || has_warnings {
                     let mut all_details = issues;
                     all_details.extend(warnings.iter().map(|w| format!("Warning: {}", w)));
                     if all_details.is_empty() {
@@ -1668,7 +1682,7 @@ impl DoctorCommand {
                 };
                 
                 let details = if validation_issues.is_empty() {
-                    if self.verbose {
+                    if self.is_verbose() {
                         Some("All configuration fields have valid values and types".to_string())
                     } else {
                         None
@@ -1752,7 +1766,7 @@ impl DoctorCommand {
                 };
                 
                 let details = if inconsistencies.is_empty() {
-                    if self.verbose {
+                    if self.is_verbose() {
                         Some("Configuration values match environment variable overrides".to_string())
                     } else {
                         None
@@ -1787,12 +1801,17 @@ impl DoctorCommand {
     }
 
     /// Comprehensive GitHub authentication diagnostics using the actual GitHub client
+    /// Determines if verbose output should be enabled (quiet for JSON format)
+    fn is_verbose(&self) -> bool {
+        !matches!(self.format, DoctorFormat::Json)
+    }
+
     async fn check_github_authentication(&self, checks: &mut HashMap<String, DiagnosticResult>) {
         // Check 1: Token presence and format validation
         self.check_github_token_presence(checks);
         
         // Check 2: Try to create GitHub client and test authentication
-        match GitHubClient::new() {
+        match GitHubClient::with_verbose(self.is_verbose()) {
             Ok(client) => {
                 // If client creation succeeds, authentication is working
                 self.check_github_authentication_success(&client, checks).await;
@@ -1856,7 +1875,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Pass,
                         message: "GitHub token found and format is valid".to_string(),
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(format!("Token source: {}", token_source))
                         } else {
                             None
@@ -1911,7 +1930,7 @@ impl DoctorCommand {
             DiagnosticResult {
                 status: DiagnosticStatus::Pass,
                 message: "GitHub authentication successful".to_string(),
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     Some("Successfully authenticated with GitHub API".to_string())
                 } else {
                     None
@@ -1928,7 +1947,7 @@ impl DoctorCommand {
             DiagnosticResult {
                 status: DiagnosticStatus::Pass,
                 message: format!("Repository access confirmed: {}/{}", owner, repo),
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     Some("Token has appropriate repository permissions".to_string())
                 } else {
                     None
@@ -1953,7 +1972,7 @@ impl DoctorCommand {
                     DiagnosticResult {
                         status: DiagnosticStatus::Fail,
                         message: "GitHub authentication failed - token not found".to_string(),
-                        details: if self.verbose {
+                        details: if self.is_verbose() {
                             Some(message.clone())
                         } else {
                             Some("No valid GitHub token found".to_string())
@@ -2080,7 +2099,7 @@ impl DoctorCommand {
                     status,
                     message: format!("Rate limit: {}/{} requests remaining ({:.1}%)", 
                              core.remaining, core.limit, remaining_pct),
-                    details: if self.verbose {
+                    details: if self.is_verbose() {
                         Some(format!("Resets in {} minutes at {}", reset_in, reset_time.format("%Y-%m-%d %H:%M:%S UTC")))
                     } else {
                         Some(format!("Resets in {} minutes", reset_in))
@@ -2116,7 +2135,7 @@ impl DoctorCommand {
             Err(e) => {
                 scope_tests.push("issues:read ❌".to_string());
                 failed_scopes.push("issues:read".to_string());
-                if self.verbose {
+                if self.is_verbose() {
                     scope_tests.push(format!("  Error: {}", e));
                 }
             }
@@ -2128,7 +2147,7 @@ impl DoctorCommand {
             Err(e) => {
                 scope_tests.push("pull_requests:read ❌".to_string());
                 failed_scopes.push("pull_requests:read".to_string());
-                if self.verbose {
+                if self.is_verbose() {
                     scope_tests.push(format!("  Error: {}", e));
                 }
             }
@@ -2141,7 +2160,7 @@ impl DoctorCommand {
             Err(e) => {
                 scope_tests.push("repository:read ❌".to_string());
                 failed_scopes.push("repository:read".to_string());
-                if self.verbose {
+                if self.is_verbose() {
                     scope_tests.push(format!("  Error: {}", e));
                 }
             }
@@ -2162,7 +2181,7 @@ impl DoctorCommand {
                 } else {
                     format!("Missing {} GitHub API scope(s)", failed_scopes.len())
                 },
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     Some(scope_tests.join("\n"))
                 } else {
                     if failed_scopes.is_empty() {
@@ -2218,7 +2237,7 @@ impl DoctorCommand {
                         DiagnosticResult {
                             status: DiagnosticStatus::Pass,
                             message: format!("Repository owner configured: {}", github_config.owner),
-                            details: if self.verbose {
+                            details: if self.is_verbose() {
                                 Some("Valid owner configuration found".to_string())
                             } else {
                                 None
@@ -2244,7 +2263,7 @@ impl DoctorCommand {
                         DiagnosticResult {
                             status: DiagnosticStatus::Pass,
                             message: format!("Repository name configured: {}", github_config.repo),
-                            details: if self.verbose {
+                            details: if self.is_verbose() {
                                 Some("Valid repository name configuration found".to_string())
                             } else {
                                 None
@@ -2270,7 +2289,7 @@ impl DoctorCommand {
 
     /// Check if repository exists and is accessible
     async fn check_repository_existence(&self, checks: &mut HashMap<String, DiagnosticResult>) {
-        match GitHubClient::new() {
+        match GitHubClient::with_verbose(self.is_verbose()) {
             Ok(client) => {
                 let octocrab = client.issues.octocrab();
                 match octocrab.repos(client.owner(), client.repo()).get().await {
@@ -2281,7 +2300,7 @@ impl DoctorCommand {
                             DiagnosticResult {
                                 status: DiagnosticStatus::Pass,
                                 message: format!("Repository {}/{} exists and is accessible", client.owner(), client.repo()),
-                                details: if self.verbose {
+                                details: if self.is_verbose() {
                                     Some(format!("Repository visibility: {}, default branch: {}", 
                                                visibility, 
                                                repo.default_branch.as_deref().unwrap_or("unknown")))
@@ -2337,7 +2356,7 @@ impl DoctorCommand {
 
     /// Check repository settings required for My Little Soda operations
     async fn check_repository_settings(&self, checks: &mut HashMap<String, DiagnosticResult>) {
-        match GitHubClient::new() {
+        match GitHubClient::with_verbose(self.is_verbose()) {
             Ok(client) => {
                 let octocrab = client.issues.octocrab();
                 match octocrab.repos(client.owner(), client.repo()).get().await {
@@ -2381,7 +2400,7 @@ impl DoctorCommand {
                             DiagnosticStatus::Warning
                         };
 
-                        let details = if self.verbose {
+                        let details = if self.is_verbose() {
                             let mut details = settings_good;
                             if !settings_issues.is_empty() {
                                 details.extend(settings_issues.iter().map(|s| format!("⚠️  {}", s)));
@@ -2442,7 +2461,7 @@ impl DoctorCommand {
 
     /// Test ability to perform actual My Little Soda operations
     async fn check_repository_operations(&self, checks: &mut HashMap<String, DiagnosticResult>) {
-        match GitHubClient::new() {
+        match GitHubClient::with_verbose(self.is_verbose()) {
             Ok(client) => {
                 let mut operations_tested = Vec::new();
                 let mut operations_failed = Vec::new();
@@ -2488,7 +2507,7 @@ impl DoctorCommand {
                     DiagnosticStatus::Fail
                 };
 
-                let details = if self.verbose {
+                let details = if self.is_verbose() {
                     let mut all_details = operations_tested.clone();
                     all_details.extend(operations_failed.iter().map(|s| format!("❌ {}", s)));
                     Some(all_details.join("\n"))
@@ -2594,7 +2613,7 @@ impl DoctorCommand {
             "Environment variables are properly configured".to_string()
         };
 
-        let details = if self.verbose || !issues.is_empty() || !warnings.is_empty() {
+        let details = if self.is_verbose() || !issues.is_empty() || !warnings.is_empty() {
             let mut all_details = good;
             all_details.extend(warnings.iter().map(|w| format!("⚠️  {}", w)));
             all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
@@ -2674,7 +2693,7 @@ impl DoctorCommand {
             format!("File system permission issues detected ({} issues)", issues.len())
         };
 
-        let details = if self.verbose || !issues.is_empty() {
+        let details = if self.is_verbose() || !issues.is_empty() {
             let mut all_details = good;
             all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
             Some(all_details.join("; "))
@@ -2706,7 +2725,7 @@ impl DoctorCommand {
                 if space_mb > 1000.0 { // More than 1GB
                     (DiagnosticStatus::Pass,
                      format!("Sufficient disk space available ({:.1} MB)", space_mb),
-                     if self.verbose { Some("Disk space check passed".to_string()) } else { None },
+                     if self.is_verbose() { Some("Disk space check passed".to_string()) } else { None },
                      None)
                 } else if space_mb > 100.0 { // 100MB - 1GB
                     (DiagnosticStatus::Warning,
@@ -2826,7 +2845,7 @@ impl DoctorCommand {
             format!("PATH configuration has {} warning(s)", warnings.len())
         };
 
-        let details = if self.verbose || !warnings.is_empty() {
+        let details = if self.is_verbose() || !warnings.is_empty() {
             let mut all_details = path_status;
             all_details.extend(warnings.iter().map(|w| format!("⚠️  {}", w)));
             Some(all_details.join("; "))
@@ -2898,7 +2917,7 @@ impl DoctorCommand {
             format!("Current directory access issues detected ({} issues)", issues.len())
         };
 
-        let details = if self.verbose || !issues.is_empty() {
+        let details = if self.is_verbose() || !issues.is_empty() {
             let mut all_details = good;
             all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
             Some(all_details.join("; "))
@@ -2994,7 +3013,7 @@ impl DoctorCommand {
             format!("Temporary directory access issues detected ({} issues)", issues.len())
         };
 
-        let details = if self.verbose || !issues.is_empty() {
+        let details = if self.is_verbose() || !issues.is_empty() {
             let mut all_details = good;
             all_details.extend(issues.iter().map(|i| format!("❌ {}", i)));
             Some(all_details.join("; "))
@@ -3095,7 +3114,7 @@ impl DoctorCommand {
             "No configuration conflicts detected".to_string()
         };
 
-        let details = if self.verbose || !conflicts.is_empty() || !warnings.is_empty() {
+        let details = if self.is_verbose() || !conflicts.is_empty() || !warnings.is_empty() {
             let mut all_details = good;
             all_details.extend(warnings.iter().map(|w| format!("⚠️  {}", w)));
             all_details.extend(conflicts.iter().map(|c| format!("❌ {}", c)));
@@ -3253,7 +3272,7 @@ impl DoctorCommand {
                    operations_failed.len(), operations_tested.len())
         };
 
-        let details = if self.verbose || !operations_failed.is_empty() {
+        let details = if self.is_verbose() || !operations_failed.is_empty() {
             let mut all_details = operations_tested;
             all_details.extend(operations_failed.iter().map(|f| format!("❌ {}", f)));
             Some(all_details.join("; "))
@@ -3278,7 +3297,7 @@ impl DoctorCommand {
     /// Check agent state and work continuity health
     async fn check_agent_state_health(&self, checks: &mut HashMap<String, DiagnosticResult>) {
         // Try to create GitHub client for agent diagnostics
-        match GitHubClient::new() {
+        match GitHubClient::with_verbose(self.is_verbose()) {
             Ok(github_client) => {
                 // Create agent state diagnostic checker
                 let agent_diagnostic = match AgentStateDiagnostic::new(github_client)
@@ -3384,37 +3403,37 @@ impl DoctorCommand {
         // Check 1: Required label existence
         checks.insert(
             "required_labels_existence".to_string(),
-            github_labels::check_required_labels_existence(self.verbose).await,
+            github_labels::check_required_labels_existence(self.is_verbose()).await,
         );
         
         // Check 2: Label configuration validation
         checks.insert(
             "label_configuration".to_string(),
-            github_labels::check_label_configuration(self.verbose).await,
+            github_labels::check_label_configuration(self.is_verbose()).await,
         );
         
         // Check 3: Repository write permissions for label management
         checks.insert(
             "repository_write_permissions".to_string(),
-            github_labels::check_repository_write_permissions(self.verbose).await,
+            github_labels::check_repository_write_permissions(self.is_verbose()).await,
         );
         
         // Check 4: Label management capabilities (create/update/delete)
         checks.insert(
             "label_management_capabilities".to_string(),
-            github_labels::check_label_management_capabilities(self.verbose).await,
+            github_labels::check_label_management_capabilities(self.is_verbose()).await,
         );
         
         // Check 5: Issue label state validation
         checks.insert(
             "issue_label_states".to_string(),
-            github_labels::check_issue_label_states(self.verbose).await,
+            github_labels::check_issue_label_states(self.is_verbose()).await,
         );
         
         // Check 6: Workflow label compliance
         checks.insert(
             "workflow_label_compliance".to_string(),
-            github_labels::check_workflow_label_compliance(self.verbose).await,
+            github_labels::check_workflow_label_compliance(self.is_verbose()).await,
         );
     }
 
@@ -3457,7 +3476,7 @@ impl DoctorCommand {
         let mut readiness_checks = Vec::new();
         
         // Check 1: GitHub client initialization
-        match crate::github::client::GitHubClient::new() {
+        match crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
             Ok(_) => {
                 readiness_checks.push("GitHub client initialization");
             }
@@ -3495,7 +3514,7 @@ impl DoctorCommand {
             DiagnosticResult {
                 status: DiagnosticStatus::Pass,
                 message: "Agent lifecycle ready for autonomous operation".to_string(),
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     Some(format!("Ready components: {}", readiness_checks.join(", ")))
                 } else {
                     None
@@ -3514,7 +3533,7 @@ impl DoctorCommand {
 
     /// Check issue workflow integration readiness
     async fn check_issue_workflow_integration(&self) -> DiagnosticResult {
-        match crate::github::client::GitHubClient::new() {
+        match crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
             Ok(client) => {
                 let octocrab = client.issues.octocrab();
                 
@@ -3552,7 +3571,7 @@ impl DoctorCommand {
                             DiagnosticResult {
                                 status: if missing_features.is_empty() { DiagnosticStatus::Pass } else { DiagnosticStatus::Warning },
                                 message: "Issue workflow integration operational".to_string(),
-                                details: if self.verbose {
+                                details: if self.is_verbose() {
                                     Some(format!("Features available: {}. Issues: {}", 
                                         workflow_features.join(", "),
                                         if missing_features.is_empty() { "none".to_string() } else { missing_features.join(", ") }))
@@ -3597,7 +3616,7 @@ impl DoctorCommand {
 
     /// Check branch and PR workflow validation
     async fn check_branch_pr_workflow(&self) -> DiagnosticResult {
-        match crate::github::client::GitHubClient::new() {
+        match crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
             Ok(client) => {
                 let octocrab = client.issues.octocrab();
                 
@@ -3630,7 +3649,7 @@ impl DoctorCommand {
                                 DiagnosticResult {
                                     status: DiagnosticStatus::Pass,
                                     message: "Branch and PR workflow ready".to_string(),
-                                    details: if self.verbose && !workflow_status.is_empty() {
+                                    details: if self.is_verbose() && !workflow_status.is_empty() {
                                         Some(format!("Status: {}", workflow_status.join(", ")))
                                     } else {
                                         None
@@ -3689,7 +3708,7 @@ impl DoctorCommand {
         }
         
         // Check 3: GitHub integration for coordination
-        match crate::github::client::GitHubClient::new() {
+        match crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
             Ok(_) => {
                 coordination_features.push("GitHub coordination capability");
             }
@@ -3702,7 +3721,7 @@ impl DoctorCommand {
             DiagnosticResult {
                 status: DiagnosticStatus::Pass,
                 message: "Agent coordination system ready".to_string(),
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     Some(format!("Available features: {}", coordination_features.join(", ")))
                 } else {
                     None
@@ -3725,7 +3744,7 @@ impl DoctorCommand {
         let mut failed_steps = Vec::new();
         
         // Simulate workflow step 1: Agent initialization
-        match crate::github::client::GitHubClient::new() {
+        match crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
             Ok(_) => {
                 simulation_steps.push("agent initialization");
             }
@@ -3735,7 +3754,7 @@ impl DoctorCommand {
         }
         
         // Simulate workflow step 2: Issue discovery
-        if let Ok(client) = crate::github::client::GitHubClient::new() {
+        if let Ok(client) = crate::github::client::GitHubClient::with_verbose(self.is_verbose()) {
             let octocrab = client.issues.octocrab();
             match octocrab.issues(client.owner(), client.repo())
                 .list()
@@ -3777,7 +3796,7 @@ impl DoctorCommand {
             DiagnosticResult {
                 status: DiagnosticStatus::Pass,
                 message: "Complete workflow simulation successful".to_string(),
-                details: if self.verbose {
+                details: if self.is_verbose() {
                     Some(format!("Completed steps: {}", simulation_steps.join(", ")))
                 } else {
                     None
@@ -3799,5 +3818,145 @@ impl DoctorCommand {
                 suggestion: Some("Complete system setup before attempting agent operations".to_string()),
             }
         }
+    }
+
+    /// Calculate system readiness score based on diagnostic results
+    fn calculate_readiness(&self, summary: &DiagnosticSummary, checks: &HashMap<String, DiagnosticResult>) -> SystemReadiness {
+        // Base score calculation
+        let total_possible_score = 100u8;
+        let failed_penalty = summary.failed as u8 * 20;
+        let warning_penalty = summary.warnings as u8 * 5;
+        
+        // Critical checks that must pass for readiness
+        let critical_checks = vec![
+            "github_authentication", 
+            "github_repository_access", 
+            "config_file_exists"
+        ];
+        
+        let critical_failures = critical_checks.iter()
+            .filter(|&check| {
+                checks.get(*check)
+                    .map_or(false, |result| result.status == DiagnosticStatus::Fail)
+            })
+            .count();
+
+        let score = total_possible_score
+            .saturating_sub(failed_penalty)
+            .saturating_sub(warning_penalty)
+            .saturating_sub(critical_failures as u8 * 30); // Heavy penalty for critical failures
+
+        let (status, description) = if critical_failures > 0 {
+            (ReadinessStatus::NotReady, 
+             format!("System not ready: {} critical issues must be resolved", critical_failures))
+        } else if summary.failed > 0 {
+            (ReadinessStatus::PartiallyReady,
+             format!("System partially ready: {} issues need attention", summary.failed))
+        } else if summary.warnings > 0 {
+            (ReadinessStatus::PartiallyReady,
+             format!("System ready with {} warnings", summary.warnings))
+        } else {
+            (ReadinessStatus::Ready,
+             "System fully ready for My Little Soda operations".to_string())
+        };
+
+        SystemReadiness {
+            score,
+            status,
+            description,
+        }
+    }
+
+    /// Generate actionable recommendations based on diagnostic results
+    fn generate_recommendations(&self, checks: &HashMap<String, DiagnosticResult>) -> Vec<ActionableRecommendation> {
+        let mut recommendations = Vec::new();
+
+        // Check for critical failures that need immediate attention
+        for (check_name, result) in checks {
+            if result.status == DiagnosticStatus::Fail {
+                let recommendation = match check_name.as_str() {
+                    "github_authentication" => ActionableRecommendation {
+                        priority: RecommendationPriority::Critical,
+                        category: "Authentication".to_string(),
+                        title: "Fix GitHub Authentication".to_string(),
+                        description: "GitHub authentication is failing, preventing My Little Soda operations".to_string(),
+                        steps: vec![
+                            "Check that you have a valid GitHub token".to_string(),
+                            "Run 'gh auth login' to authenticate with GitHub CLI".to_string(),
+                            "Verify token permissions include repository access".to_string(),
+                            "Test with 'my-little-soda doctor --verbose' to see detailed errors".to_string(),
+                        ],
+                        links: vec![
+                            "https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token".to_string(),
+                            "https://cli.github.com/manual/gh_auth_login".to_string(),
+                        ],
+                    },
+                    "required_labels_existence" => ActionableRecommendation {
+                        priority: RecommendationPriority::High,
+                        category: "Setup".to_string(),
+                        title: "Create Required Labels".to_string(),
+                        description: "My Little Soda requires specific labels for issue routing".to_string(),
+                        steps: vec![
+                            "Run 'my-little-soda init' to create required labels automatically".to_string(),
+                            "Or manually create labels using GitHub's label interface".to_string(),
+                            "Verify labels with 'my-little-soda doctor --verbose'".to_string(),
+                        ],
+                        links: vec![
+                            "https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/managing-labels".to_string(),
+                        ],
+                    },
+                    "soda_config" => ActionableRecommendation {
+                        priority: RecommendationPriority::High,
+                        category: "Setup".to_string(),
+                        title: "Initialize My Little Soda".to_string(),
+                        description: "My Little Soda has not been initialized in this repository".to_string(),
+                        steps: vec![
+                            "Run 'my-little-soda init' to set up the repository".to_string(),
+                            "Follow the interactive prompts to configure settings".to_string(),
+                            "Verify setup with 'my-little-soda doctor'".to_string(),
+                        ],
+                        links: vec![],
+                    },
+                    _ => continue,
+                };
+                recommendations.push(recommendation);
+            } else if result.status == DiagnosticStatus::Warning {
+                // Add recommendations for warnings that could be optimized
+                if check_name == "label_configuration" {
+                    recommendations.push(ActionableRecommendation {
+                        priority: RecommendationPriority::Medium,
+                        category: "Optimization".to_string(),
+                        title: "Update Label Configuration".to_string(),
+                        description: "Some labels don't match My Little Soda specifications exactly".to_string(),
+                        steps: vec![
+                            "Review label colors and descriptions in GitHub".to_string(),
+                            "Update labels to match My Little Soda requirements".to_string(),
+                            "Re-run 'my-little-soda doctor' to verify fixes".to_string(),
+                        ],
+                        links: vec![
+                            "https://docs.github.com/en/issues/using-labels-and-milestones-to-track-work/managing-labels".to_string(),
+                        ],
+                    });
+                }
+            }
+        }
+
+        // Add general optimization recommendations
+        if recommendations.len() < 3 {
+            recommendations.push(ActionableRecommendation {
+                priority: RecommendationPriority::Low,
+                category: "Performance".to_string(),
+                title: "Enable Autonomous Features".to_string(),
+                description: "Enable advanced autonomous agent features for better productivity".to_string(),
+                steps: vec![
+                    "Compile with --features autonomous for enhanced capabilities".to_string(),
+                    "Configure agent scheduling and work continuity".to_string(),
+                    "Set up monitoring and metrics collection".to_string(),
+                ],
+                links: vec![],
+            });
+        }
+
+        recommendations
     }
 }

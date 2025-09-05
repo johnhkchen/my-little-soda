@@ -48,17 +48,23 @@ pub struct GitHubClient {
     repo: String,
     #[allow(dead_code)]
     retry_handler: GitHubRetryHandler,
+    verbose: bool,
 }
 
 #[allow(dead_code)] // Many methods are architectural for future GitHub API features
 impl GitHubClient {
     pub fn new() -> Result<Self, GitHubError> {
-        let token = Self::read_token()?;
+        Self::with_verbose(true)
+    }
+
+    /// Create a new GitHubClient with configurable verbose output
+    pub fn with_verbose(verbose: bool) -> Result<Self, GitHubError> {
+        let token = Self::read_token(verbose)?;
         let (owner, repo) = Self::read_config()?;
 
         let octocrab = Octocrab::builder().personal_token(token).build()?;
 
-        let client = Self::create_client(octocrab, owner, repo);
+        let client = Self::create_client(octocrab, owner, repo, verbose);
         
         // Validate API connectivity before returning
         tokio::task::block_in_place(|| {
@@ -79,9 +85,11 @@ impl GitHubClient {
         // Test basic authentication first
         match octocrab.current().user().await {
             Ok(user) => {
-                eprintln!("✅ GitHub authentication successful");
-                eprintln!("   🧑‍💼 Authenticated as: {}", user.login);
-                eprintln!("   🌍 Environment: {}", environment_context);
+                if self.verbose {
+                    eprintln!("✅ GitHub authentication successful");
+                    eprintln!("   🧑‍💼 Authenticated as: {}", user.login);
+                    eprintln!("   🌍 Environment: {}", environment_context);
+                }
                 
                 // Validate token scopes by attempting repository access
                 self.validate_token_scopes().await?;
@@ -146,11 +154,13 @@ impl GitHubClient {
         // Test repository access to validate scopes
         match octocrab.repos(&self.owner, &self.repo).get().await {
             Ok(repo) => {
-                eprintln!("   📦 Repository access confirmed: {}/{}", self.owner, self.repo);
-                if repo.private.unwrap_or(false) {
-                    eprintln!("   🔒 Token has access to private repository");
-                } else {
-                    eprintln!("   🌍 Token has access to public repository");
+                if self.verbose {
+                    eprintln!("   📦 Repository access confirmed: {}/{}", self.owner, self.repo);
+                    if repo.private.unwrap_or(false) {
+                        eprintln!("   🔒 Token has access to private repository");
+                    } else {
+                        eprintln!("   🌍 Token has access to public repository");
+                    }
                 }
                 
                 // Enhanced scope validation with detailed testing
@@ -189,7 +199,7 @@ impl GitHubClient {
 
         // Test issue read access
         match octocrab.issues(&self.owner, &self.repo).list().per_page(1).send().await {
-            Ok(_) => eprintln!("   ✅ Token has issue read access"),
+            Ok(_) => if self.verbose { eprintln!("   ✅ Token has issue read access"); },
             Err(e) => {
                 match &e {
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
@@ -202,7 +212,7 @@ impl GitHubClient {
 
         // Test issue write access (try to fetch assignees which requires write scope)
         match octocrab.issues(&self.owner, &self.repo).list_assignees().send().await {
-            Ok(_) => eprintln!("   ✅ Token has issue write access"),
+            Ok(_) => if self.verbose { eprintln!("   ✅ Token has issue write access"); },
             Err(e) => {
                 match &e {
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
@@ -215,7 +225,7 @@ impl GitHubClient {
 
         // Test pull request access
         match octocrab.pulls(&self.owner, &self.repo).list().per_page(1).send().await {
-            Ok(_) => eprintln!("   ✅ Token has pull request access"),
+            Ok(_) => if self.verbose { eprintln!("   ✅ Token has pull request access"); },
             Err(e) => {
                 match &e {
                     octocrab::Error::GitHub { source, .. } if source.status_code.as_u16() == 403 => {
@@ -227,8 +237,10 @@ impl GitHubClient {
         }
 
         // Report warnings
-        for warning in &warnings {
-            eprintln!("   ⚠️  {}", warning);
+        if self.verbose {
+            for warning in &warnings {
+                eprintln!("   ⚠️  {}", warning);
+            }
         }
 
         // Fail if critical scopes are missing
@@ -244,15 +256,19 @@ impl GitHubClient {
             });
         }
 
-        eprintln!("   ✅ Token has all required scopes for My Little Soda operations");
+        if self.verbose {
+            eprintln!("   ✅ Token has all required scopes for My Little Soda operations");
+        }
         Ok(())
     }
 
-    fn read_token() -> Result<String, GitHubError> {
+    fn read_token(verbose: bool) -> Result<String, GitHubError> {
         // First try environment variable (set by flox)
         if let Ok(token) = std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN") {
             if token != "YOUR_GITHUB_TOKEN_HERE" && !token.is_empty() {
-                eprintln!("   🔑 Authentication method: Environment variable (MY_LITTLE_SODA_GITHUB_TOKEN)");
+                if verbose {
+                    eprintln!("   🔑 Authentication method: Environment variable (MY_LITTLE_SODA_GITHUB_TOKEN)");
+                }
                 return Ok(token);
             }
         }
@@ -262,14 +278,18 @@ impl GitHubClient {
         if Path::new(token_path).exists() {
             let token = fs::read_to_string(token_path)?.trim().to_string();
             if token != "YOUR_GITHUB_TOKEN_HERE" && !token.is_empty() {
-                eprintln!("   🔑 Authentication method: File-based configuration (.my-little-soda/credentials/github_token)");
+                if verbose {
+                    eprintln!("   🔑 Authentication method: File-based configuration (.my-little-soda/credentials/github_token)");
+                }
                 return Ok(token);
             }
         }
 
         // Fall back to GitHub CLI authentication
         if let Ok(gh_token) = Self::try_github_cli_token() {
-            eprintln!("   🔑 Authentication method: GitHub CLI (gh auth token)");
+            if verbose {
+                eprintln!("   🔑 Authentication method: GitHub CLI (gh auth token)");
+            }
             return Ok(gh_token);
         }
 
@@ -525,7 +545,7 @@ impl GitHubClient {
     }
 
     /// Factory method to reduce constructor duplication
-    fn create_client(octocrab: Octocrab, owner: String, repo: String) -> Self {
+    fn create_client(octocrab: Octocrab, owner: String, repo: String, verbose: bool) -> Self {
         GitHubClient {
             issues: IssueHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
             pulls: PullRequestHandler::new(octocrab.clone(), owner.clone(), repo.clone()),
@@ -537,6 +557,7 @@ impl GitHubClient {
             repo,
             #[allow(dead_code)]
             retry_handler: GitHubRetryHandler::default(),
+            verbose,
         }
     }
 
