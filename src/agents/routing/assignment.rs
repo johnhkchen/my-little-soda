@@ -22,19 +22,58 @@ impl AssignmentOperations {
         issue_number: u64,
         issue_title: &str,
     ) -> String {
-        let slug = issue_title
+        let slug = self.create_intelligent_slug(issue_title, 30);
+        format!("{agent_id}/{issue_number}-{slug}")
+    }
+
+    /// Create an intelligently truncated slug that preserves word boundaries
+    fn create_intelligent_slug(&self, title: &str, max_length: usize) -> String {
+        // Step 1: Convert to lowercase and filter characters
+        let filtered: String = title
             .to_lowercase()
             .chars()
-            .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-')
-            .collect::<String>()
-            .split_whitespace()
-            .collect::<Vec<&str>>()
-            .join("-")
-            .chars()
-            .take(30)
-            .collect::<String>();
+            .filter(|c| c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || *c == '-')
+            .collect();
 
-        format!("{agent_id}/{issue_number}-{slug}")
+        // Step 2: Replace multiple whitespace/dashes with single dash, trim
+        let normalized = filtered
+            .split(|c: char| c.is_whitespace() || c == '-')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<&str>>()
+            .join("-");
+
+        // Step 3: If already short enough, return as-is
+        if normalized.len() <= max_length {
+            return normalized;
+        }
+
+        // Step 4: For single very long words, truncate at character boundary
+        if !normalized.contains('-') {
+            return normalized.chars().take(max_length).collect();
+        }
+
+        // Step 5: Truncate at word boundaries to avoid cutting words in half
+        let mut result = String::new();
+        for word in normalized.split('-') {
+            // Check if adding this word would exceed the limit
+            let next_length = if result.is_empty() {
+                word.len()
+            } else {
+                result.len() + 1 + word.len() // +1 for the dash
+            };
+
+            if next_length > max_length {
+                break;
+            }
+
+            if !result.is_empty() {
+                result.push('-');
+            }
+            result.push_str(word);
+        }
+
+        // Step 6: Ensure we don't end with a dash
+        result.trim_end_matches('-').to_string()
     }
 
     pub async fn create_agent_branch(

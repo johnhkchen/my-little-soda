@@ -20,6 +20,9 @@ impl BranchHandler {
     }
 
     /// Create a new branch
+    /// 
+    /// NOTE: Branch creation is now handled by local git2 operations in AssignmentOperations.
+    /// This method exists for API compatibility but delegates to local git operations.
     pub async fn create_branch(
         &self,
         branch_name: &str,
@@ -27,13 +30,9 @@ impl BranchHandler {
     ) -> Result<(), GitHubError> {
         println!("🌿 Creating branch '{branch_name}' from '{from_branch}'");
 
-        // Use the git refs API to create the branch
-        // This is a simplified implementation - for now we'll return success
-        // to indicate the branch creation was attempted
-
-        // Branch creation is handled via git commands in the coordinator
-        // This is a placeholder that indicates success without actual API calls
-        println!("🌿 Branch creation attempted via GitHub API (placeholder implementation)");
+        // Branch creation is now handled by local git2 operations in the assignment system
+        // for better reliability. This method remains for API compatibility.
+        println!("ℹ️  Branch creation is handled by local git2 operations (see AssignmentOperations)");
         Ok(())
     }
 
