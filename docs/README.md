@@ -123,6 +123,7 @@ https://docs.rs/my-little-soda
 | API docs | `cargo doc` or docs.rs |
 | Specifications | [`../specs/`](../specs/) |
 | Contributing | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
+| Historical documentation | [`../archive/`](../archive/) |
 
 ### Search
 ```bash

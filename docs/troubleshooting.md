@@ -421,6 +421,66 @@ tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz .git my-little-soda.toml .my-littl
 my-little-soda init --force
 ```
 
+## Setup and Installation Issues
+
+### Build Command Fails
+
+**Symptoms:**
+- `cargo install --path .` fails with "no package to install"
+- Missing binary after installation
+
+**Solution:**
+Build the release binary first:
+```bash
+# Correct build sequence
+cargo build --release
+
+# Set required environment variable
+export MY_LITTLE_SODA_GITHUB_TOKEN=your_token_here
+
+# Run the binary directly
+./target/release/my-little-soda init
+```
+
+### Missing GitHub Token Environment Variable
+
+**Symptoms:**
+- Commands fail with authentication errors
+- "GitHub token not configured" messages
+
+**Solution:**
+1. Create a GitHub personal access token:
+   - Go to GitHub Settings > Developer Settings > Personal Access Tokens
+   - Create new token with repo permissions
+
+2. Set environment variable:
+```bash
+# For current session
+export MY_LITTLE_SODA_GITHUB_TOKEN=your_token_here
+
+# For persistent setup (add to ~/.bashrc or ~/.zshrc)
+echo 'export MY_LITTLE_SODA_GITHUB_TOKEN=your_token_here' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### README vs. Actual Workflow Mismatch
+
+**Symptoms:**
+- Expected simple workflow but encounter complex multi-phase operations
+- Commands not documented in README
+
+**Explanation:**
+The README provides a simplified overview. The actual system includes:
+- Multi-phase workflow with review queues
+- Priority-based task assignment  
+- Merge-ready vs. new work distinction
+- Additional commands: `route`, `bundle`, `reset`, `actions`, `agent`
+
+**Solution:**
+Refer to the prompts directory for complete workflow documentation:
+- `/prompts/initial-system-prompt.md` - Full agent workflow
+- `/prompts/finishing-prompt.md` - Completion procedures
+
 ## Support
 
 For issues not covered in this guide:
