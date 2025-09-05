@@ -840,3 +840,208 @@ fn test_doctor_config_validation_suggestions() {
                 predicate::str::contains("Environment variables override"))
         ));
 }
+
+// Git Repository State Diagnostic Tests
+
+#[test]
+fn test_doctor_git_comprehensive_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test comprehensive Git validation checks are present
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_remote_origin"))
+        .stdout(predicate::str::contains("git_remote_github_match"))  
+        .stdout(predicate::str::contains("git_branch_setup"))
+        .stdout(predicate::str::contains("git_working_directory_state"))
+        .stdout(predicate::str::contains("git_user_configuration"))
+        .stdout(predicate::str::contains("git_operations_capability"))
+        .stdout(predicate::str::contains("git_my_little_soda_requirements"));
+}
+
+#[test]
+fn test_doctor_git_remote_origin_detection() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should detect origin remote in current repository
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_remote_origin: Git origin remote found"));
+}
+
+#[test]
+fn test_doctor_git_branch_setup_detection() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should report current branch
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_branch_setup: Current branch:"));
+}
+
+#[test] 
+fn test_doctor_git_user_configuration() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should check Git user configuration
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_user_configuration"));
+}
+
+#[test]
+fn test_doctor_git_working_directory_state() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should check working directory state
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_working_directory_state"));
+}
+
+#[test]
+fn test_doctor_git_operations_capability() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should test Git operations capability
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_operations_capability"));
+}
+
+#[test]
+fn test_doctor_git_my_little_soda_requirements() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should check My Little Soda specific requirements
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_my_little_soda_requirements"));
+}
+
+#[test]
+fn test_doctor_git_verbose_details() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Should show detailed Git information in verbose mode
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("Origin URL:").or(
+            predicate::str::contains("Main branch available:").or(
+                predicate::str::contains("user.name:").or(
+                    predicate::str::contains("Branch creation")
+                )
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_git_no_repository() {
+    // Test Git validation in directory without git repository
+    let temp_dir = TempDir::new().unwrap();
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.current_dir(temp_dir.path())
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("git_repository: Not in a git repository"));
+    
+    // Should not have comprehensive Git checks when not in a Git repo
+    let binding = cmd.current_dir(temp_dir.path())
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token") 
+        .arg("doctor")
+        .arg("--format")
+        .arg("json")
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    
+    // Should not contain Git validation checks when not in repo
+    assert!(!stdout.contains("git_remote_origin"));
+    assert!(!stdout.contains("git_branch_setup"));
+    assert!(!stdout.contains("git_user_configuration"));
+}
+
+#[test]
+fn test_doctor_git_json_structure() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    let binding = cmd.arg("doctor").arg("--format").arg("json")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    
+    // Extract the multiline JSON from the output (skip telemetry logs)
+    let lines: Vec<&str> = stdout.lines().collect();
+    let mut json_start = None;
+    let mut brace_count = 0;
+    let mut json_end = None;
+    
+    for (i, line) in lines.iter().enumerate() {
+        if line.trim() == "{" {
+            json_start = Some(i);
+            brace_count = 1;
+        } else if json_start.is_some() {
+            brace_count += line.matches('{').count() as i32;
+            brace_count -= line.matches('}').count() as i32;
+            if brace_count == 0 {
+                json_end = Some(i);
+                break;
+            }
+        }
+    }
+    
+    let json_str = if let (Some(start), Some(end)) = (json_start, json_end) {
+        lines[start..=end].join("\n")
+    } else {
+        panic!("No JSON object found in output: {}", stdout);
+    };
+    
+    let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+    let checks = &parsed["checks"];
+    
+    // Verify Git comprehensive diagnostic checks are present 
+    let git_checks = [
+        "git_repository", "git_remote_origin", "git_remote_github_match", 
+        "git_branch_setup", "git_working_directory_state", "git_user_configuration",
+        "git_operations_capability", "git_my_little_soda_requirements"
+    ];
+    
+    for check_name in git_checks {
+        assert!(checks[check_name].is_object(), "{} check should be present", check_name);
+        let check = &checks[check_name];
+        assert!(check["status"].is_string(), "{} should have status field", check_name);
+        assert!(check["message"].is_string(), "{} should have message field", check_name);
+    }
+}
+
+#[test]
+fn test_doctor_git_comprehensive_validation_count() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    let binding = cmd.arg("doctor").arg("--format").arg("json")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    
+    // Count Git-related checks in JSON output
+    let git_check_count = stdout.matches("\"git_").count();
+    
+    // Should have at least 8 Git-related checks (including git_available and git_repository)
+    assert!(git_check_count >= 8, "Should have at least 8 Git checks, found: {}", git_check_count);
+}
