@@ -361,3 +361,197 @@ fn test_doctor_github_error_handling() {
             predicate::str::contains("github_token_presence")
         ));
 }
+
+// Repository Access Diagnostic Tests
+
+#[test]
+fn test_doctor_repository_access_diagnostics() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test with valid token to see repository diagnostics
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .arg("doctor")
+            .assert()
+            .stdout(predicate::str::contains("repository_config_owner"))
+            .stdout(predicate::str::contains("repository_config_repo"))
+            .stdout(predicate::str::contains("repository_existence"))
+            .stdout(predicate::str::contains("repository_settings"))
+            .stdout(predicate::str::contains("repository_operations"));
+    }
+}
+
+#[test]
+fn test_doctor_repository_configuration_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test with environment variables set
+    cmd.env("GITHUB_OWNER", "test-owner")
+        .env("GITHUB_REPO", "test-repo")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("repository_config_owner"))
+        .stdout(predicate::str::contains("repository_config_repo"));
+}
+
+#[test]
+fn test_doctor_repository_configuration_missing() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Clear environment variables to test missing configuration
+    cmd.env_remove("GITHUB_OWNER")
+        .env_remove("GITHUB_REPO")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("repository_config").or(
+            predicate::str::contains("GitHub repository owner not configured").or(
+                predicate::str::contains("GitHub repository name not configured")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_repository_operations_testing() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("repository_operations"))
+            .stdout(predicate::str::contains("Issue listing:").or(
+                predicate::str::contains("PR listing:").or(
+                    predicate::str::contains("Label access:")
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_repository_settings_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("repository_settings"))
+            .stdout(predicate::str::contains("Issues enabled").or(
+                predicate::str::contains("Merge options:").or(
+                    predicate::str::contains("Repository settings")
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_json_repository_diagnostics_structure() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    let binding = cmd.arg("doctor").arg("--format").arg("json")
+        .env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap_or("test_token".to_string()))
+        .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap_or("test-owner".to_string()))
+        .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap_or("test-repo".to_string()))
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    
+    let checks = &parsed["checks"];
+    
+    // Verify repository diagnostic checks are present
+    assert!(checks["repository_config_owner"].is_object(), "repository_config_owner check should be present");
+    assert!(checks["repository_config_repo"].is_object(), "repository_config_repo check should be present");
+    assert!(checks["repository_existence"].is_object(), "repository_existence check should be present");
+    assert!(checks["repository_settings"].is_object(), "repository_settings check should be present");
+    assert!(checks["repository_operations"].is_object(), "repository_operations check should be present");
+    
+    // Verify each check has required fields
+    for check_name in ["repository_config_owner", "repository_config_repo", "repository_existence", "repository_settings", "repository_operations"] {
+        let check = &checks[check_name];
+        assert!(check["status"].is_string(), "{} should have status field", check_name);
+        assert!(check["message"].is_string(), "{} should have message field", check_name);
+        // details and suggestion are optional
+    }
+}
+
+#[test]
+fn test_doctor_comprehensive_repository_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test comprehensive repository validation with all components
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("🩺 MY LITTLE SODA DOCTOR"))
+            // Original GitHub authentication checks
+            .stdout(predicate::str::contains("github_token_presence"))
+            .stdout(predicate::str::contains("github_authentication"))
+            .stdout(predicate::str::contains("github_repository_access"))
+            .stdout(predicate::str::contains("github_rate_limits"))
+            .stdout(predicate::str::contains("github_api_scopes"))
+            // New repository access diagnostic checks
+            .stdout(predicate::str::contains("repository_config_owner"))
+            .stdout(predicate::str::contains("repository_config_repo"))
+            .stdout(predicate::str::contains("repository_existence"))
+            .stdout(predicate::str::contains("repository_settings"))
+            .stdout(predicate::str::contains("repository_operations"));
+    }
+}
+
+#[test]
+fn test_doctor_repository_error_handling() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test with invalid repository configuration to trigger error handling
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .env("GITHUB_OWNER", "nonexistent-owner-123456")
+        .env("GITHUB_REPO", "nonexistent-repo-123456")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("repository_existence").or(
+            predicate::str::contains("not found").or(
+                predicate::str::contains("not accessible")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_repository_validation_private_vs_public() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("repository_existence"))
+            .stdout(predicate::str::contains("Visibility:").or(
+                predicate::str::contains("private").or(
+                    predicate::str::contains("public")
+                )
+            ));
+    }
+}
