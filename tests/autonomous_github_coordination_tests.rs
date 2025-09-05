@@ -1,3 +1,4 @@
+#![cfg(feature = "autonomous")]
 //! Integration tests for autonomous coordination with real GitHub operations
 //!
 //! These tests validate the autonomous system's ability to work with actual GitHub APIs

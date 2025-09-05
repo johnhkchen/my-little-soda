@@ -1,3 +1,4 @@
+#![cfg(feature = "autonomous")]
 //! Performance benchmarks and long-running operation tests for autonomous system
 //!
 //! These tests validate that the autonomous system can handle extended operation

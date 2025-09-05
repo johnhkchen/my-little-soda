@@ -1,4 +1,4 @@
-use my_little_soda::bundling::{ConflictCompatibilityReport, ConflictPrediction};
+use my_little_soda::bundling::git_ops::{ConflictCompatibilityReport, ConflictPrediction};
 
 #[test]
 fn test_conflict_compatibility_report_creation() {
@@ -74,7 +74,7 @@ fn test_conflict_threshold_logic() {
 #[tokio::test]
 async fn test_enhanced_pr_description_generation() {
     // Test that enhanced PR descriptions contain conflict information
-    use my_little_soda::bundling::ConflictCompatibilityReport;
+    use my_little_soda::bundling::git_ops::ConflictCompatibilityReport;
     use my_little_soda::train_schedule::QueuedBranch;
 
     let mut conflict_report = ConflictCompatibilityReport::new();

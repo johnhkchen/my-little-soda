@@ -1,3 +1,4 @@
+#![cfg(feature = "autonomous")]
 //! Integration tests for state drift detection and correction system
 //!
 //! These tests validate the autonomous system's ability to detect and correct

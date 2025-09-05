@@ -52,6 +52,7 @@ pub struct ReleaseCycleMetrics {
     pub memory_usage_mb: f64,
     pub cpu_usage_percent: f64,
     pub success_rate: f64,
+    #[serde(skip_serializing, skip_deserializing, default = "Instant::now")]
     pub timestamp: Instant,
 }
 
@@ -413,7 +414,7 @@ impl ReleaseCadenceValidator {
             .count();
 
         let total_issues_processed = cycles.iter().map(|c| c.issues_processed).sum();
-        let overall_throughput =
+        let overall_throughput_issues_per_minute =
             total_issues_processed as f64 / total_duration.as_secs_f64() * 60.0;
 
         CadenceStatistics {

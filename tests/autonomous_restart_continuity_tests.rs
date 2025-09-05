@@ -1,3 +1,4 @@
+#![cfg(feature = "autonomous")]
 //! Extended tests for autonomous system work continuity across agent restarts
 //!
 //! These tests build on the existing work continuity integration tests to validate

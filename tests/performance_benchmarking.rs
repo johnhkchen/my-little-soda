@@ -476,7 +476,9 @@ impl BenchmarkRunner {
 
         let average_time = if !issue_times.is_empty() {
             Duration::from_nanos(
-                issue_times.iter().map(|d| d.as_nanos()).sum::<u128>() / issue_times.len() as u128,
+                (issue_times.iter().map(|d| d.as_nanos()).sum::<u128>() / issue_times.len() as u128)
+                    .try_into()
+                    .unwrap_or(0),
             )
         } else {
             Duration::ZERO
@@ -559,11 +561,13 @@ impl BenchmarkRunner {
         // Average the metrics
         BenchmarkMetrics {
             total_duration: Duration::from_nanos(
-                metrics_list
+                (metrics_list
                     .iter()
                     .map(|m| m.total_duration.as_nanos())
                     .sum::<u128>()
-                    / count as u128,
+                    / count as u128)
+                    .try_into()
+                    .unwrap_or(0),
             ),
             issues_completed: metrics_list
                 .iter()
@@ -577,11 +581,13 @@ impl BenchmarkRunner {
                 .sum::<f64>()
                 / count as f64,
             average_time_per_issue: Duration::from_nanos(
-                metrics_list
+                (metrics_list
                     .iter()
                     .map(|m| m.average_time_per_issue.as_nanos())
                     .sum::<u128>()
-                    / count as u128,
+                    / count as u128)
+                    .try_into()
+                    .unwrap_or(0),
             ),
             min_time_per_issue: metrics_list
                 .iter()
@@ -594,25 +600,31 @@ impl BenchmarkRunner {
                 .max()
                 .unwrap_or(Duration::ZERO),
             p50_time_per_issue: Duration::from_nanos(
-                metrics_list
+                (metrics_list
                     .iter()
                     .map(|m| m.p50_time_per_issue.as_nanos())
                     .sum::<u128>()
-                    / count as u128,
+                    / count as u128)
+                    .try_into()
+                    .unwrap_or(0),
             ),
             p90_time_per_issue: Duration::from_nanos(
-                metrics_list
+                (metrics_list
                     .iter()
                     .map(|m| m.p90_time_per_issue.as_nanos())
                     .sum::<u128>()
-                    / count as u128,
+                    / count as u128)
+                    .try_into()
+                    .unwrap_or(0),
             ),
             p99_time_per_issue: Duration::from_nanos(
-                metrics_list
+                (metrics_list
                     .iter()
                     .map(|m| m.p99_time_per_issue.as_nanos())
                     .sum::<u128>()
-                    / count as u128,
+                    / count as u128)
+                    .try_into()
+                    .unwrap_or(0),
             ),
             memory_usage_mb: metrics_list.iter().map(|m| m.memory_usage_mb).sum::<f64>()
                 / count as f64,

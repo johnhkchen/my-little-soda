@@ -1,3 +1,4 @@
+#![cfg(feature = "autonomous")]
 //! Comprehensive error recovery scenario tests for autonomous system
 //!
 //! These tests validate the autonomous system's ability to recover from various

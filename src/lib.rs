@@ -40,6 +40,8 @@ pub use bundling::{BundleManager, BundleResult};
 pub use config::{config, init_config, MyLittleSodaConfig};
 pub use database::{init_database, shutdown_database};
 pub use fs::{FileSystemOperations, StandardFileSystem};
+#[cfg(any(test, feature = "testing"))]
+pub use fs::MockFileSystemOperations;
 pub use git::operations::CommitInfo;
 pub use git::{Git2Operations, GitOperations};
 pub use github::{GitHubClient, GitHubError};

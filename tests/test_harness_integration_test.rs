@@ -115,10 +115,11 @@ fn test_builder_pattern_comprehensive() {
 
 #[test]
 fn test_parallel_harness_isolation() {
-    let harnesses = parallel_harnesses(3).unwrap();
+    let mut harnesses = parallel_harnesses(3).unwrap();
     assert_eq!(harnesses.len(), 3);
     
-    for (i, harness) in harnesses.iter().enumerate() {
+    // Create files in each harness
+    for (i, harness) in harnesses.iter_mut().enumerate() {
         let test_file = format!("isolation_test_{}.txt", i);
         let unique_content = format!("This is harness {}", i);
         
@@ -129,6 +130,11 @@ fn test_parallel_harness_isolation() {
         
         let content = std::fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, unique_content);
+    }
+    
+    // Verify isolation between harnesses
+    for (i, harness) in harnesses.iter().enumerate() {
+        let test_file = format!("isolation_test_{}.txt", i);
         
         for (j, other_harness) in harnesses.iter().enumerate() {
             if i != j {
@@ -142,7 +148,7 @@ fn test_parallel_harness_isolation() {
 #[test]
 fn test_harness_cleanup_on_drop() {
     let temp_path = {
-        let harness = simple_harness().unwrap();
+        let mut harness = simple_harness().unwrap();
         let path = harness.path().to_path_buf();
         
         harness.create_file("temp_file.txt", "This should be cleaned up").unwrap();

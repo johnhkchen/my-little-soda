@@ -65,14 +65,14 @@
 use anyhow::Result;
 use std::path::Path;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 use mockall::{automock, predicate::*};
 
 /// Trait for file system operations that can be mocked in tests
 /// 
 /// This trait abstracts common file system operations to enable easy testing
 /// through mocking. All methods are designed to be mockable using the `mockall` crate.
-#[cfg_attr(test, automock)]
+#[cfg_attr(any(test, feature = "testing"), automock)]
 #[async_trait::async_trait]
 pub trait FileSystemOperations: Send + Sync {
     /// Create a directory and all its parent directories

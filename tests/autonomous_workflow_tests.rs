@@ -1,3 +1,4 @@
+#![cfg(feature = "autonomous")]
 //! Integration tests for autonomous workflow state machine
 //!
 //! Tests the complete autonomous workflow from assignment to completion,

@@ -10,7 +10,7 @@ use fixtures::repository_states::*;
 
 #[test]
 fn test_git_initialization_validation() {
-    let harness = TestHarness::new().unwrap();
+    let mut harness = TestHarness::new().unwrap();
     
     let git_dir = harness.path().join(".git");
     assert!(!git_dir.exists());
@@ -41,7 +41,7 @@ fn test_git_initialization_validation() {
 
 #[test]
 fn test_git_add_operations_validation() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     let files = vec![
         ("staged_file_1.txt", "Content for staged file 1"),
@@ -85,7 +85,7 @@ fn test_git_add_operations_validation() {
 
 #[test]
 fn test_git_commit_with_validation() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("commit_test.txt", "File for commit validation").unwrap();
     
@@ -119,7 +119,7 @@ fn test_git_commit_with_validation() {
 
 #[test]
 fn test_git_remote_validation() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.add_git_remote("origin", "https://github.com/test-owner/test-repo.git").unwrap();
     harness.add_git_remote("upstream", "https://github.com/upstream-owner/upstream-repo.git").unwrap();
@@ -148,7 +148,7 @@ fn test_git_remote_validation() {
 
 #[test]
 fn test_git_branch_operations() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("initial.txt", "Initial file").unwrap();
     harness.commit_all("Initial commit").unwrap();
@@ -189,7 +189,7 @@ fn test_git_branch_operations() {
 
 #[test]
 fn test_git_diff_operations() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("diff_test.txt", "Original content").unwrap();
     harness.commit_all("Initial commit").unwrap();
@@ -219,7 +219,7 @@ fn test_git_diff_operations() {
 
 #[test]
 fn test_git_log_and_history_validation() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     let commits = vec![
         ("file1.txt", "Content 1", "First commit"),
@@ -260,7 +260,7 @@ fn test_git_log_and_history_validation() {
 
 #[test]
 fn test_git_status_comprehensive_validation() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("tracked.txt", "Tracked file").unwrap();
     harness.commit_all("Add tracked file").unwrap();
@@ -298,7 +298,7 @@ fn test_git_status_comprehensive_validation() {
 
 #[test]
 fn test_git_reset_operations() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("reset_test.txt", "Original").unwrap();
     harness.commit_all("Initial commit").unwrap();
@@ -338,7 +338,7 @@ fn test_git_reset_operations() {
 
 #[test]
 fn test_git_clean_operations() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("tracked.txt", "Tracked").unwrap();
     harness.commit_all("Add tracked file").unwrap();
@@ -416,7 +416,7 @@ fn test_git_repository_validation_with_fixtures() {
 
 #[test]
 fn test_git_operations_error_handling() {
-    let harness = TestHarness::new().unwrap();
+    let mut harness = TestHarness::new().unwrap();
     
     let invalid_git_command = Command::new("git")
         .args(["status"])
@@ -447,7 +447,7 @@ fn test_git_operations_error_handling() {
 
 #[test]
 fn test_git_tag_operations() {
-    let harness = git_harness().unwrap();
+    let mut harness = git_harness().unwrap();
     
     harness.create_file("tagged.txt", "File for tagging").unwrap();
     harness.commit_all("Commit for tagging").unwrap();
