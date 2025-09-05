@@ -58,7 +58,7 @@ async fn test_init_dry_run_idempotency() {
     // Run dry run multiple times - should always succeed and not change state
     for i in 1..=5 {
         let fs_ops = Arc::new(StandardFileSystem);
-        let init_command = InitCommand::new(1, None, false, true, fs_ops); // dry run
+        let init_command = InitCommand::new(None, false, true, fs_ops); // dry run
         
         let result = init_command.execute().await;
         assert!(result.is_ok(), "Dry run iteration {} should succeed: {:?}", i, result.err());
@@ -103,7 +103,7 @@ repo = "existing-repo"
 "#).unwrap();
 
     let fs_ops = Arc::new(StandardFileSystem);
-    let init_command = InitCommand::new(1, None, false, true, fs_ops); // no force, dry run
+    let init_command = InitCommand::new(None, false, true, fs_ops); // no force, dry run
     
     let result = init_command.execute().await;
     assert!(result.is_err(), "Init should fail when config exists without force");
@@ -145,7 +145,7 @@ repo = "existing-repo"
 "#).unwrap();
 
     let fs_ops = Arc::new(StandardFileSystem);
-    let init_command = InitCommand::new(1, None, true, true, fs_ops); // force=true, dry run
+    let init_command = InitCommand::new(None, true, true, fs_ops); // force=true, dry run
     
     let result = init_command.execute().await;
     assert!(result.is_ok(), "Init with force should succeed: {:?}", result.err());
@@ -160,27 +160,15 @@ async fn test_init_invalid_agent_count() {
     
     let fs_ops = Arc::new(StandardFileSystem);
     
-    // Test with 0 agents (invalid)
-    let init_command1 = InitCommand::new(0, None, false, true, fs_ops.clone());
-    let result1 = init_command1.execute().await;
-    assert!(result1.is_err(), "Should fail with 0 agents");
-    assert!(result1.unwrap_err().to_string().contains("between 1 and 12"));
-    
-    // Test with too many agents (invalid)  
-    let init_command2 = InitCommand::new(15, None, false, true, fs_ops.clone());
-    let result2 = init_command2.execute().await;
-    assert!(result2.is_err(), "Should fail with 15 agents");
-    assert!(result2.unwrap_err().to_string().contains("between 1 and 12"));
-    
-    // Test with valid agent count (should pass validation)
-    let init_command3 = InitCommand::new(1, None, false, true, fs_ops);
-    // This might fail due to missing git repo, but should pass the agent count validation
-    let result3 = init_command3.execute().await;
-    // We only care that it didn't fail with agent count error
-    if result3.is_err() {
-        let error_msg = result3.unwrap_err().to_string();
-        assert!(!error_msg.contains("between 1 and 12"), 
-                "Should not fail with agent count error for valid count: {}", error_msg);
+    // Note: Agent count validation is no longer part of InitCommand constructor
+    // This test now simply validates that InitCommand can be created successfully
+    let init_command = InitCommand::new(None, false, true, fs_ops);
+    let result = init_command.execute().await;
+    // This might fail due to missing git repo setup, but the constructor should work
+    // The key is that construction succeeds since agent count is no longer validated here
+    println!("InitCommand construction succeeded (agent count no longer validated in constructor)");
+    if result.is_err() {
+        println!("Execution failed (expected without proper git setup): {}", result.unwrap_err());
     }
 }
 
@@ -196,7 +184,7 @@ async fn test_init_missing_git_repository() {
     std::fs::write("README.md", "# Test Repository").unwrap();
 
     let fs_ops = Arc::new(StandardFileSystem);
-    let init_command = InitCommand::new(1, None, false, false, fs_ops); // not dry run to trigger git checks
+    let init_command = InitCommand::new(None, false, false, fs_ops); // not dry run to trigger git checks
     
     let result = init_command.execute().await;
     assert!(result.is_err(), "Init should fail without git repository");
@@ -256,7 +244,7 @@ async fn test_init_uncommitted_changes_error() {
     std::fs::write("new_file.txt", "Uncommitted content").unwrap();
 
     let fs_ops = Arc::new(StandardFileSystem);
-    let init_command = InitCommand::new(1, None, false, false, fs_ops); // no force, not dry run
+    let init_command = InitCommand::new(None, false, false, fs_ops); // no force, not dry run
     
     let result = init_command.execute().await;
     assert!(result.is_err(), "Init should fail with uncommitted changes without force");
@@ -315,7 +303,7 @@ async fn test_init_force_with_uncommitted_changes_succeeds() {
     std::fs::write("new_file.txt", "Uncommitted content").unwrap();
 
     let fs_ops = Arc::new(StandardFileSystem);
-    let init_command = InitCommand::new(1, None, true, true, fs_ops); // force=true, dry run
+    let init_command = InitCommand::new(None, true, true, fs_ops); // force=true, dry run
     
     let result = init_command.execute().await;
     assert!(result.is_ok(), "Init with force should succeed with uncommitted changes: {:?}", result.err());
@@ -346,11 +334,12 @@ async fn test_init_different_agent_counts() {
 
     let fs_ops = Arc::new(StandardFileSystem);
     
-    // Test various valid agent counts
-    for agent_count in [1, 2, 4, 8, 12] {
-        let init_command = InitCommand::new(agent_count, None, false, true, fs_ops.clone());
+    // Note: Agent count validation is no longer part of InitCommand constructor
+    // This test now validates that InitCommand works correctly multiple times
+    for i in 1..=5 {
+        let init_command = InitCommand::new(None, false, true, fs_ops.clone());
         let result = init_command.execute().await;
-        assert!(result.is_ok(), "Init should succeed with {} agents: {:?}", agent_count, result.err());
+        assert!(result.is_ok(), "Init should succeed on attempt {}: {:?}", i, result.err());
     }
     
     // Cleanup

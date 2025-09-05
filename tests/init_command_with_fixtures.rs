@@ -210,7 +210,7 @@ async fn test_migration_example_old_vs_new_pattern() {
         .return_const(false);
     
     let fs_ops = Arc::new(mock_fs);
-    let init_command = InitCommand::new(1, None, false, true, fs_ops);
+    let init_command = InitCommand::new(None, false, true, fs_ops);
     let result = init_command.execute().await;
     assert!(result.is_ok(), "Init command should succeed in clean repository");
     */

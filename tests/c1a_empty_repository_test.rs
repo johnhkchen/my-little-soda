@@ -24,14 +24,14 @@ struct EmptyRepositoryTestResult {
 impl EmptyRepositoryTestResult {
     /// Check if all expected files and directories were created
     fn validate_expected_files(&self) -> bool {
-        self.config_created && self.my-little-soda_dir_created && self.agents_dir_created
+        self.config_created && self.my_little_soda_dir_created && self.agents_dir_created
     }
     
     /// Get a summary of what was created
     fn creation_summary(&self) -> String {
         let mut summary = Vec::new();
         if self.config_created { summary.push("my-little-soda.toml"); }
-        if self.my-little-soda_dir_created { summary.push(".my-little-soda/"); }
+        if self.my_little_soda_dir_created { summary.push(".my-little-soda/"); }
         if self.agents_dir_created { summary.push(".my-little-soda/agents/"); }
         summary.join(", ")
     }
@@ -87,7 +87,7 @@ async fn run_init_on_empty_repository(dry_run: bool) -> Result<EmptyRepositoryTe
     
     // Create and run init command
     let fs_ops: Arc<dyn FileSystemOperations> = Arc::new(StandardFileSystem);
-    let init_command = InitCommand::new(1, None, false, dry_run, fs_ops);
+    let init_command = InitCommand::new(None, false, dry_run, fs_ops);
     
     let init_result = init_command.execute().await;
     
@@ -129,7 +129,7 @@ async fn test_c1a_init_on_empty_repository() {
     
     // For dry run, no files should be created, but the command should succeed
     assert!(!result.config_created, "my-little-soda.toml should not be created in dry run");
-    assert!(!result.my-little-soda_dir_created, ".my-little-soda directory should not be created in dry run");
+    assert!(!result.my_little_soda_dir_created, ".my-little-soda directory should not be created in dry run");
     assert!(!result.agents_dir_created, ".my-little-soda/agents directory should not be created in dry run");
     
     println!("✅ C1a Test PASSED: Init dry run works correctly on empty repository");
@@ -149,7 +149,7 @@ async fn test_c1a_init_dry_run_on_empty_repository() {
     
     // Validate no files were created during dry run
     assert!(!result.config_created, "my-little-soda.toml should not be created in dry run");
-    assert!(!result.my-little-soda_dir_created, ".my-little-soda directory should not be created in dry run");
+    assert!(!result.my_little_soda_dir_created, ".my-little-soda directory should not be created in dry run");
     assert!(!result.agents_dir_created, ".my-little-soda/agents directory should not be created in dry run");
     
     println!("✅ C1a Dry Run Test PASSED: Init dry run works correctly on empty repository");
@@ -169,7 +169,7 @@ async fn test_c1a_init_multiple_agents_empty_repository() {
         std::env::set_current_dir(temp_dir.path()).unwrap();
         
         let fs_ops: Arc<dyn FileSystemOperations> = Arc::new(StandardFileSystem);
-        let init_command = InitCommand::new(agent_count, None, false, true, fs_ops); // dry run
+        let init_command = InitCommand::new(None, false, true, fs_ops); // dry run
         
         let result = init_command.execute().await;
         
@@ -246,7 +246,7 @@ async fn test_c1a_complete_empty_repository_workflow() {
     std::env::set_current_dir(temp_dir.path()).unwrap();
     
     let fs_ops: Arc<dyn FileSystemOperations> = Arc::new(StandardFileSystem);
-    let init_command = InitCommand::new(1, None, false, true, fs_ops); // Use dry_run = true
+    let init_command = InitCommand::new(None, false, true, fs_ops); // Use dry_run = true
     let init_result = init_command.execute().await;
     
     std::env::set_current_dir(original_dir).unwrap();

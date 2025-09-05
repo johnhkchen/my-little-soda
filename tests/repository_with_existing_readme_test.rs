@@ -70,7 +70,7 @@ impl ExistingReadmeTestHarness {
         std::env::set_current_dir(self.temp_dir.path())?;
         
         let fs_ops: Arc<dyn my_little_soda::fs::FileSystemOperations> = Arc::new(StandardFileSystem);
-        let init_command = InitCommand::new(1, None, force, dry_run, fs_ops);
+        let init_command = InitCommand::new(None, force, dry_run, fs_ops);
         
         let result = init_command.execute().await;
         
