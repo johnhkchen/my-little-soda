@@ -59,6 +59,12 @@ my-little-soda bottle    # Bundle completed work for review
 my-little-soda status    # Check agent status
 ```
 
+**System diagnostics:**
+```bash
+my-little-soda doctor    # Run comprehensive system health checks
+my-little-soda doctor --verbose  # Show detailed diagnostic information
+```
+
 Run `my-little-soda --help` to see all available commands.
 
 ## Development
