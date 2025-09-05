@@ -275,8 +275,8 @@ async fn test_github_api_error_handling() {
             // Verify the error is properly typed
             assert!(matches!(
                 e,
-                my_little_soda::autonomous::StateDriftError::GitHubError(_)
-                    | my_little_soda::autonomous::StateDriftError::ValidationFailed { .. }
+                my_little_soda::autonomous::state_validation::StateDriftError::GitHubError(_)
+                    | my_little_soda::autonomous::state_validation::StateDriftError::ValidationFailed { .. }
             ));
         }
     }
@@ -444,7 +444,7 @@ async fn test_status_reporting_with_real_github() {
     assert_eq!(drift_report.critical_drifts.len(), 0);
     assert_eq!(
         drift_report.validation_health,
-        my_little_soda::autonomous::ValidationHealth::Healthy
+        my_little_soda::autonomous::state_validation::ValidationHealth::Healthy
     );
 
     println!("All status reports generated successfully with real GitHub client");

@@ -14,8 +14,10 @@ use my_little_soda::{
     agents::recovery::AutoRecovery,
     autonomous::{
         AgentId, AutonomousCoordinator, AutonomousEvent, AutonomousWorkflowMachine,
-        AutonomousWorkflowState, BlockerType, CoordinationConfig, DriftThresholds, Issue, Priority,
-        PullRequest, StateDriftDetector, WorkProgress, WorkspaceState,
+        AutonomousWorkflowState, CoordinationConfig, Issue, Priority,
+        state_validation::{DriftThresholds, StateDriftDetector},
+        work_continuity::WorkProgress,
+        workflow_state_machine::WorkspaceState,
     },
     GitHubClient,
 };

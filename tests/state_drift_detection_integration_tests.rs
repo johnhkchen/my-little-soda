@@ -10,11 +10,14 @@ use tokio::time::sleep;
 
 use my_little_soda::{
     autonomous::{
-        AgentId, AutonomousWorkflowState, CorrectionAction, CorrectionStrategy,
-        DriftDetectionReport, DriftSeverity, DriftThresholds, ExpectedBranchState,
-        ExpectedIssueState, ExpectedPRState, ExpectedSystemState, ExpectedWorkspaceState, Issue,
-        IssueState, PRState, Priority, PullRequest, ReviewState, StateDrift, StateDriftDetector,
-        StateDriftError, StateDriftType, ValidationHealth, WorkspaceState,
+        AgentId, AutonomousWorkflowState, Issue, Priority, PullRequest,
+        state_validation::{
+            CorrectionAction, CorrectionStrategy, DriftDetectionReport, DriftSeverity, 
+            DriftThresholds, ExpectedBranchState, ExpectedIssueState, ExpectedPRState, 
+            ExpectedSystemState, ExpectedWorkspaceState, IssueState, PRState, ReviewState, 
+            StateDrift, StateDriftDetector, StateDriftError, StateDriftType, ValidationHealth,
+        },
+        workflow_state_machine::WorkspaceState,
     },
     GitHubClient,
 };
@@ -105,8 +108,10 @@ async fn test_expected_state_updates() {
         },
         agent: AgentId("state-update-agent".to_string()),
         workspace: WorkspaceState {
-            current_branch: "main".to_string(),
-            uncommitted_changes: false,
+            branch_name: "main".to_string(),
+            base_branch: "main".to_string(),
+            workspace_setup: true,
+            dependencies_installed: true,
         },
     };
 
@@ -169,8 +174,10 @@ async fn test_issue_drift_detection() {
         },
         agent: AgentId("issue-drift-agent".to_string()),
         workspace: WorkspaceState {
-            current_branch: "main".to_string(),
-            uncommitted_changes: false,
+            branch_name: "main".to_string(),
+            base_branch: "main".to_string(),
+            workspace_setup: true,
+            dependencies_installed: true,
         },
     };
 

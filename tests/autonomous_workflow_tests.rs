@@ -15,12 +15,12 @@ use my_little_soda::{
         integration::AutonomousIntegrationFactory,
         integration::IntegrationConfig,
         persistence::PersistentWorkflowState,
-        work_continuity::WorkProgress,
-        AbandonmentReason, AgentId, BlockerType, CIFailure, CheckpointReason, CompletedWork,
+        workflow_state_machine::WorkProgress,
+        AgentId, BlockerType, CIFailure, CheckpointReason, CompletedWork,
         ConflictInfo, Issue, PersistenceConfig, Priority, PullRequest,
     },
     AutonomousCoordinator, AutonomousErrorRecovery, AutonomousEvent, AutonomousWorkflowMachine,
-    AutonomousWorkflowState, CoordinationConfig, GitHubClient, IntegrationCoordinator,
+    AutonomousWorkflowState, CoordinationConfig, GitHubClient,
     StatePersistenceManager,
 };
 
@@ -336,7 +336,7 @@ async fn test_state_persistence() {
         } => {
             assert_eq!(issue.number, 456);
             assert_eq!(progress.commits_made, 2);
-            assert_eq!(progress.completion_percentage, 50);
+            assert_eq!(progress.files_changed, 3);
         }
         _ => panic!("Expected InProgress state"),
     }
@@ -460,8 +460,7 @@ async fn test_system_integration() {
 
     assert!(
         integration_result.is_ok(),
-        "Integration system creation failed: {:?}",
-        integration_result
+        "Integration system creation failed"
     );
 
     let coordinator = integration_result.unwrap();

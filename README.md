@@ -26,59 +26,36 @@
 
 ## Setup
 
-**Prerequisites:**
-- GitHub personal access token with repo permissions
+**Prerequisites:** GitHub personal access token with repo permissions
 
-**Installation:**
 ```bash
-# Build the binary
+# Build and install
 cargo build --release
-
-# Set up GitHub authentication
 export MY_LITTLE_SODA_GITHUB_TOKEN=your_github_token_here
 
-# Initialize in your repository
+# Initialize and validate
 ./target/release/my-little-soda init
-
-# Validate setup
 ./target/release/my-little-soda doctor
 ```
 
-**For development:**
+**Development install:**
 ```bash
-# Alternative: Install globally
 cargo install --path .
-# Then use: my-little-soda init
-# Validate: my-little-soda doctor
+my-little-soda init && my-little-soda doctor
 ```
 
 ## Commands
 
-**Core workflow:**
 ```bash
 my-little-soda init      # Initialize repository
 my-little-soda peek      # Preview available issues  
 my-little-soda pop       # Claim and start work on issue
 my-little-soda bottle    # Bundle completed work for review
 my-little-soda status    # Check agent status
+my-little-soda doctor    # System health checks and troubleshooting
 ```
 
-**System diagnostics:**
-```bash
-my-little-soda doctor    # Run comprehensive system health checks
-my-little-soda doctor --verbose  # Show detailed diagnostic information
-my-little-soda doctor --format json  # Machine-readable JSON output
-my-little-soda doctor --ci-mode  # Optimized for CI/CD environments
-```
-
-**Common troubleshooting scenarios:**
-- **Setup validation:** Run `my-little-soda doctor` after installation to verify everything is configured correctly
-- **Authentication issues:** Doctor command checks GitHub authentication and repository permissions  
-- **Missing labels:** Identifies required labels that need to be created with `my-little-soda init`
-- **Agent state problems:** Detects stuck agents, orphaned assignments, and workflow issues
-- **CI/CD debugging:** Use `my-little-soda doctor --ci-mode --format json` for automated health checks
-
-Run `my-little-soda --help` to see all available commands.
+Run `my-little-soda --help` or `my-little-soda <command> --help` for details.
 
 ## Development
 

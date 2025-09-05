@@ -310,7 +310,7 @@ mod tests {
         let timeout_ranges = test_environments
             .iter()
             .map(|e| e.timeout_multiplier)
-            .fold((f64::INFINITY, 0.0), |(min, max), val| {
+            .fold((f64::INFINITY, 0.0f64), |(min, max), val| {
                 (min.min(val), max.max(val))
             });
         assert!(
