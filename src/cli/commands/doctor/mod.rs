@@ -1,7 +1,10 @@
+pub mod agent_state;
+
 use crate::cli::DoctorFormat;
 use crate::config::config;
 use crate::github::client::GitHubClient;
 use crate::github::errors::GitHubError;
+use agent_state::AgentStateDiagnostic;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -110,6 +113,9 @@ impl DoctorCommand {
         self.check_temporary_directory_access(&mut checks)?;
         self.check_conflicting_configurations(&mut checks)?;
         self.check_file_operations(&mut checks)?;
+        
+        // Run agent state diagnostics
+        self.check_agent_state_health(&mut checks).await;
         
         // Calculate summary
         let summary = self.calculate_summary(&checks);
@@ -3155,5 +3161,109 @@ impl DoctorCommand {
         );
 
         Ok(())
+    }
+
+    /// Check agent state and work continuity health
+    async fn check_agent_state_health(&self, checks: &mut HashMap<String, DiagnosticResult>) {
+        // Try to create GitHub client for agent diagnostics
+        match GitHubClient::new() {
+            Ok(github_client) => {
+                // Create agent state diagnostic checker
+                let agent_diagnostic = match AgentStateDiagnostic::new(github_client)
+                    .with_coordinator().await {
+                    Ok(diagnostic) => diagnostic,
+                    Err(e) => {
+                        checks.insert(
+                            "agent_state_initialization".to_string(),
+                            DiagnosticResult {
+                                status: DiagnosticStatus::Fail,
+                                message: "Failed to initialize agent state diagnostics".to_string(),
+                                details: Some(format!("Error: {:?}", e)),
+                                suggestion: Some("Ensure GitHub authentication and configuration are correct".to_string()),
+                            },
+                        );
+                        return;
+                    }
+                };
+
+                // Run comprehensive agent state checks
+                agent_diagnostic.check_agent_state(checks).await;
+                agent_diagnostic.check_work_continuity(checks).await;
+                agent_diagnostic.check_orphaned_assignments(checks).await;
+                agent_diagnostic.check_abandoned_work(checks).await;
+                agent_diagnostic.check_conflicting_assignments(checks).await;
+                agent_diagnostic.check_cleanup_status(checks).await;
+
+                // Add overall agent health summary
+                let has_failures = checks.values().any(|result| {
+                    matches!(result.status, DiagnosticStatus::Fail) && 
+                    [
+                        "agent_availability",
+                        "work_continuity_integrity", 
+                        "orphaned_assignments",
+                        "abandoned_work",
+                        "conflicting_assignments",
+                        "state_machine_consistency",
+                        "work_cleanup"
+                    ].iter().any(|key| checks.contains_key(*key))
+                });
+
+                let has_warnings = checks.values().any(|result| {
+                    matches!(result.status, DiagnosticStatus::Warning) && 
+                    [
+                        "agent_availability",
+                        "work_continuity_integrity", 
+                        "orphaned_assignments",
+                        "abandoned_work",
+                        "conflicting_assignments",
+                        "state_machine_consistency",
+                        "work_cleanup"
+                    ].iter().any(|key| checks.contains_key(*key))
+                });
+
+                let overall_status = if has_failures {
+                    DiagnosticStatus::Fail
+                } else if has_warnings {
+                    DiagnosticStatus::Warning
+                } else {
+                    DiagnosticStatus::Pass
+                };
+
+                let message = if has_failures {
+                    "Agent state has critical issues that need attention".to_string()
+                } else if has_warnings {
+                    "Agent state has some issues but is generally healthy".to_string()
+                } else {
+                    "Agent state is healthy".to_string()
+                };
+
+                checks.insert(
+                    "agent_state_overall".to_string(),
+                    DiagnosticResult {
+                        status: overall_status,
+                        message,
+                        details: Some("See individual agent state checks for detailed information".to_string()),
+                        suggestion: if has_failures {
+                            Some("Address critical agent state issues immediately to prevent work disruption".to_string())
+                        } else if has_warnings {
+                            Some("Consider addressing agent state warnings to improve reliability".to_string())
+                        } else {
+                            Some("Agent state is optimal - continue normal operation".to_string())
+                        },
+                    },
+                );
+            }
+            Err(e) => {
+                checks.insert(
+                    "agent_state_github_access".to_string(),
+                    DiagnosticResult {
+                        status: DiagnosticStatus::Fail,
+                        message: "Cannot access GitHub for agent state diagnostics".to_string(),
+                        details: Some(format!("GitHub client creation failed: {:?}", e)),
+                        suggestion: Some("Configure GitHub authentication with 'gh auth login' or set appropriate environment variables".to_string()),
+                    },
+                );
+            }
+        }
     }
 }
