@@ -839,29 +839,35 @@ impl InitCommand {
             .map_err(|e| anyhow!("Failed to get git remote URL: {}", e))?;
 
         if !output.status.success() {
-            // For fresh projects (with or without --force), provide placeholder values
-            println!("⚠️  No git remote found, using placeholder repository info");
-            println!("   Update my-little-soda.toml manually after setting up GitHub repository");
+            // For fresh projects (with or without --force), provide enhanced guidance
+            println!("⚠️  No git remote found in this repository");
+            println!("   To set up a GitHub remote, run:");
+            println!("   git remote add origin https://github.com/YOUR-USERNAME/YOUR-REPO.git");
+            println!("   Using placeholder values for now - update my-little-soda.toml after setting up remote");
             return Ok(("your-github-username".to_string(), "your-repo-name".to_string()));
         }
 
         let remote_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-        // Parse GitHub URL (supports both SSH and HTTPS)
-        let (owner, repo) = if let Some(captures) =
-            regex::Regex::new(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$")
-                .unwrap()
-                .captures(&remote_url)
-        {
-            (captures[1].to_string(), captures[2].to_string())
-        } else {
-            return Err(anyhow!(
-                "Could not parse GitHub repository from remote URL: {}",
-                remote_url
-            ));
-        };
-
-        Ok((owner, repo))
+        // Use the improved URL parsing from git operations
+        use crate::git::{Git2Operations, GitHubRepoInfo};
+        match Git2Operations::parse_github_url(&remote_url) {
+            Ok(Some(GitHubRepoInfo { owner, repo })) => {
+                Ok((owner, repo))
+            }
+            Ok(None) => {
+                Err(anyhow!(
+                    "Could not parse GitHub repository from remote URL: {}. Only GitHub repositories are supported. Expected format: git@github.com:owner/repo.git or https://github.com/owner/repo.git",
+                    remote_url
+                ))
+            }
+            Err(e) => {
+                Err(anyhow!(
+                    "Error parsing GitHub repository URL '{}': {}. Make sure this is a valid GitHub remote URL",
+                    remote_url, e
+                ))
+            }
+        }
     }
 
     async fn setup_agents(&self) -> Result<()> {

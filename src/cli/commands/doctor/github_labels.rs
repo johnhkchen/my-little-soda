@@ -1,7 +1,6 @@
 /// Simple implementation of GitHub label validation diagnostics
 /// This module provides basic label checking functionality for the doctor command
 
-use std::collections::HashMap;
 use crate::cli::commands::doctor::{DiagnosticResult, DiagnosticStatus};
 
 /// Label specification structure 
@@ -546,7 +545,7 @@ pub async fn check_workflow_label_compliance(verbose: bool) -> DiagnosticResult 
                         }
                     }
                     
-                    let total_managed_issues = agent_assigned_count + ready_count + review_count;
+                    let _total_managed_issues = agent_assigned_count + ready_count + review_count;
                     
                     if compliance_issues.is_empty() {
                         DiagnosticResult {

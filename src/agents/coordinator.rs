@@ -2,7 +2,6 @@
 // Following VERBOTEN rules: GitHub is source of truth, no local state files
 
 use crate::agent_lifecycle::{AgentEvent, AgentStateMachine};
-use crate::config::config;
 #[cfg(feature = "autonomous")]
 use crate::autonomous::CheckpointReason;
 #[cfg(feature = "autonomous")]
@@ -173,7 +172,7 @@ impl AgentCoordinator {
         issue_number: u64,
         issue_title: &str,
     ) -> Result<(), GitHubError> {
-        let execution_start = Instant::now();
+        let _execution_start = Instant::now();
         let correlation_id = generate_correlation_id();
         let span = create_coordination_span(
             "assign_agent_to_issue",

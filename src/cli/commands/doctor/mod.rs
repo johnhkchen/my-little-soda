@@ -1803,7 +1803,7 @@ impl DoctorCommand {
     /// Comprehensive GitHub authentication diagnostics using the actual GitHub client
     /// Determines if verbose output should be enabled (quiet for JSON format)
     fn is_verbose(&self) -> bool {
-        !matches!(self.format, DoctorFormat::Json)
+        self.verbose && !matches!(self.format, DoctorFormat::Json)
     }
 
     async fn check_github_authentication(&self, checks: &mut HashMap<String, DiagnosticResult>) {

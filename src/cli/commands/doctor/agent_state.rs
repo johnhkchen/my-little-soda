@@ -13,8 +13,7 @@ use crate::autonomous::persistence::PersistenceConfig;
 use crate::github::{GitHubClient, GitHubError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
-use chrono::{DateTime, Utc, Duration};
+use chrono::{DateTime, Utc};
 use tracing::{debug, info};
 
 /// Comprehensive agent state diagnostic report

@@ -38,7 +38,7 @@ impl BranchHandler {
     }
 
     /// Delete a branch
-    pub async fn delete_branch(&self, branch_name: &str) -> Result<(), GitHubError> {
+    pub async fn delete_branch(&self, _branch_name: &str) -> Result<(), GitHubError> {
         // Branch deletion would use GitHub API
         println!("🗑️  Branch deletion attempted via GitHub API (placeholder implementation)");
         Ok(())
