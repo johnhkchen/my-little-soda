@@ -2,17 +2,15 @@
 
 **Horizontal scaling for autonomous agents: Today 8→32 repo-hours, tomorrow 1→15 days of work.**
 
-My Little Soda enables horizontal scaling across repositories to multiply autonomous agent productivity. As AI agents evolve to work unattended for full days, this architecture scales that productivity across your entire repository portfolio.
+Run autonomous agents across multiple repositories simultaneously. As AI agents evolve to work unattended for full days, this architecture multiplies that productivity across your repository portfolio.
 
 ## The Problem
 
-Solo developers maintaining multiple repositories face a capacity bottleneck: you can only actively work on one codebase at a time. Context switching between repositories is expensive and limits your effective development time.
-
-**Early codebases hit bottlenecks fast.** PM/marketing teams want to contribute code but lack context. Developers burn out juggling multiple projects.
+Solo developers can only work one repository at a time. Context switching is expensive. PM/marketing teams want to contribute code but lack context.
 
 ## The Solution
 
-**Repository-level horizontal scaling.** Run one agent per repository, each working independently on GitHub Issues labeled `route:ready`. One developer + 3 repositories = 3x development capacity.
+Run one agent per repository on GitHub Issues labeled `route:ready`. One developer + 3 repositories = 3x development capacity.
 
 ```bash
 # Terminal 1: Web app repository  
@@ -30,15 +28,10 @@ All three agents work simultaneously while you focus on architecture, planning, 
 
 ## Why This Architecture Works
 
-**Built for the future of autonomous agents.** As AI agents evolve to work unattended for full days (turning 1 day into 5 days of work), this architecture multiplies that productivity across repositories.
+**Current**: 1 developer + 3 agents = 32 repo-hours  
+**Future**: 1 day unattended + 3 repos = 15 days of work
 
-**Current scaling**: 1 developer + 3 agents = 32 repo-hours  
-**Future scaling**: 1 day unattended + 3 repos = 15 days of work
-
-- **No coordination complexity**: One agent per repo eliminates merge conflicts during long autonomous sessions
-- **Repository-specific context**: Each agent builds deep knowledge of one codebase over extended periods
-- **Clean isolation**: Long-running agents won't interfere with each other
-- **Issue-driven workflow**: GitHub Issues become distributed task queues for autonomous work
+One agent per repository eliminates merge conflicts, builds repository-specific context, and prevents interference during long autonomous sessions.
 
 ## Quick Start
 
@@ -72,29 +65,19 @@ my-little-soda status
 
 ## Core Workflow
 
-**Designed for autonomous operation**: Issues fit in single context windows today, but the workflow scales to full-day autonomous sessions.
+1. **Peek**: Preview available issues
+2. **Pop**: Claim issue, create branch `agent001/123-fix-login-bug`
+3. **Work**: Implement solution autonomously (15-60 minutes today, hours tomorrow)
+4. **Bottle**: Bundle work, add `route:review` label
+5. **Review**: Review PR and merge
 
-1. **Peek**: Preview available issues without claiming them
-2. **Pop**: Agent claims a `route:ready` issue and creates branch `agent001/123-fix-login-bug`
-3. **Work**: Agent implements solution autonomously (15-60 minutes today, hours tomorrow)
-4. **Bottle**: Agent bundles completed work, adds `route:review` label
-5. **Review**: You review PR and merge when ready
+Two-phase design separates autonomous implementation from human-supervised merges.
 
-**Two-phase design**: Separates autonomous implementation from human-supervised merge decisions, enabling long unattended work sessions.
+## Architecture
 
-## Architecture: Horizontal Scaling Infrastructure
+Horizontal scaling infrastructure for autonomous agents. As vertical scaling improves (1 day → 5 days of work), horizontal scaling multiplies that across repositories.
 
-**Strategic positioning**: My Little Soda provides horizontal scaling infrastructure for autonomous agents. As vertical scaling improves (1 day → 5 days of work), horizontal scaling multiplies that across repositories.
-
-**One agent per repository eliminates**:
-- Merge conflicts during long autonomous sessions
-- Complex coordination that derails unattended operation
-- Context contamination between different codebases
-
-**Enables**:
-- Repository-specific knowledge building over extended periods
-- Clean handoffs between autonomous work and human review
-- Portfolio-wide productivity scaling as agents become more capable
+One agent per repository eliminates merge conflicts, coordination complexity, and context contamination while enabling repository-specific knowledge and clean autonomous-to-human handoffs.
 
 ## Development
 
