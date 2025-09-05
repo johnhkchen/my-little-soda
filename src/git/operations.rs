@@ -352,17 +352,17 @@ impl GitOperations for Git2Operations {
 
     fn get_github_repo_info(&self, remote_name: Option<&str>) -> Result<Option<GitHubRepoInfo>> {
         let remote_name = remote_name.unwrap_or("origin");
-        
+
         let remote = match self.repo.find_remote(remote_name) {
             Ok(remote) => remote,
             Err(_) => return Ok(None), // Remote not found
         };
-        
+
         let url = match remote.url() {
             Some(url) => url,
             None => return Ok(None), // No URL for remote
         };
-        
+
         // Parse GitHub URL (both SSH and HTTPS formats)
         Self::parse_github_url(url)
     }
@@ -376,7 +376,7 @@ impl Git2Operations {
         if url.starts_with("git@github.com:") {
             let path = url.strip_prefix("git@github.com:").unwrap();
             let path = path.strip_suffix(".git").unwrap_or(path);
-            
+
             let parts: Vec<&str> = path.split('/').collect();
             if parts.len() == 2 {
                 return Ok(Some(GitHubRepoInfo {
@@ -385,12 +385,12 @@ impl Git2Operations {
                 }));
             }
         }
-        
+
         // Handle HTTPS format: https://github.com/owner/repo.git
         if url.starts_with("https://github.com/") {
             let path = url.strip_prefix("https://github.com/").unwrap();
             let path = path.strip_suffix(".git").unwrap_or(path);
-            
+
             let parts: Vec<&str> = path.split('/').collect();
             if parts.len() >= 2 {
                 return Ok(Some(GitHubRepoInfo {
@@ -399,7 +399,7 @@ impl Git2Operations {
                 }));
             }
         }
-        
+
         // Not a recognized GitHub URL
         Ok(None)
     }
@@ -492,7 +492,8 @@ mod tests {
         assert_eq!(repo_info.repo, "repo");
 
         // Test HTTPS format with additional path components (should take first two)
-        let result = Git2Operations::parse_github_url("https://github.com/owner/repo/extra/path").unwrap();
+        let result =
+            Git2Operations::parse_github_url("https://github.com/owner/repo/extra/path").unwrap();
         assert!(result.is_some());
         let repo_info = result.unwrap();
         assert_eq!(repo_info.owner, "owner");
@@ -533,14 +534,16 @@ mod tests {
         assert_eq!(repo_info.repo, "my_repo");
 
         // Test with numeric characters
-        let result = Git2Operations::parse_github_url("https://github.com/user123/repo456").unwrap();
+        let result =
+            Git2Operations::parse_github_url("https://github.com/user123/repo456").unwrap();
         assert!(result.is_some());
         let repo_info = result.unwrap();
         assert_eq!(repo_info.owner, "user123");
         assert_eq!(repo_info.repo, "repo456");
 
         // Test with dots in repo names
-        let result = Git2Operations::parse_github_url("git@github.com:owner/my.repo.name.git").unwrap();
+        let result =
+            Git2Operations::parse_github_url("git@github.com:owner/my.repo.name.git").unwrap();
         assert!(result.is_some());
         let repo_info = result.unwrap();
         assert_eq!(repo_info.owner, "owner");

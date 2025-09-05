@@ -51,12 +51,7 @@ impl MockGitHubClient {
 }
 
 /// Create a mock issue for testing
-fn create_mock_issue(
-    number: u64,
-    assignee_login: &str,
-    labels: Vec<&str>,
-    state: &str,
-) -> Issue {
+fn create_mock_issue(number: u64, assignee_login: &str, labels: Vec<&str>, state: &str) -> Issue {
     Issue {
         id: octocrab::models::IssueId(number),
         number: number as i64,
@@ -70,14 +65,26 @@ fn create_mock_issue(
             url: url::Url::parse("https://api.github.com/users/test").unwrap(),
             html_url: url::Url::parse("https://github.com/test").unwrap(),
             followers_url: url::Url::parse("https://api.github.com/users/test/followers").unwrap(),
-            following_url: url::Url::parse("https://api.github.com/users/test/following{/other_user}").unwrap(),
-            gists_url: url::Url::parse("https://api.github.com/users/test/gists{/gist_id}").unwrap(),
-            starred_url: url::Url::parse("https://api.github.com/users/test/starred{/owner}{/repo}").unwrap(),
-            subscriptions_url: url::Url::parse("https://api.github.com/users/test/subscriptions").unwrap(),
+            following_url: url::Url::parse(
+                "https://api.github.com/users/test/following{/other_user}",
+            )
+            .unwrap(),
+            gists_url: url::Url::parse("https://api.github.com/users/test/gists{/gist_id}")
+                .unwrap(),
+            starred_url: url::Url::parse(
+                "https://api.github.com/users/test/starred{/owner}{/repo}",
+            )
+            .unwrap(),
+            subscriptions_url: url::Url::parse("https://api.github.com/users/test/subscriptions")
+                .unwrap(),
             organizations_url: url::Url::parse("https://api.github.com/users/test/orgs").unwrap(),
             repos_url: url::Url::parse("https://api.github.com/users/test/repos").unwrap(),
-            events_url: url::Url::parse("https://api.github.com/users/test/events{/privacy}").unwrap(),
-            received_events_url: url::Url::parse("https://api.github.com/users/test/received_events").unwrap(),
+            events_url: url::Url::parse("https://api.github.com/users/test/events{/privacy}")
+                .unwrap(),
+            received_events_url: url::Url::parse(
+                "https://api.github.com/users/test/received_events",
+            )
+            .unwrap(),
             r#type: "User".to_string(),
             site_admin: false,
         },
@@ -103,15 +110,31 @@ fn create_mock_issue(
             gravatar_id: None,
             url: url::Url::parse("https://api.github.com/users/assignee").unwrap(),
             html_url: url::Url::parse("https://github.com/assignee").unwrap(),
-            followers_url: url::Url::parse("https://api.github.com/users/assignee/followers").unwrap(),
-            following_url: url::Url::parse("https://api.github.com/users/assignee/following{/other_user}").unwrap(),
-            gists_url: url::Url::parse("https://api.github.com/users/assignee/gists{/gist_id}").unwrap(),
-            starred_url: url::Url::parse("https://api.github.com/users/assignee/starred{/owner}{/repo}").unwrap(),
-            subscriptions_url: url::Url::parse("https://api.github.com/users/assignee/subscriptions").unwrap(),
-            organizations_url: url::Url::parse("https://api.github.com/users/assignee/orgs").unwrap(),
+            followers_url: url::Url::parse("https://api.github.com/users/assignee/followers")
+                .unwrap(),
+            following_url: url::Url::parse(
+                "https://api.github.com/users/assignee/following{/other_user}",
+            )
+            .unwrap(),
+            gists_url: url::Url::parse("https://api.github.com/users/assignee/gists{/gist_id}")
+                .unwrap(),
+            starred_url: url::Url::parse(
+                "https://api.github.com/users/assignee/starred{/owner}{/repo}",
+            )
+            .unwrap(),
+            subscriptions_url: url::Url::parse(
+                "https://api.github.com/users/assignee/subscriptions",
+            )
+            .unwrap(),
+            organizations_url: url::Url::parse("https://api.github.com/users/assignee/orgs")
+                .unwrap(),
             repos_url: url::Url::parse("https://api.github.com/users/assignee/repos").unwrap(),
-            events_url: url::Url::parse("https://api.github.com/users/assignee/events{/privacy}").unwrap(),
-            received_events_url: url::Url::parse("https://api.github.com/users/assignee/received_events").unwrap(),
+            events_url: url::Url::parse("https://api.github.com/users/assignee/events{/privacy}")
+                .unwrap(),
+            received_events_url: url::Url::parse(
+                "https://api.github.com/users/assignee/received_events",
+            )
+            .unwrap(),
             r#type: "User".to_string(),
             site_admin: false,
         }),
@@ -128,9 +151,14 @@ fn create_mock_issue(
         state_reason: None,
         timeline_url: None,
         repository_url: url::Url::parse("https://api.github.com/repos/test/test").unwrap(),
-        labels_url: url::Url::parse("https://api.github.com/repos/test/test/issues/1/labels{/name}").unwrap(),
-        comments_url: url::Url::parse("https://api.github.com/repos/test/test/issues/1/comments").unwrap(),
-        events_url: url::Url::parse("https://api.github.com/repos/test/test/issues/1/events").unwrap(),
+        labels_url: url::Url::parse(
+            "https://api.github.com/repos/test/test/issues/1/labels{/name}",
+        )
+        .unwrap(),
+        comments_url: url::Url::parse("https://api.github.com/repos/test/test/issues/1/comments")
+            .unwrap(),
+        events_url: url::Url::parse("https://api.github.com/repos/test/test/issues/1/events")
+            .unwrap(),
         html_url: url::Url::parse("https://github.com/test/test/issues/1").unwrap(),
         url: url::Url::parse("https://api.github.com/repos/test/test/issues/1").unwrap(),
         node_id: "issue_node".to_string(),
@@ -144,7 +172,7 @@ async fn test_agent_diagnose_with_valid_issue_and_branch() -> Result<()> {
     // This test verifies that agent diagnostics properly validates
     // an issue that exists and is correctly assigned
     let mock_issue = create_mock_issue(405, "testuser", vec!["agent001", "enhancement"], "open");
-    
+
     let mock_client = MockGitHubClient::new("testowner", "testrepo")
         .with_issue_result(Ok(mock_issue))
         .with_branch_result(Ok(true));
@@ -152,7 +180,7 @@ async fn test_agent_diagnose_with_valid_issue_and_branch() -> Result<()> {
     // Create a mock state machine that has both issue and branch assigned
     // Note: This test assumes we can mock or inject the state machine behavior
     // In a real implementation, you might need dependency injection
-    
+
     // For now, this demonstrates the test structure
     // The actual implementation would require more sophisticated mocking
     assert!(true, "Test framework established");
@@ -164,15 +192,13 @@ async fn test_agent_diagnose_with_missing_issue() -> Result<()> {
     // This test verifies that agent diagnostics properly handles
     // the case where an issue doesn't exist on GitHub
     let mock_client = MockGitHubClient::new("testowner", "testrepo")
-        .with_issue_result(Err(GitHubError::ApiError(
-            octocrab::Error::Http {
-                source: Box::new(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    "Issue not found",
-                )),
-                backtrace: None,
-            }
-        )))
+        .with_issue_result(Err(GitHubError::ApiError(octocrab::Error::Http {
+            source: Box::new(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Issue not found",
+            )),
+            backtrace: None,
+        })))
         .with_branch_result(Ok(false));
 
     // Test that error is properly handled and reported
@@ -180,12 +206,12 @@ async fn test_agent_diagnose_with_missing_issue() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test] 
+#[tokio::test]
 async fn test_agent_diagnose_with_wrong_assignee() -> Result<()> {
     // This test verifies that agent diagnostics detects when
     // an issue is assigned to the wrong user
     let mock_issue = create_mock_issue(405, "wronguser", vec!["agent001"], "open");
-    
+
     let mock_client = MockGitHubClient::new("testowner", "testrepo")
         .with_issue_result(Ok(mock_issue))
         .with_branch_result(Ok(true));
@@ -200,7 +226,7 @@ async fn test_agent_diagnose_with_missing_agent_label() -> Result<()> {
     // This test verifies that agent diagnostics detects when
     // an issue is missing the expected agent label
     let mock_issue = create_mock_issue(405, "testuser", vec!["enhancement"], "open");
-    
+
     let mock_client = MockGitHubClient::new("testowner", "testrepo")
         .with_issue_result(Ok(mock_issue))
         .with_branch_result(Ok(true));
@@ -215,7 +241,7 @@ async fn test_agent_diagnose_with_closed_issue() -> Result<()> {
     // This test verifies that agent diagnostics detects when
     // an agent is assigned to a closed issue
     let mock_issue = create_mock_issue(405, "testuser", vec!["agent001"], "closed");
-    
+
     let mock_client = MockGitHubClient::new("testowner", "testrepo")
         .with_issue_result(Ok(mock_issue))
         .with_branch_result(Ok(true));
@@ -230,7 +256,7 @@ async fn test_agent_diagnose_with_missing_branch() -> Result<()> {
     // This test verifies that agent diagnostics properly handles
     // the case where a branch doesn't exist on GitHub
     let mock_issue = create_mock_issue(405, "testuser", vec!["agent001"], "open");
-    
+
     let mock_client = MockGitHubClient::new("testowner", "testrepo")
         .with_issue_result(Ok(mock_issue))
         .with_branch_result(Ok(false));

@@ -13,11 +13,11 @@ use tokio::time::{interval, sleep};
 use my_little_soda::{
     agents::recovery::AutoRecovery,
     autonomous::{
-        AgentId, AutonomousCoordinator, AutonomousEvent, AutonomousWorkflowMachine,
-        AutonomousWorkflowState, CoordinationConfig, Issue, Priority,
         state_validation::{DriftThresholds, StateDriftDetector},
         work_continuity::WorkProgress,
         workflow_state_machine::WorkspaceState,
+        AgentId, AutonomousCoordinator, AutonomousEvent, AutonomousWorkflowMachine,
+        AutonomousWorkflowState, CoordinationConfig, Issue, Priority,
     },
     GitHubClient,
 };

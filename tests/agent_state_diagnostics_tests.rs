@@ -1,11 +1,11 @@
 //! Agent State Diagnostics Tests
-//! 
+//!
 //! Comprehensive test coverage for agent state diagnostic functionality,
 //! ensuring proper detection and reporting of various agent state scenarios.
 
 use my_little_soda::cli::commands::doctor::agent_state::{
-    AgentStateDiagnostic, AgentStatus, StateMachineHealth, WorkContinuityStatus,
-    GitHubSyncStatus, AgentStateIssue, AgentStateIssueType, IssueSeverity
+    AgentStateDiagnostic, AgentStateIssue, AgentStateIssueType, AgentStatus, GitHubSyncStatus,
+    IssueSeverity, StateMachineHealth, WorkContinuityStatus,
 };
 use my_little_soda::cli::commands::doctor::{DiagnosticResult, DiagnosticStatus};
 use my_little_soda::github::GitHubClient;
@@ -39,7 +39,10 @@ impl AgentStateDiagnosticTestFixture {
 #[tokio::test]
 async fn test_agent_state_diagnostic_creation() {
     let fixture = AgentStateDiagnosticTestFixture::new().await;
-    assert!(fixture.is_ok(), "Should create diagnostic fixture successfully");
+    assert!(
+        fixture.is_ok(),
+        "Should create diagnostic fixture successfully"
+    );
 }
 
 #[tokio::test]
@@ -56,13 +59,17 @@ async fn test_agent_availability_check() {
     fixture.diagnostic.check_agent_state(&mut checks).await;
 
     // Should have agent availability check
-    assert!(checks.contains_key("agent_availability"), 
-        "Should include agent availability check");
+    assert!(
+        checks.contains_key("agent_availability"),
+        "Should include agent availability check"
+    );
 
     let availability_check = &checks["agent_availability"];
     assert!(
-        matches!(availability_check.status, 
-            DiagnosticStatus::Pass | DiagnosticStatus::Info | DiagnosticStatus::Fail),
+        matches!(
+            availability_check.status,
+            DiagnosticStatus::Pass | DiagnosticStatus::Info | DiagnosticStatus::Fail
+        ),
         "Agent availability check should have valid status"
     );
 }
@@ -81,13 +88,17 @@ async fn test_state_machine_consistency_check() {
     fixture.diagnostic.check_agent_state(&mut checks).await;
 
     // Should have state machine consistency check
-    assert!(checks.contains_key("state_machine_consistency"), 
-        "Should include state machine consistency check");
+    assert!(
+        checks.contains_key("state_machine_consistency"),
+        "Should include state machine consistency check"
+    );
 
     let consistency_check = &checks["state_machine_consistency"];
     assert!(
-        matches!(consistency_check.status, 
-            DiagnosticStatus::Pass | DiagnosticStatus::Fail),
+        matches!(
+            consistency_check.status,
+            DiagnosticStatus::Pass | DiagnosticStatus::Fail
+        ),
         "State machine consistency check should have valid status"
     );
 }
@@ -106,14 +117,20 @@ async fn test_work_continuity_check() {
     fixture.diagnostic.check_work_continuity(&mut checks).await;
 
     // Should have work continuity check
-    assert!(checks.contains_key("work_continuity_integrity"), 
-        "Should include work continuity integrity check");
+    assert!(
+        checks.contains_key("work_continuity_integrity"),
+        "Should include work continuity integrity check"
+    );
 
     let continuity_check = &checks["work_continuity_integrity"];
     assert!(
-        matches!(continuity_check.status, 
-            DiagnosticStatus::Pass | DiagnosticStatus::Fail | 
-            DiagnosticStatus::Warning | DiagnosticStatus::Info),
+        matches!(
+            continuity_check.status,
+            DiagnosticStatus::Pass
+                | DiagnosticStatus::Fail
+                | DiagnosticStatus::Warning
+                | DiagnosticStatus::Info
+        ),
         "Work continuity check should have valid status"
     );
 }
@@ -129,16 +146,23 @@ async fn test_orphaned_assignments_check() {
     };
 
     let mut checks = HashMap::new();
-    fixture.diagnostic.check_orphaned_assignments(&mut checks).await;
+    fixture
+        .diagnostic
+        .check_orphaned_assignments(&mut checks)
+        .await;
 
     // Should have orphaned assignments check
-    assert!(checks.contains_key("orphaned_assignments"), 
-        "Should include orphaned assignments check");
+    assert!(
+        checks.contains_key("orphaned_assignments"),
+        "Should include orphaned assignments check"
+    );
 
     let orphaned_check = &checks["orphaned_assignments"];
     assert!(
-        matches!(orphaned_check.status, 
-            DiagnosticStatus::Pass | DiagnosticStatus::Warning | DiagnosticStatus::Fail),
+        matches!(
+            orphaned_check.status,
+            DiagnosticStatus::Pass | DiagnosticStatus::Warning | DiagnosticStatus::Fail
+        ),
         "Orphaned assignments check should have valid status"
     );
 }
@@ -157,13 +181,17 @@ async fn test_abandoned_work_check() {
     fixture.diagnostic.check_abandoned_work(&mut checks).await;
 
     // Should have abandoned work check
-    assert!(checks.contains_key("abandoned_work"), 
-        "Should include abandoned work check");
+    assert!(
+        checks.contains_key("abandoned_work"),
+        "Should include abandoned work check"
+    );
 
     let abandoned_check = &checks["abandoned_work"];
     assert!(
-        matches!(abandoned_check.status, 
-            DiagnosticStatus::Pass | DiagnosticStatus::Warning | DiagnosticStatus::Fail),
+        matches!(
+            abandoned_check.status,
+            DiagnosticStatus::Pass | DiagnosticStatus::Warning | DiagnosticStatus::Fail
+        ),
         "Abandoned work check should have valid status"
     );
 }
@@ -179,16 +207,23 @@ async fn test_conflicting_assignments_check() {
     };
 
     let mut checks = HashMap::new();
-    fixture.diagnostic.check_conflicting_assignments(&mut checks).await;
+    fixture
+        .diagnostic
+        .check_conflicting_assignments(&mut checks)
+        .await;
 
     // Should have conflicting assignments check
-    assert!(checks.contains_key("conflicting_assignments"), 
-        "Should include conflicting assignments check");
+    assert!(
+        checks.contains_key("conflicting_assignments"),
+        "Should include conflicting assignments check"
+    );
 
     let conflict_check = &checks["conflicting_assignments"];
     assert!(
-        matches!(conflict_check.status, 
-            DiagnosticStatus::Pass | DiagnosticStatus::Fail),
+        matches!(
+            conflict_check.status,
+            DiagnosticStatus::Pass | DiagnosticStatus::Fail
+        ),
         "Conflicting assignments check should have valid status"
     );
 }
@@ -207,13 +242,17 @@ async fn test_cleanup_status_check() {
     fixture.diagnostic.check_cleanup_status(&mut checks).await;
 
     // Should have cleanup status check
-    assert!(checks.contains_key("work_cleanup"), 
-        "Should include work cleanup check");
+    assert!(
+        checks.contains_key("work_cleanup"),
+        "Should include work cleanup check"
+    );
 
     let cleanup_check = &checks["work_cleanup"];
     assert!(
-        matches!(cleanup_check.status, 
-            DiagnosticStatus::Pass | DiagnosticStatus::Info | DiagnosticStatus::Fail),
+        matches!(
+            cleanup_check.status,
+            DiagnosticStatus::Pass | DiagnosticStatus::Info | DiagnosticStatus::Fail
+        ),
         "Work cleanup check should have valid status"
     );
 }
@@ -229,12 +268,14 @@ async fn test_comprehensive_report_generation() {
     };
 
     let report_result = fixture.diagnostic.generate_comprehensive_report().await;
-    
+
     match report_result {
         Ok(report) => {
             // Validate report structure
-            assert!(!report.agent_status.agent_id.is_empty(), 
-                "Agent status should have valid agent ID");
+            assert!(
+                !report.agent_status.agent_id.is_empty(),
+                "Agent status should have valid agent ID"
+            );
 
             assert!(
                 matches!(report.state_machine_health.is_consistent, true | false),
@@ -252,11 +293,16 @@ async fn test_comprehensive_report_generation() {
             );
 
             // Recommendations should be present
-            assert!(!report.recommendations.is_empty(), 
-                "Report should include recommendations");
+            assert!(
+                !report.recommendations.is_empty(),
+                "Report should include recommendations"
+            );
         }
         Err(e) => {
-            println!("Comprehensive report generation failed (acceptable for test environment): {:?}", e);
+            println!(
+                "Comprehensive report generation failed (acceptable for test environment): {:?}",
+                e
+            );
         }
     }
 }
@@ -338,7 +384,10 @@ fn test_agent_state_issue_structure() {
         suggested_resolution: "Clean up orphaned assignments".to_string(),
     };
 
-    assert!(matches!(issue.issue_type, AgentStateIssueType::OrphanedAssignment));
+    assert!(matches!(
+        issue.issue_type,
+        AgentStateIssueType::OrphanedAssignment
+    ));
     assert_eq!(issue.severity, IssueSeverity::Medium);
     assert!(!issue.description.is_empty());
     assert!(!issue.affected_components.is_empty());
@@ -350,7 +399,7 @@ fn test_issue_severity_ordering() {
     assert!(IssueSeverity::Low < IssueSeverity::Medium);
     assert!(IssueSeverity::Medium < IssueSeverity::High);
     assert!(IssueSeverity::High < IssueSeverity::Critical);
-    
+
     // Test that Critical is the highest severity
     let mut severities = vec![
         IssueSeverity::Low,
@@ -359,12 +408,12 @@ fn test_issue_severity_ordering() {
         IssueSeverity::High,
     ];
     severities.sort();
-    
+
     assert_eq!(severities[0], IssueSeverity::Low);
     assert_eq!(severities[3], IssueSeverity::Critical);
 }
 
-#[test] 
+#[test]
 fn test_agent_state_issue_types() {
     let issue_types = vec![
         AgentStateIssueType::OrphanedAssignment,
@@ -380,7 +429,10 @@ fn test_agent_state_issue_types() {
     // Ensure all issue types can be created and debugged
     for issue_type in issue_types {
         let debug_str = format!("{:?}", issue_type);
-        assert!(!debug_str.is_empty(), "Issue type should have debug representation");
+        assert!(
+            !debug_str.is_empty(),
+            "Issue type should have debug representation"
+        );
     }
 }
 
@@ -419,7 +471,7 @@ async fn test_doctor_command_integration() {
 
     // Test creation of doctor command with agent state diagnostics
     let doctor_command = DoctorCommand::new(DoctorFormat::Text, false);
-    
+
     // In a real integration test, we would run the command and verify output
     // For now, we just verify that the command can be created
     drop(doctor_command);

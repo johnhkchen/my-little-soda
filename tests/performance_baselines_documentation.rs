@@ -40,10 +40,10 @@ pub struct InitCommandBaselines {
 
 #[derive(Debug, Clone)]
 pub struct RepositoryScaleBaselines {
-    pub small_scale_metrics: ScaleMetrics,    // 100 issues
-    pub medium_scale_metrics: ScaleMetrics,   // 500 issues
-    pub large_scale_metrics: ScaleMetrics,    // 1000 issues
-    pub xlarge_scale_metrics: ScaleMetrics,   // 2000 issues
+    pub small_scale_metrics: ScaleMetrics,  // 100 issues
+    pub medium_scale_metrics: ScaleMetrics, // 500 issues
+    pub large_scale_metrics: ScaleMetrics,  // 1000 issues
+    pub xlarge_scale_metrics: ScaleMetrics, // 2000 issues
     pub optimal_batch_size: usize,
     pub max_sustainable_scale: usize,
 }
@@ -153,9 +153,13 @@ impl PerformanceBaselineEstablisher {
         let baseline_1000_issues = Duration::from_secs(120); // 2 minutes for 1000 issues
         let baseline_memory = 150.0; // 150MB baseline memory usage
         let baseline_success_rate = 0.95; // 95% success rate
-        
+
         // Calculate performance score based on targets
-        let time_score = if baseline_1000_issues < Duration::from_secs(300) { 1.0 } else { 0.7 };
+        let time_score = if baseline_1000_issues < Duration::from_secs(300) {
+            1.0
+        } else {
+            0.7
+        };
         let memory_score = if baseline_memory < 200.0 { 1.0 } else { 0.8 };
         let reliability_score = baseline_success_rate;
         let performance_score = (time_score + memory_score + reliability_score) / 3.0;
@@ -164,7 +168,8 @@ impl PerformanceBaselineEstablisher {
         let scalability_factor = 1.5; // 50% increase per 1000 additional issues
 
         // Recommended max issues based on 5-minute timeout
-        let recommended_max_issues = (300.0 / (baseline_1000_issues.as_secs() as f64 / 1000.0)) as usize;
+        let recommended_max_issues =
+            (300.0 / (baseline_1000_issues.as_secs() as f64 / 1000.0)) as usize;
 
         Ok(InitCommandBaselines {
             baseline_1000_issues_duration: baseline_1000_issues,
@@ -176,7 +181,9 @@ impl PerformanceBaselineEstablisher {
         })
     }
 
-    async fn establish_repository_scale_baselines(&self) -> Result<RepositoryScaleBaselines, String> {
+    async fn establish_repository_scale_baselines(
+        &self,
+    ) -> Result<RepositoryScaleBaselines, String> {
         println!("  🔍 Establishing repository scale baselines...");
 
         tokio::time::sleep(Duration::from_millis(750)).await;
@@ -261,7 +268,8 @@ impl PerformanceBaselineEstablisher {
         let efficiency_score = 0.85; // 85% efficiency
         let recovery_time = Duration::from_secs(75); // 75 seconds average recovery
         let api_calls_per_issue = 8.5; // 8.5 API calls per issue on average
-        let retry_strategy = "Exponential backoff with jitter (2^n * base_delay + random)".to_string();
+        let retry_strategy =
+            "Exponential backoff with jitter (2^n * base_delay + random)".to_string();
 
         Ok(ApiEfficiencyBaselines {
             optimal_requests_per_minute: optimal_rpm,
@@ -286,18 +294,19 @@ impl PerformanceBaselineEstablisher {
         let api_weight = 0.2;
 
         // Scale score based on large scale performance
-        let scale_score = scale.large_scale_metrics.success_rate * 
-                         (10.0 / scale.large_scale_metrics.throughput_issues_per_second).min(1.0);
+        let scale_score = scale.large_scale_metrics.success_rate
+            * (10.0 / scale.large_scale_metrics.throughput_issues_per_second).min(1.0);
 
         // Memory score based on stability and reasonable usage
-        let memory_score = memory.memory_stability_score * 
-                          (memory.leak_detection_threshold_mb_per_hour / 
-                           memory.memory_growth_rate_mb_per_hour.max(1.0)).min(1.0);
+        let memory_score = memory.memory_stability_score
+            * (memory.leak_detection_threshold_mb_per_hour
+                / memory.memory_growth_rate_mb_per_hour.max(1.0))
+            .min(1.0);
 
-        (init.baseline_performance_score * init_weight) +
-        (scale_score * scale_weight) +
-        (memory_score * memory_weight) +
-        (api.baseline_efficiency_score * api_weight)
+        (init.baseline_performance_score * init_weight)
+            + (scale_score * scale_weight)
+            + (memory_score * memory_weight)
+            + (api.baseline_efficiency_score * api_weight)
     }
 
     fn generate_performance_recommendations(
@@ -342,19 +351,31 @@ impl PerformanceBaselineEstablisher {
         }
 
         if api.rate_limit_recovery_time > Duration::from_secs(90) {
-            recommendations.push("Rate limit recovery time is slow. Optimize backoff strategy for faster recovery.".to_string());
+            recommendations.push(
+                "Rate limit recovery time is slow. Optimize backoff strategy for faster recovery."
+                    .to_string(),
+            );
         }
 
         // General recommendations
-        recommendations.push("Implement continuous performance monitoring with alerts for regression detection.".to_string());
-        recommendations.push("Establish regular performance testing as part of CI/CD pipeline.".to_string());
-        recommendations.push("Consider user feedback collection for performance perception validation.".to_string());
+        recommendations.push(
+            "Implement continuous performance monitoring with alerts for regression detection."
+                .to_string(),
+        );
+        recommendations
+            .push("Establish regular performance testing as part of CI/CD pipeline.".to_string());
+        recommendations.push(
+            "Consider user feedback collection for performance perception validation.".to_string(),
+        );
 
         recommendations
     }
 
     pub fn generate_comprehensive_documentation(&self) -> Result<String, String> {
-        let baselines = self.baselines.as_ref().ok_or("Baselines not established yet")?;
+        let baselines = self
+            .baselines
+            .as_ref()
+            .ok_or("Baselines not established yet")?;
         Ok(self.create_performance_documentation(baselines))
     }
 
@@ -363,7 +384,8 @@ impl PerformanceBaselineEstablisher {
             .unwrap_or_else(|| chrono::Utc::now())
             .format("%Y-%m-%d %H:%M:%S UTC");
 
-        format!(r#"# My Little Soda Performance Baselines and Benchmarks
+        format!(
+            r#"# My Little Soda Performance Baselines and Benchmarks
 
 ## Overview
 
@@ -530,65 +552,135 @@ These baselines establish the current performance characteristics of My Little S
             baselines.system_info.test_environment,
             baselines.overall_performance_score,
             self.format_performance_assessment(baselines.overall_performance_score),
-            
             // Init command details
-            baselines.init_command_baselines.baseline_1000_issues_duration,
+            baselines
+                .init_command_baselines
+                .baseline_1000_issues_duration,
             baselines.init_command_baselines.baseline_memory_usage_mb,
             baselines.init_command_baselines.baseline_success_rate * 100.0,
             baselines.init_command_baselines.baseline_performance_score,
             baselines.init_command_baselines.scalability_factor,
             baselines.init_command_baselines.recommended_max_issues,
-
             // Repository scale details
-            baselines.repository_scale_baselines.small_scale_metrics.issue_count,
-            baselines.repository_scale_baselines.small_scale_metrics.processing_time,
-            baselines.repository_scale_baselines.small_scale_metrics.memory_usage_mb,
-            baselines.repository_scale_baselines.small_scale_metrics.throughput_issues_per_second,
-            baselines.repository_scale_baselines.small_scale_metrics.success_rate * 100.0,
-
-            baselines.repository_scale_baselines.medium_scale_metrics.issue_count,
-            baselines.repository_scale_baselines.medium_scale_metrics.processing_time,
-            baselines.repository_scale_baselines.medium_scale_metrics.memory_usage_mb,
-            baselines.repository_scale_baselines.medium_scale_metrics.throughput_issues_per_second,
-            baselines.repository_scale_baselines.medium_scale_metrics.success_rate * 100.0,
-
-            baselines.repository_scale_baselines.large_scale_metrics.issue_count,
-            baselines.repository_scale_baselines.large_scale_metrics.processing_time,
-            baselines.repository_scale_baselines.large_scale_metrics.memory_usage_mb,
-            baselines.repository_scale_baselines.large_scale_metrics.throughput_issues_per_second,
-            baselines.repository_scale_baselines.large_scale_metrics.success_rate * 100.0,
-
-            baselines.repository_scale_baselines.xlarge_scale_metrics.issue_count,
-            baselines.repository_scale_baselines.xlarge_scale_metrics.processing_time,
-            baselines.repository_scale_baselines.xlarge_scale_metrics.memory_usage_mb,
-            baselines.repository_scale_baselines.xlarge_scale_metrics.throughput_issues_per_second,
-            baselines.repository_scale_baselines.xlarge_scale_metrics.success_rate * 100.0,
-
+            baselines
+                .repository_scale_baselines
+                .small_scale_metrics
+                .issue_count,
+            baselines
+                .repository_scale_baselines
+                .small_scale_metrics
+                .processing_time,
+            baselines
+                .repository_scale_baselines
+                .small_scale_metrics
+                .memory_usage_mb,
+            baselines
+                .repository_scale_baselines
+                .small_scale_metrics
+                .throughput_issues_per_second,
+            baselines
+                .repository_scale_baselines
+                .small_scale_metrics
+                .success_rate
+                * 100.0,
+            baselines
+                .repository_scale_baselines
+                .medium_scale_metrics
+                .issue_count,
+            baselines
+                .repository_scale_baselines
+                .medium_scale_metrics
+                .processing_time,
+            baselines
+                .repository_scale_baselines
+                .medium_scale_metrics
+                .memory_usage_mb,
+            baselines
+                .repository_scale_baselines
+                .medium_scale_metrics
+                .throughput_issues_per_second,
+            baselines
+                .repository_scale_baselines
+                .medium_scale_metrics
+                .success_rate
+                * 100.0,
+            baselines
+                .repository_scale_baselines
+                .large_scale_metrics
+                .issue_count,
+            baselines
+                .repository_scale_baselines
+                .large_scale_metrics
+                .processing_time,
+            baselines
+                .repository_scale_baselines
+                .large_scale_metrics
+                .memory_usage_mb,
+            baselines
+                .repository_scale_baselines
+                .large_scale_metrics
+                .throughput_issues_per_second,
+            baselines
+                .repository_scale_baselines
+                .large_scale_metrics
+                .success_rate
+                * 100.0,
+            baselines
+                .repository_scale_baselines
+                .xlarge_scale_metrics
+                .issue_count,
+            baselines
+                .repository_scale_baselines
+                .xlarge_scale_metrics
+                .processing_time,
+            baselines
+                .repository_scale_baselines
+                .xlarge_scale_metrics
+                .memory_usage_mb,
+            baselines
+                .repository_scale_baselines
+                .xlarge_scale_metrics
+                .throughput_issues_per_second,
+            baselines
+                .repository_scale_baselines
+                .xlarge_scale_metrics
+                .success_rate
+                * 100.0,
             baselines.repository_scale_baselines.optimal_batch_size,
             baselines.repository_scale_baselines.max_sustainable_scale,
-
             // Memory usage details
             baselines.memory_usage_baselines.baseline_memory_mb,
             baselines.memory_usage_baselines.peak_memory_mb,
-            baselines.memory_usage_baselines.memory_growth_rate_mb_per_hour,
+            baselines
+                .memory_usage_baselines
+                .memory_growth_rate_mb_per_hour,
             baselines.memory_usage_baselines.memory_stability_score,
-            baselines.memory_usage_baselines.leak_detection_threshold_mb_per_hour,
-            baselines.memory_usage_baselines.recommended_monitoring_interval,
-
+            baselines
+                .memory_usage_baselines
+                .leak_detection_threshold_mb_per_hour,
+            baselines
+                .memory_usage_baselines
+                .recommended_monitoring_interval,
             // API efficiency details
-            baselines.api_efficiency_baselines.optimal_requests_per_minute,
+            baselines
+                .api_efficiency_baselines
+                .optimal_requests_per_minute,
             baselines.api_efficiency_baselines.baseline_efficiency_score,
             baselines.api_efficiency_baselines.rate_limit_recovery_time,
-            baselines.api_efficiency_baselines.api_calls_per_issue_baseline,
-            baselines.api_efficiency_baselines.recommended_retry_strategy,
-
+            baselines
+                .api_efficiency_baselines
+                .api_calls_per_issue_baseline,
+            baselines
+                .api_efficiency_baselines
+                .recommended_retry_strategy,
             // Recommendations
-            baselines.recommendations.iter()
+            baselines
+                .recommendations
+                .iter()
                 .enumerate()
                 .map(|(i, r)| format!("{}. {}", i + 1, r))
                 .collect::<Vec<_>>()
                 .join("\n"),
-
             // Next review date (30 days from now)
             (chrono::Utc::now() + chrono::Duration::days(30)).format("%Y-%m-%d")
         )
@@ -618,30 +710,59 @@ mod baseline_tests {
         println!("🧪 Testing performance baseline establishment");
 
         let mut establisher = PerformanceBaselineEstablisher::new();
-        let baselines = establisher.establish_all_baselines().await
+        let baselines = establisher
+            .establish_all_baselines()
+            .await
             .expect("Should establish baselines");
 
         // Validate baseline completeness
         assert!(baselines.overall_performance_score > 0.0);
         assert!(baselines.overall_performance_score <= 1.0);
-        
-        assert!(baselines.init_command_baselines.baseline_1000_issues_duration > Duration::ZERO);
+
+        assert!(
+            baselines
+                .init_command_baselines
+                .baseline_1000_issues_duration
+                > Duration::ZERO
+        );
         assert!(baselines.init_command_baselines.baseline_memory_usage_mb > 0.0);
         assert!(baselines.init_command_baselines.baseline_success_rate > 0.0);
 
-        assert!(baselines.repository_scale_baselines.small_scale_metrics.issue_count > 0);
+        assert!(
+            baselines
+                .repository_scale_baselines
+                .small_scale_metrics
+                .issue_count
+                > 0
+        );
         assert!(baselines.repository_scale_baselines.optimal_batch_size > 0);
 
         assert!(baselines.memory_usage_baselines.baseline_memory_mb > 0.0);
-        assert!(baselines.memory_usage_baselines.leak_detection_threshold_mb_per_hour > 0.0);
+        assert!(
+            baselines
+                .memory_usage_baselines
+                .leak_detection_threshold_mb_per_hour
+                > 0.0
+        );
 
-        assert!(baselines.api_efficiency_baselines.optimal_requests_per_minute > 0);
-        assert!(!baselines.api_efficiency_baselines.recommended_retry_strategy.is_empty());
+        assert!(
+            baselines
+                .api_efficiency_baselines
+                .optimal_requests_per_minute
+                > 0
+        );
+        assert!(!baselines
+            .api_efficiency_baselines
+            .recommended_retry_strategy
+            .is_empty());
 
         assert!(!baselines.recommendations.is_empty());
 
         println!("✅ Performance baselines established successfully");
-        println!("   Overall Score: {:.2}/1.0", baselines.overall_performance_score);
+        println!(
+            "   Overall Score: {:.2}/1.0",
+            baselines.overall_performance_score
+        );
         println!("   Recommendations: {}", baselines.recommendations.len());
     }
 
@@ -650,10 +771,13 @@ mod baseline_tests {
         println!("🧪 Testing performance documentation generation");
 
         let mut establisher = PerformanceBaselineEstablisher::new();
-        let _baselines = establisher.establish_all_baselines().await
+        let _baselines = establisher
+            .establish_all_baselines()
+            .await
             .expect("Should establish baselines");
 
-        let documentation = establisher.generate_comprehensive_documentation()
+        let documentation = establisher
+            .generate_comprehensive_documentation()
             .expect("Should generate documentation");
 
         // Validate documentation content
@@ -671,8 +795,11 @@ mod baseline_tests {
         assert!(documentation.contains("###")); // Should have subsections
 
         println!("✅ Performance documentation generated successfully");
-        println!("   Documentation length: {} characters", documentation.len());
-        
+        println!(
+            "   Documentation length: {} characters",
+            documentation.len()
+        );
+
         // In real implementation, this would write to a file
         println!("\n📚 Generated Documentation Preview (first 500 chars):");
         println!("{}", &documentation[..500]);
@@ -755,9 +882,13 @@ mod baseline_tests {
         // Validate score calculation
         assert!(overall_score > 0.0);
         assert!(overall_score <= 1.0);
-        
+
         // With good baselines, score should be high
-        assert!(overall_score > 0.7, "Overall score too low: {:.2}", overall_score);
+        assert!(
+            overall_score > 0.7,
+            "Overall score too low: {:.2}",
+            overall_score
+        );
 
         println!("✅ Performance score calculation validated");
         println!("   Calculated score: {:.2}/1.0", overall_score);
@@ -773,7 +904,7 @@ mod baseline_tests {
         let init_baselines = InitCommandBaselines {
             baseline_1000_issues_duration: Duration::from_secs(300), // High - should trigger recommendation
             baseline_memory_usage_mb: 250.0, // High - should trigger recommendation
-            baseline_success_rate: 0.88, // Below 90%
+            baseline_success_rate: 0.88,     // Below 90%
             baseline_performance_score: 0.6,
             scalability_factor: 2.0,
             recommended_max_issues: 1500,
@@ -816,7 +947,7 @@ mod baseline_tests {
             baseline_memory_mb: 80.0,
             peak_memory_mb: 400.0,
             memory_growth_rate_mb_per_hour: 12.0, // High - should trigger recommendation
-            memory_stability_score: 0.6, // Low - should trigger recommendation
+            memory_stability_score: 0.6,          // Low - should trigger recommendation
             leak_detection_threshold_mb_per_hour: 15.0,
             recommended_monitoring_interval: Duration::from_secs(180),
         };
@@ -837,13 +968,21 @@ mod baseline_tests {
         );
 
         // Validate recommendations are generated
-        assert!(!recommendations.is_empty(), "Should generate recommendations for suboptimal performance");
-        assert!(recommendations.len() >= 5, "Should have multiple recommendations");
+        assert!(
+            !recommendations.is_empty(),
+            "Should generate recommendations for suboptimal performance"
+        );
+        assert!(
+            recommendations.len() >= 5,
+            "Should have multiple recommendations"
+        );
 
         // Check for specific expected recommendations based on the poor metrics
         let recommendation_text = recommendations.join(" ").to_lowercase();
-        assert!(recommendation_text.contains("init command") || recommendation_text.contains("memory"));
-        
+        assert!(
+            recommendation_text.contains("init command") || recommendation_text.contains("memory")
+        );
+
         println!("✅ Performance recommendations generated successfully");
         println!("   Generated {} recommendations", recommendations.len());
         for (i, rec) in recommendations.iter().enumerate() {

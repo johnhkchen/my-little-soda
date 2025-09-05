@@ -81,17 +81,21 @@ impl RoutingDecisions {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     // Helper function to create test issues using fixture approach
-    fn create_test_issue(number: u64, title: &str, label_names: Vec<&str>) -> octocrab::models::issues::Issue {
+    fn create_test_issue(
+        number: u64,
+        title: &str,
+        label_names: Vec<&str>,
+    ) -> octocrab::models::issues::Issue {
         // Load the base issue fixture
         let json_data = include_str!("../../../tests/fixtures/github_issues.json");
-        let mut base_issue: octocrab::models::issues::Issue = serde_json::from_str(json_data)
-            .expect("Failed to parse test fixture JSON");
-            
+        let mut base_issue: octocrab::models::issues::Issue =
+            serde_json::from_str(json_data).expect("Failed to parse test fixture JSON");
+
         base_issue.number = number;
         base_issue.title = title.to_string();
-        
+
         // Create labels from names by cloning and modifying existing label
         if !base_issue.labels.is_empty() {
             let template_label = &base_issue.labels[0];
@@ -106,10 +110,10 @@ mod tests {
                 })
                 .collect();
         }
-        
+
         base_issue.assignee = None;
         base_issue.assignees = vec![];
-        
+
         base_issue
     }
 
@@ -117,32 +121,63 @@ mod tests {
     fn test_real_a_series_priority_bug_lexicographic_sorting() {
         // This test recreates the exact bug scenario described in issue #324
         // using the real GitHub issue titles and priorities
-        
+
         let routing_decisions = RoutingDecisions::new();
 
         // Create the exact A-series issues from the GitHub repository
         // All have route:priority-very-high labels (Priority::VeryHigh = 4)
         let test_issues = vec![
-            create_test_issue(294, "A2d - Optimize release build settings", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(293, "A2c - Configure Windows x64 builds", vec!["route:priority-very-high", "route:ready"]), 
-            create_test_issue(292, "A2b - Configure macOS builds (Intel and ARM)", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(291, "A2a - Implement Linux x86_64 binary builds", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(290, "A1c - Set up build matrix for multiple platforms", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(289, "A1b - Configure version tag trigger conditions", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(288, "A1a - Create GitHub Actions workflow file structure", vec!["route:priority-very-high", "route:ready"]),
+            create_test_issue(
+                294,
+                "A2d - Optimize release build settings",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                293,
+                "A2c - Configure Windows x64 builds",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                292,
+                "A2b - Configure macOS builds (Intel and ARM)",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                291,
+                "A2a - Implement Linux x86_64 binary builds",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                290,
+                "A1c - Set up build matrix for multiple platforms",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                289,
+                "A1b - Configure version tag trigger conditions",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                288,
+                "A1a - Create GitHub Actions workflow file structure",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
         ];
-        
+
         // Verify all issues have the same priority level
         for issue in &test_issues {
             let priority = routing_decisions.get_issue_priority(issue);
-            assert_eq!(priority, 4, "All A-series issues should have priority 4 (very-high)");
+            assert_eq!(
+                priority, 4,
+                "All A-series issues should have priority 4 (very-high)"
+            );
         }
 
         let mut sorted_issues = test_issues.clone();
         routing_decisions.sort_issues_by_priority(&mut sorted_issues);
-        
+
         // Print debug info to see what's happening
-        
+
         // Expected lexicographic order when priority is equal:
         // 1. A1a - Create GitHub Actions workflow file structure (#288)
         // 2. A1b - Configure version tag trigger conditions (#289)
@@ -151,118 +186,221 @@ mod tests {
         // 5. A2b - Configure macOS builds (Intel and ARM) (#292)
         // 6. A2c - Configure Windows x64 builds (#293)
         // 7. A2d - Optimize release build settings (#294)
-        
+
         // THE BUG: Currently A2d is selected first instead of A1a
-        assert_eq!(sorted_issues[0].title, "A1a - Create GitHub Actions workflow file structure");
+        assert_eq!(
+            sorted_issues[0].title,
+            "A1a - Create GitHub Actions workflow file structure"
+        );
         assert_eq!(sorted_issues[0].number, 288);
-        
-        assert_eq!(sorted_issues[1].title, "A1b - Configure version tag trigger conditions");
+
+        assert_eq!(
+            sorted_issues[1].title,
+            "A1b - Configure version tag trigger conditions"
+        );
         assert_eq!(sorted_issues[1].number, 289);
-        
-        assert_eq!(sorted_issues[2].title, "A1c - Set up build matrix for multiple platforms");
+
+        assert_eq!(
+            sorted_issues[2].title,
+            "A1c - Set up build matrix for multiple platforms"
+        );
         assert_eq!(sorted_issues[2].number, 290);
-        
-        assert_eq!(sorted_issues[3].title, "A2a - Implement Linux x86_64 binary builds");
+
+        assert_eq!(
+            sorted_issues[3].title,
+            "A2a - Implement Linux x86_64 binary builds"
+        );
         assert_eq!(sorted_issues[3].number, 291);
-        
-        assert_eq!(sorted_issues[4].title, "A2b - Configure macOS builds (Intel and ARM)");
+
+        assert_eq!(
+            sorted_issues[4].title,
+            "A2b - Configure macOS builds (Intel and ARM)"
+        );
         assert_eq!(sorted_issues[4].number, 292);
-        
+
         assert_eq!(sorted_issues[5].title, "A2c - Configure Windows x64 builds");
         assert_eq!(sorted_issues[5].number, 293);
-        
-        assert_eq!(sorted_issues[6].title, "A2d - Optimize release build settings");
+
+        assert_eq!(
+            sorted_issues[6].title,
+            "A2d - Optimize release build settings"
+        );
         assert_eq!(sorted_issues[6].number, 294);
     }
 
-    #[test] 
+    #[test]
     fn test_priority_levels_override_lexicographic() {
         // This test ensures higher priority levels always come before lower ones,
         // regardless of lexicographic order
         let routing_decisions = RoutingDecisions::new();
-        
+
         let test_issues = vec![
             create_test_issue(1, "Z9z - Low priority", vec!["route:priority-low"]),
-            create_test_issue(2, "A1a - Very high priority", vec!["route:priority-very-high"]),
+            create_test_issue(
+                2,
+                "A1a - Very high priority",
+                vec!["route:priority-very-high"],
+            ),
             create_test_issue(3, "M5m - Medium priority", vec!["route:priority-medium"]),
             create_test_issue(4, "B2b - High priority", vec!["route:priority-high"]),
             create_test_issue(5, "Unblocker task", vec!["route:unblocker"]),
             create_test_issue(6, "Ready to merge", vec!["route:ready_to_merge"]),
         ];
-        
+
         let mut sorted_issues = test_issues.clone();
         routing_decisions.sort_issues_by_priority(&mut sorted_issues);
-        
+
         // Expected priority order (Priority values in parentheses):
-        assert_eq!(sorted_issues[0].title, "Unblocker task");          // Priority 200
-        assert_eq!(sorted_issues[1].title, "Ready to merge");          // Priority 100  
+        assert_eq!(sorted_issues[0].title, "Unblocker task"); // Priority 200
+        assert_eq!(sorted_issues[1].title, "Ready to merge"); // Priority 100
         assert_eq!(sorted_issues[2].title, "A1a - Very high priority"); // Priority 4
-        assert_eq!(sorted_issues[3].title, "B2b - High priority");      // Priority 3
-        assert_eq!(sorted_issues[4].title, "M5m - Medium priority");    // Priority 2
-        assert_eq!(sorted_issues[5].title, "Z9z - Low priority");       // Priority 1
+        assert_eq!(sorted_issues[3].title, "B2b - High priority"); // Priority 3
+        assert_eq!(sorted_issues[4].title, "M5m - Medium priority"); // Priority 2
+        assert_eq!(sorted_issues[5].title, "Z9z - Low priority"); // Priority 1
     }
-    
+
     #[test]
     fn test_same_priority_lexicographic_with_mixed_titles() {
         // Test lexicographic sorting within the same priority with varied titles
         let routing_decisions = RoutingDecisions::new();
-        
+
         let test_issues = vec![
-            create_test_issue(999, "Z9z - Should be last task", vec!["route:priority-very-high"]),
-            create_test_issue(1, "A0a - Should be first alphabetically", vec!["route:priority-very-high"]),
-            create_test_issue(288, "A1a - Create GitHub Actions workflow file structure", vec!["route:priority-very-high"]),
-            create_test_issue(294, "A2d - Optimize release build settings", vec!["route:priority-very-high"]),
+            create_test_issue(
+                999,
+                "Z9z - Should be last task",
+                vec!["route:priority-very-high"],
+            ),
+            create_test_issue(
+                1,
+                "A0a - Should be first alphabetically",
+                vec!["route:priority-very-high"],
+            ),
+            create_test_issue(
+                288,
+                "A1a - Create GitHub Actions workflow file structure",
+                vec!["route:priority-very-high"],
+            ),
+            create_test_issue(
+                294,
+                "A2d - Optimize release build settings",
+                vec!["route:priority-very-high"],
+            ),
         ];
-        
+
         let mut sorted_issues = test_issues.clone();
         routing_decisions.sort_issues_by_priority(&mut sorted_issues);
-        
+
         // Should be sorted lexicographically by title when priority is equal
-        assert_eq!(sorted_issues[0].title, "A0a - Should be first alphabetically");
-        assert_eq!(sorted_issues[1].title, "A1a - Create GitHub Actions workflow file structure");
-        assert_eq!(sorted_issues[2].title, "A2d - Optimize release build settings");
+        assert_eq!(
+            sorted_issues[0].title,
+            "A0a - Should be first alphabetically"
+        );
+        assert_eq!(
+            sorted_issues[1].title,
+            "A1a - Create GitHub Actions workflow file structure"
+        );
+        assert_eq!(
+            sorted_issues[2].title,
+            "A2d - Optimize release build settings"
+        );
         assert_eq!(sorted_issues[3].title, "Z9z - Should be last task");
     }
-    
+
     #[test]
     fn test_reproduce_real_github_bug_a3d_before_a1a() {
         // This test reproduces the exact bug we see in the real GitHub queue
         // A3d (#298) is being selected before A1a (#288) despite lexicographic ordering
-        
+
         let routing_decisions = RoutingDecisions::new();
 
         // Create the exact scenario from GitHub: all very-high priority issues
         let test_issues = vec![
-            create_test_issue(298, "A3d - Test complete release pipeline", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(297, "A3c - Set up release notes generation", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(296, "A3b - Configure binary asset uploads", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(295, "A3a - Implement automated release creation", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(294, "A2d - Optimize release build settings", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(293, "A2c - Configure Windows x64 builds", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(292, "A2b - Configure macOS builds (Intel and ARM)", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(291, "A2a - Implement Linux x86_64 binary builds", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(290, "A1c - Set up build matrix for multiple platforms", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(289, "A1b - Configure version tag trigger conditions", vec!["route:priority-very-high", "route:ready"]),
-            create_test_issue(288, "A1a - Create GitHub Actions workflow file structure", vec!["route:priority-very-high", "route:ready"]),
+            create_test_issue(
+                298,
+                "A3d - Test complete release pipeline",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                297,
+                "A3c - Set up release notes generation",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                296,
+                "A3b - Configure binary asset uploads",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                295,
+                "A3a - Implement automated release creation",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                294,
+                "A2d - Optimize release build settings",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                293,
+                "A2c - Configure Windows x64 builds",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                292,
+                "A2b - Configure macOS builds (Intel and ARM)",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                291,
+                "A2a - Implement Linux x86_64 binary builds",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                290,
+                "A1c - Set up build matrix for multiple platforms",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                289,
+                "A1b - Configure version tag trigger conditions",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
+            create_test_issue(
+                288,
+                "A1a - Create GitHub Actions workflow file structure",
+                vec!["route:priority-very-high", "route:ready"],
+            ),
         ];
-        
+
         let mut sorted_issues = test_issues.clone();
         routing_decisions.sort_issues_by_priority(&mut sorted_issues);
-        
+
         // Print debug info
-        
+
         // Expected: A1a should be first, then A1b, A1c, A2a, A2b, A2c, A2d, A3a, A3b, A3c, A3d
-        assert_eq!(sorted_issues[0].title, "A1a - Create GitHub Actions workflow file structure");
+        assert_eq!(
+            sorted_issues[0].title,
+            "A1a - Create GitHub Actions workflow file structure"
+        );
         assert_eq!(sorted_issues[0].number, 288);
-        
-        assert_eq!(sorted_issues[1].title, "A1b - Configure version tag trigger conditions");
+
+        assert_eq!(
+            sorted_issues[1].title,
+            "A1b - Configure version tag trigger conditions"
+        );
         assert_eq!(sorted_issues[1].number, 289);
-        
-        assert_eq!(sorted_issues[2].title, "A1c - Set up build matrix for multiple platforms");
+
+        assert_eq!(
+            sorted_issues[2].title,
+            "A1c - Set up build matrix for multiple platforms"
+        );
         assert_eq!(sorted_issues[2].number, 290);
-        
+
         // A3d should be last, not first!
-        assert_eq!(sorted_issues[10].title, "A3d - Test complete release pipeline");
+        assert_eq!(
+            sorted_issues[10].title,
+            "A3d - Test complete release pipeline"
+        );
         assert_eq!(sorted_issues[10].number, 298);
     }
 }

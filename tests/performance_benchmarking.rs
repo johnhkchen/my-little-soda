@@ -476,7 +476,8 @@ impl BenchmarkRunner {
 
         let average_time = if !issue_times.is_empty() {
             Duration::from_nanos(
-                (issue_times.iter().map(|d| d.as_nanos()).sum::<u128>() / issue_times.len() as u128)
+                (issue_times.iter().map(|d| d.as_nanos()).sum::<u128>()
+                    / issue_times.len() as u128)
                     .try_into()
                     .unwrap_or(0),
             )

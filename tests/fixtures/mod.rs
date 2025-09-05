@@ -1,13 +1,13 @@
 /// Test fixtures with real GitHub API response data for consistent testing
 use octocrab::models::issues::Issue;
 
+pub mod automated_validators;
+pub mod init_integration;
 pub mod repository_states;
 pub mod test_harness;
-pub mod init_integration;
-pub mod validation_helpers;
-pub mod automated_validators;
-pub mod test_result_reporting;
 pub mod test_metrics_collector;
+pub mod test_result_reporting;
+pub mod validation_helpers;
 
 /// Load test issues from cached GitHub API responses
 pub fn load_test_issues() -> Vec<Issue> {

@@ -45,10 +45,10 @@ impl Default for CrossPlatformTestConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Platform {
     LinuxX64,
-    LinuxArm64,    // Raspberry Pi and ARM servers
+    LinuxArm64, // Raspberry Pi and ARM servers
     WindowsX64,
     MacOsX64,
-    MacOsArm64,    // Apple Silicon
+    MacOsArm64, // Apple Silicon
 }
 
 impl Platform {
@@ -141,11 +141,11 @@ pub enum IssueCategory {
 
 #[derive(Debug, Clone)]
 pub enum IssueSeverity {
-    Critical,  // Completely broken on platform
-    High,      // Major functionality issues
-    Medium,    // Minor functionality issues
-    Low,       // Performance or cosmetic issues
-    Info,      // Informational only
+    Critical, // Completely broken on platform
+    High,     // Major functionality issues
+    Medium,   // Minor functionality issues
+    Low,      // Performance or cosmetic issues
+    Info,     // Informational only
 }
 
 /// Cross-platform compatibility tester
@@ -157,7 +157,7 @@ pub struct CrossPlatformCompatibilityTester {
 impl CrossPlatformCompatibilityTester {
     pub fn new(config: CrossPlatformTestConfig) -> Self {
         let current_platform = Self::detect_current_platform();
-        
+
         Self {
             config,
             current_platform,
@@ -181,13 +181,20 @@ impl CrossPlatformCompatibilityTester {
     }
 
     pub async fn run_cross_platform_tests(&self) -> Result<CrossPlatformTestResults, String> {
-        println!("🌍 Starting cross-platform compatibility tests: {}", self.config.test_name);
+        println!(
+            "🌍 Starting cross-platform compatibility tests: {}",
+            self.config.test_name
+        );
         println!("   Current platform: {}", self.current_platform.name());
-        println!("   Target platforms: {}", 
-                 self.config.target_platforms.iter()
-                     .map(|p| p.name())
-                     .collect::<Vec<_>>()
-                     .join(", "));
+        println!(
+            "   Target platforms: {}",
+            self.config
+                .target_platforms
+                .iter()
+                .map(|p| p.name())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
 
         let mut platform_results = HashMap::new();
         let mut all_issues = Vec::new();
@@ -195,7 +202,7 @@ impl CrossPlatformCompatibilityTester {
         // Test each target platform
         for platform in &self.config.target_platforms {
             println!("   Testing platform: {}", platform.name());
-            
+
             let result = if platform == &self.current_platform {
                 // Run full tests on current platform
                 self.run_platform_tests(platform, true).await?
@@ -206,7 +213,7 @@ impl CrossPlatformCompatibilityTester {
 
             // Collect any issues found
             self.extract_issues_from_result(&result, &mut all_issues);
-            
+
             platform_results.insert(platform.clone(), result);
         }
 
@@ -214,7 +221,8 @@ impl CrossPlatformCompatibilityTester {
         let overall_score = self.calculate_overall_compatibility_score(&platform_results);
 
         // Generate recommendations
-        let recommendations = self.generate_compatibility_recommendations(&all_issues, &platform_results);
+        let recommendations =
+            self.generate_compatibility_recommendations(&all_issues, &platform_results);
 
         let results = CrossPlatformTestResults {
             test_name: self.config.test_name.clone(),
@@ -226,11 +234,15 @@ impl CrossPlatformCompatibilityTester {
         };
 
         self.print_test_results(&results);
-        
+
         Ok(results)
     }
 
-    async fn run_platform_tests(&self, platform: &Platform, is_current: bool) -> Result<PlatformTestResult, String> {
+    async fn run_platform_tests(
+        &self,
+        platform: &Platform,
+        is_current: bool,
+    ) -> Result<PlatformTestResult, String> {
         let start_time = std::time::Instant::now();
         let mut notes = Vec::new();
 
@@ -284,19 +296,27 @@ impl CrossPlatformCompatibilityTester {
         }
 
         if platform == &Platform::LinuxArm64 || platform == &Platform::MacOsArm64 {
-            notes.push("ARM platform - performance characteristics may differ from x64".to_string());
+            notes
+                .push("ARM platform - performance characteristics may differ from x64".to_string());
         }
 
         if platform == &Platform::WindowsX64 {
-            notes.push("Windows platform - path separators and executable extensions differ".to_string());
+            notes.push(
+                "Windows platform - path separators and executable extensions differ".to_string(),
+            );
         }
 
         let execution_time = start_time.elapsed();
 
         // Calculate platform-specific score
-        let test_results = vec![binary_test_passed, file_path_test_passed, 
-                               git_integration_test_passed, process_handling_test_passed];
-        let overall_score = test_results.iter().filter(|&passed| *passed).count() as f64 / test_results.len() as f64;
+        let test_results = vec![
+            binary_test_passed,
+            file_path_test_passed,
+            git_integration_test_passed,
+            process_handling_test_passed,
+        ];
+        let overall_score = test_results.iter().filter(|&passed| *passed).count() as f64
+            / test_results.len() as f64;
 
         Ok(PlatformTestResult {
             platform: platform.clone(),
@@ -317,13 +337,19 @@ impl CrossPlatformCompatibilityTester {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         // Simulate running my-little-soda --help
-        let help_result = self.simulate_command_execution("my-little-soda", &["--help"]).await;
+        let help_result = self
+            .simulate_command_execution("my-little-soda", &["--help"])
+            .await;
 
-        // Test if we can run the version command  
-        let version_result = self.simulate_command_execution("my-little-soda", &["--version"]).await;
+        // Test if we can run the version command
+        let version_result = self
+            .simulate_command_execution("my-little-soda", &["--version"])
+            .await;
 
         // Test basic init command
-        let init_result = self.simulate_command_execution("my-little-soda", &["init", "--dry-run"]).await;
+        let init_result = self
+            .simulate_command_execution("my-little-soda", &["init", "--dry-run"])
+            .await;
 
         let success_count = [help_result, version_result, init_result]
             .iter()
@@ -333,9 +359,15 @@ impl CrossPlatformCompatibilityTester {
         Ok(success_count >= 2) // At least 2 out of 3 commands should work
     }
 
-    async fn simulate_binary_functionality_test(&self, platform: &Platform) -> Result<bool, String> {
-        println!("      🔧 Simulating binary functionality test for {}...", platform.name());
-        
+    async fn simulate_binary_functionality_test(
+        &self,
+        platform: &Platform,
+    ) -> Result<bool, String> {
+        println!(
+            "      🔧 Simulating binary functionality test for {}...",
+            platform.name()
+        );
+
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Simulate platform-specific considerations
@@ -343,20 +375,24 @@ impl CrossPlatformCompatibilityTester {
             Platform::WindowsX64 => {
                 // Windows typically works well, but might have PATH issues
                 Ok(fastrand::f64() > 0.1) // 90% success rate
-            },
+            }
             Platform::MacOsX64 | Platform::MacOsArm64 => {
                 // macOS typically works well, ARM might have Rosetta considerations
-                let success_rate = if platform == &Platform::MacOsArm64 { 0.85 } else { 0.95 };
+                let success_rate = if platform == &Platform::MacOsArm64 {
+                    0.85
+                } else {
+                    0.95
+                };
                 Ok(fastrand::f64() < success_rate)
-            },
+            }
             Platform::LinuxX64 => {
                 // Linux x64 typically works very well
                 Ok(fastrand::f64() > 0.05) // 95% success rate
-            },
+            }
             Platform::LinuxArm64 => {
                 // ARM Linux might have some compatibility issues
                 Ok(fastrand::f64() > 0.15) // 85% success rate
-            },
+            }
         }
     }
 
@@ -385,21 +421,26 @@ impl CrossPlatformCompatibilityTester {
         // Also test platform-specific paths
         let platform_specific_success = match self.current_platform {
             Platform::WindowsX64 => {
-                self.test_path_handling("C:\\Windows\\Temp\\test.txt").await &&
-                self.test_path_handling("\\\\network\\share\\file.txt").await
-            },
+                self.test_path_handling("C:\\Windows\\Temp\\test.txt").await
+                    && self
+                        .test_path_handling("\\\\network\\share\\file.txt")
+                        .await
+            }
             _ => {
-                self.test_path_handling("/tmp/test.txt").await &&
-                self.test_path_handling("/home/user/.config/file.txt").await
-            },
+                self.test_path_handling("/tmp/test.txt").await
+                    && self.test_path_handling("/home/user/.config/file.txt").await
+            }
         };
 
         Ok(successful_tests >= 4 && platform_specific_success)
     }
 
     async fn simulate_file_path_test(&self, platform: &Platform) -> Result<bool, String> {
-        println!("      📁 Simulating file path test for {}...", platform.name());
-        
+        println!(
+            "      📁 Simulating file path test for {}...",
+            platform.name()
+        );
+
         tokio::time::sleep(Duration::from_millis(30)).await;
 
         // Different platforms handle paths differently
@@ -407,15 +448,15 @@ impl CrossPlatformCompatibilityTester {
             Platform::WindowsX64 => {
                 // Windows has complex path rules - backslashes, drive letters, UNC paths
                 Ok(fastrand::f64() > 0.2) // 80% success rate - path handling can be tricky
-            },
+            }
             Platform::LinuxX64 | Platform::LinuxArm64 => {
                 // Linux generally handles paths consistently
                 Ok(fastrand::f64() > 0.1) // 90% success rate
-            },
+            }
             Platform::MacOsX64 | Platform::MacOsArm64 => {
                 // macOS handles paths well but has some HFS+ quirks
                 Ok(fastrand::f64() > 0.12) // 88% success rate
-            },
+            }
         }
     }
 
@@ -434,8 +475,11 @@ impl CrossPlatformCompatibilityTester {
     }
 
     async fn simulate_git_integration_test(&self, platform: &Platform) -> Result<bool, String> {
-        println!("      🌿 Simulating Git integration test for {}...", platform.name());
-        
+        println!(
+            "      🌿 Simulating Git integration test for {}...",
+            platform.name()
+        );
+
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         // Git availability varies by platform and installation
@@ -443,15 +487,15 @@ impl CrossPlatformCompatibilityTester {
             Platform::WindowsX64 => {
                 // Windows might not have Git in PATH, or might have Git Bash
                 Ok(fastrand::f64() > 0.25) // 75% success rate
-            },
+            }
             Platform::MacOsX64 | Platform::MacOsArm64 => {
                 // macOS usually has Git available via Xcode Command Line Tools
                 Ok(fastrand::f64() > 0.15) // 85% success rate
-            },
+            }
             Platform::LinuxX64 | Platform::LinuxArm64 => {
                 // Linux usually has Git available or easily installable
                 Ok(fastrand::f64() > 0.1) // 90% success rate
-            },
+            }
         }
     }
 
@@ -468,8 +512,11 @@ impl CrossPlatformCompatibilityTester {
     }
 
     async fn simulate_process_handling_test(&self, platform: &Platform) -> Result<bool, String> {
-        println!("      ⚙️ Simulating process handling test for {}...", platform.name());
-        
+        println!(
+            "      ⚙️ Simulating process handling test for {}...",
+            platform.name()
+        );
+
         tokio::time::sleep(Duration::from_millis(40)).await;
 
         // Process handling varies significantly by platform
@@ -477,22 +524,22 @@ impl CrossPlatformCompatibilityTester {
             Platform::WindowsX64 => {
                 // Windows has different process model - no UNIX signals
                 Ok(fastrand::f64() > 0.2) // 80% success rate
-            },
+            }
             Platform::LinuxX64 | Platform::LinuxArm64 => {
                 // Linux has consistent UNIX process model
                 Ok(fastrand::f64() > 0.05) // 95% success rate
-            },
+            }
             Platform::MacOsX64 | Platform::MacOsArm64 => {
                 // macOS follows UNIX model but with some restrictions
                 Ok(fastrand::f64() > 0.1) // 90% success rate
-            },
+            }
         }
     }
 
     async fn test_path_handling(&self, path: &str) -> bool {
         // Simulate testing path operations
         tokio::time::sleep(Duration::from_millis(5)).await;
-        
+
         // Most paths should work, but some edge cases might fail
         !path.contains("//") && !path.ends_with('/') && !path.is_empty()
     }
@@ -520,7 +567,7 @@ impl CrossPlatformCompatibilityTester {
         // Simulate signal handling test - varies by platform
         match self.current_platform {
             Platform::WindowsX64 => fastrand::f64() > 0.3, // 70% - no UNIX signals
-            _ => fastrand::f64() > 0.1, // 90% - UNIX platforms
+            _ => fastrand::f64() > 0.1,                    // 90% - UNIX platforms
         }
     }
 
@@ -530,7 +577,11 @@ impl CrossPlatformCompatibilityTester {
         fastrand::f64() > 0.1 // 90% success rate for simulation
     }
 
-    fn extract_issues_from_result(&self, result: &PlatformTestResult, issues: &mut Vec<CompatibilityIssue>) {
+    fn extract_issues_from_result(
+        &self,
+        result: &PlatformTestResult,
+        issues: &mut Vec<CompatibilityIssue>,
+    ) {
         if !result.binary_test_passed {
             issues.push(CompatibilityIssue {
                 platform: result.platform.clone(),
@@ -572,7 +623,10 @@ impl CrossPlatformCompatibilityTester {
         }
     }
 
-    fn calculate_overall_compatibility_score(&self, results: &HashMap<Platform, PlatformTestResult>) -> f64 {
+    fn calculate_overall_compatibility_score(
+        &self,
+        results: &HashMap<Platform, PlatformTestResult>,
+    ) -> f64 {
         if results.is_empty() {
             return 0.0;
         }
@@ -591,7 +645,10 @@ impl CrossPlatformCompatibilityTester {
         // Platform-specific recommendations based on issues
         let mut platform_issues: HashMap<Platform, Vec<&CompatibilityIssue>> = HashMap::new();
         for issue in issues {
-            platform_issues.entry(issue.platform.clone()).or_default().push(issue);
+            platform_issues
+                .entry(issue.platform.clone())
+                .or_default()
+                .push(issue);
         }
 
         for (platform, platform_issues) in platform_issues {
@@ -605,42 +662,59 @@ impl CrossPlatformCompatibilityTester {
         }
 
         // Category-specific recommendations
-        let binary_issues = issues.iter().filter(|i| matches!(i.category, IssueCategory::BinaryExecution)).count();
+        let binary_issues = issues
+            .iter()
+            .filter(|i| matches!(i.category, IssueCategory::BinaryExecution))
+            .count();
         if binary_issues > 0 {
-            recommendations.push("Implement comprehensive binary compatibility testing in CI/CD".to_string());
+            recommendations
+                .push("Implement comprehensive binary compatibility testing in CI/CD".to_string());
         }
 
-        let path_issues = issues.iter().filter(|i| matches!(i.category, IssueCategory::FilePathHandling)).count();
+        let path_issues = issues
+            .iter()
+            .filter(|i| matches!(i.category, IssueCategory::FilePathHandling))
+            .count();
         if path_issues > 0 {
             recommendations.push("Create platform-agnostic path handling utilities".to_string());
         }
 
-        let git_issues = issues.iter().filter(|i| matches!(i.category, IssueCategory::GitIntegration)).count();
+        let git_issues = issues
+            .iter()
+            .filter(|i| matches!(i.category, IssueCategory::GitIntegration))
+            .count();
         if git_issues > 0 {
             recommendations.push("Add Git detection and graceful fallback mechanisms".to_string());
         }
 
-        let process_issues = issues.iter().filter(|i| matches!(i.category, IssueCategory::ProcessHandling)).count();
+        let process_issues = issues
+            .iter()
+            .filter(|i| matches!(i.category, IssueCategory::ProcessHandling))
+            .count();
         if process_issues > 0 {
-            recommendations.push("Implement cross-platform process management abstractions".to_string());
+            recommendations
+                .push("Implement cross-platform process management abstractions".to_string());
         }
 
         // Performance recommendations
-        let avg_execution_time: Duration = results.values()
-            .map(|r| r.execution_time)
-            .sum::<Duration>() / results.len() as u32;
+        let avg_execution_time: Duration =
+            results.values().map(|r| r.execution_time).sum::<Duration>() / results.len() as u32;
 
         if avg_execution_time > Duration::from_secs(10) {
             recommendations.push("Optimize cross-platform test execution time".to_string());
         }
 
         // General recommendations
-        recommendations.push("Set up automated cross-platform testing in CI/CD pipeline".to_string());
-        recommendations.push("Create platform-specific installation and setup documentation".to_string());
+        recommendations
+            .push("Set up automated cross-platform testing in CI/CD pipeline".to_string());
+        recommendations
+            .push("Create platform-specific installation and setup documentation".to_string());
         recommendations.push("Implement platform detection and adaptive behavior".to_string());
 
         if recommendations.is_empty() {
-            recommendations.push("Cross-platform compatibility appears good - continue monitoring".to_string());
+            recommendations.push(
+                "Cross-platform compatibility appears good - continue monitoring".to_string(),
+            );
         }
 
         recommendations
@@ -650,18 +724,53 @@ impl CrossPlatformCompatibilityTester {
         println!("\n🌍 Cross-Platform Compatibility Test Results");
         println!("══════════════════════════════════════════════════════════════════");
         println!("Test: {}", results.test_name);
-        println!("Overall Compatibility Score: {:.2}/1.0", results.overall_compatibility_score);
+        println!(
+            "Overall Compatibility Score: {:.2}/1.0",
+            results.overall_compatibility_score
+        );
 
         println!("\n📊 Platform Results:");
         for (platform, result) in &results.platform_results {
-            println!("  🖥️ {} (Score: {:.2}/1.0, Time: {:?})", 
-                     platform.name(), result.overall_score, result.execution_time);
-            
-            println!("    Binary Functionality: {}", if result.binary_test_passed { "✅" } else { "❌" });
-            println!("    File Path Handling: {}", if result.file_path_test_passed { "✅" } else { "❌" });
-            println!("    Git Integration: {}", if result.git_integration_test_passed { "✅" } else { "❌" });
-            println!("    Process Handling: {}", if result.process_handling_test_passed { "✅" } else { "❌" });
-            
+            println!(
+                "  🖥️ {} (Score: {:.2}/1.0, Time: {:?})",
+                platform.name(),
+                result.overall_score,
+                result.execution_time
+            );
+
+            println!(
+                "    Binary Functionality: {}",
+                if result.binary_test_passed {
+                    "✅"
+                } else {
+                    "❌"
+                }
+            );
+            println!(
+                "    File Path Handling: {}",
+                if result.file_path_test_passed {
+                    "✅"
+                } else {
+                    "❌"
+                }
+            );
+            println!(
+                "    Git Integration: {}",
+                if result.git_integration_test_passed {
+                    "✅"
+                } else {
+                    "❌"
+                }
+            );
+            println!(
+                "    Process Handling: {}",
+                if result.process_handling_test_passed {
+                    "✅"
+                } else {
+                    "❌"
+                }
+            );
+
             if !result.notes.is_empty() {
                 println!("    Notes:");
                 for note in &result.notes {
@@ -681,11 +790,15 @@ impl CrossPlatformCompatibilityTester {
                     IssueSeverity::Low => "🟢",
                     IssueSeverity::Info => "ℹ️",
                 };
-                println!("  {} {} on {}: {}", 
-                         severity_icon, 
-                         format!("{:?}", issue.category).to_lowercase().replace('_', " "),
-                         issue.platform.name(),
-                         issue.description);
+                println!(
+                    "  {} {} on {}: {}",
+                    severity_icon,
+                    format!("{:?}", issue.category)
+                        .to_lowercase()
+                        .replace('_', " "),
+                    issue.platform.name(),
+                    issue.description
+                );
                 println!("    Fix: {}", issue.suggested_fix);
             }
             println!();
@@ -722,11 +835,7 @@ mod cross_platform_tests {
 
         let config = CrossPlatformTestConfig {
             test_name: "Cross-Platform Compatibility Assessment".to_string(),
-            target_platforms: vec![
-                Platform::LinuxX64,
-                Platform::WindowsX64,
-                Platform::MacOsX64,
-            ],
+            target_platforms: vec![Platform::LinuxX64, Platform::WindowsX64, Platform::MacOsX64],
             test_binary_functionality: true,
             test_file_paths: true,
             test_git_integration: true,
@@ -735,7 +844,9 @@ mod cross_platform_tests {
         };
 
         let tester = CrossPlatformCompatibilityTester::new(config);
-        let results = tester.run_cross_platform_tests().await
+        let results = tester
+            .run_cross_platform_tests()
+            .await
             .expect("Cross-platform tests should complete");
 
         // Validate test results
@@ -746,10 +857,16 @@ mod cross_platform_tests {
 
         // Check that current platform was tested directly
         let current_platform_result = results.platform_results.get(&tester.current_platform);
-        assert!(current_platform_result.is_some(), "Current platform should be tested");
+        assert!(
+            current_platform_result.is_some(),
+            "Current platform should be tested"
+        );
 
         println!("✅ Cross-platform compatibility assessment completed successfully");
-        println!("   Overall score: {:.2}/1.0", results.overall_compatibility_score);
+        println!(
+            "   Overall score: {:.2}/1.0",
+            results.overall_compatibility_score
+        );
         println!("   Issues found: {}", results.issues_found.len());
         println!("   Recommendations: {}", results.recommendations.len());
     }
@@ -759,17 +876,25 @@ mod cross_platform_tests {
         println!("🧪 Testing platform detection");
 
         let detected_platform = CrossPlatformCompatibilityTester::detect_current_platform();
-        
+
         // Validate platform detection
         println!("   Detected platform: {}", detected_platform.name());
         println!("   Rust target: {}", detected_platform.rust_target());
-        println!("   Path separator: '{}'", detected_platform.path_separator());
-        println!("   Executable extension: '{}'", detected_platform.executable_extension());
+        println!(
+            "   Path separator: '{}'",
+            detected_platform.path_separator()
+        );
+        println!(
+            "   Executable extension: '{}'",
+            detected_platform.executable_extension()
+        );
 
         // Test platform properties
         assert!(!detected_platform.name().is_empty());
         assert!(!detected_platform.rust_target().is_empty());
-        assert!(detected_platform.path_separator() == '/' || detected_platform.path_separator() == '\\');
+        assert!(
+            detected_platform.path_separator() == '/' || detected_platform.path_separator() == '\\'
+        );
 
         // Test current platform detection
         assert!(detected_platform.is_current_platform());
@@ -817,7 +942,7 @@ mod cross_platform_tests {
 
         for platform in platforms {
             println!("   Testing platform: {}", platform.name());
-            
+
             // Test platform properties
             let target = platform.rust_target();
             let extension = platform.executable_extension();
@@ -845,7 +970,7 @@ mod cross_platform_tests {
         println!("🧪 Testing compatibility issue detection");
 
         let tester = CrossPlatformCompatibilityTester::new(CrossPlatformTestConfig::default());
-        
+
         // Create a mock test result with failures
         let failed_result = PlatformTestResult {
             platform: Platform::WindowsX64,
@@ -865,14 +990,17 @@ mod cross_platform_tests {
         assert_eq!(issues.len(), 3);
 
         // Check issue categories
-        let categories: std::collections::HashSet<_> = issues.iter()
+        let categories: std::collections::HashSet<_> = issues
+            .iter()
             .map(|i| std::mem::discriminant(&i.category))
             .collect();
-        
+
         assert_eq!(categories.len(), 3); // Should have 3 different categories
 
         // Check severity levels
-        let has_critical = issues.iter().any(|i| matches!(i.severity, IssueSeverity::Critical));
+        let has_critical = issues
+            .iter()
+            .any(|i| matches!(i.severity, IssueSeverity::Critical));
         assert!(has_critical, "Should detect at least one critical issue");
 
         println!("✅ Compatibility issue detection completed successfully");
@@ -887,7 +1015,7 @@ mod cross_platform_tests {
         println!("🧪 Testing cross-platform binary simulation");
 
         let tester = CrossPlatformCompatibilityTester::new(CrossPlatformTestConfig::default());
-        
+
         let platforms = vec![
             Platform::LinuxX64,
             Platform::WindowsX64,
@@ -896,11 +1024,13 @@ mod cross_platform_tests {
         ];
 
         for platform in platforms {
-            let result = tester.simulate_binary_functionality_test(&platform).await
+            let result = tester
+                .simulate_binary_functionality_test(&platform)
+                .await
                 .expect("Simulation should complete");
-            
+
             println!("   {} binary test result: {}", platform.name(), result);
-            
+
             // Results should be boolean
             assert!(result == true || result == false);
         }

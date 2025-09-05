@@ -653,16 +653,16 @@ async fn test_recovery_tracking_and_reporting() {
         "  Successful attempts: {}",
         final_report.successful_attempts
     );
-    println!("  Failed attempts: {}", final_report.total_attempts - final_report.successful_attempts);
+    println!(
+        "  Failed attempts: {}",
+        final_report.total_attempts - final_report.successful_attempts
+    );
     println!("  Success rate: {:.2}%", final_report.success_rate * 100.0);
 
     // Validate tracking
     assert!(final_report.total_attempts >= total_attempts as u32);
     assert!(final_report.success_rate >= 0.0 && final_report.success_rate <= 1.0);
-    assert_eq!(
-        final_report.total_attempts,
-        final_report.total_attempts
-    );
+    assert_eq!(final_report.total_attempts, final_report.total_attempts);
 }
 
 /// Test timeout handling in error recovery

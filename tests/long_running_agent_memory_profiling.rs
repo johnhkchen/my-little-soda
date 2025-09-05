@@ -99,12 +99,17 @@ impl LongRunningAgentSimulator {
     }
 
     pub async fn run_memory_profiling(&self) -> Result<MemoryProfilingResults, String> {
-        println!("🧠 Starting long-running agent memory profiling: {}", self.config.test_name);
-        println!("   Duration: {:?}, Sampling every: {:?}", 
-                 self.config.profiling_duration, self.config.sampling_interval);
+        println!(
+            "🧠 Starting long-running agent memory profiling: {}",
+            self.config.test_name
+        );
+        println!(
+            "   Duration: {:?}, Sampling every: {:?}",
+            self.config.profiling_duration, self.config.sampling_interval
+        );
 
         let start_time = Instant::now();
-        
+
         // Record initial memory sample
         self.record_memory_sample("Initial state").await;
 
@@ -182,9 +187,12 @@ impl LongRunningAgentSimulator {
 
                 samples.write().await.push(sample);
 
-                if sample_count % 6 == 0 { // Every minute if sampling every 10s
-                    println!("   Memory sample #{}: {:.1}MB used, {:.1}MB peak, {} active ops", 
-                             sample_count, current, peak, ops);
+                if sample_count % 6 == 0 {
+                    // Every minute if sampling every 10s
+                    println!(
+                        "   Memory sample #{}: {:.1}MB used, {:.1}MB peak, {} active ops",
+                        sample_count, current, peak, ops
+                    );
                 }
             }
         })
@@ -233,7 +241,7 @@ impl LongRunningAgentSimulator {
                 let memory_ref = Arc::clone(&current_memory);
                 let ops_ref = Arc::clone(&active_ops);
                 let data_ref = Arc::clone(&simulation_data);
-                
+
                 tokio::spawn(async move {
                     tokio::time::sleep(work_duration).await;
 
@@ -241,10 +249,10 @@ impl LongRunningAgentSimulator {
                     {
                         let mut current = memory_ref.write().await;
                         let mut ops = ops_ref.write().await;
-                        
+
                         *current -= work_memory;
                         *ops = ops.saturating_sub(1);
-                        
+
                         // Remove completed work from simulation data
                         let mut data = data_ref.write().await;
                         data.retain(|item| item.id != work_id);
@@ -277,10 +285,10 @@ impl LongRunningAgentSimulator {
                     let reclaimed_ratio = 0.05 + fastrand::f64() * 0.10;
                     let reclaimed_memory = *current * reclaimed_ratio;
                     *current -= reclaimed_memory;
-                    
+
                     // Ensure minimum baseline
                     *current = (*current).max(40.0);
-                    
+
                     *gc += 1;
                 }
             }
@@ -308,7 +316,7 @@ impl LongRunningAgentSimulator {
 
     async fn generate_profiling_results(&self, total_duration: Duration) -> MemoryProfilingResults {
         let samples = self.memory_samples.read().await.clone();
-        
+
         if samples.is_empty() {
             return MemoryProfilingResults {
                 test_name: self.config.test_name.clone(),
@@ -329,7 +337,10 @@ impl LongRunningAgentSimulator {
 
         let initial_memory = samples.first().unwrap().used_mb;
         let final_memory = samples.last().unwrap().used_mb;
-        let peak_memory = samples.iter().map(|s| s.peak_mb).fold(0.0f64, |a, b| a.max(b));
+        let peak_memory = samples
+            .iter()
+            .map(|s| s.peak_mb)
+            .fold(0.0f64, |a, b| a.max(b));
         let average_memory = samples.iter().map(|s| s.used_mb).sum::<f64>() / samples.len() as f64;
 
         // Calculate memory growth rate (MB per hour)
@@ -341,9 +352,11 @@ impl LongRunningAgentSimulator {
         };
 
         // Calculate memory stability score (0.0 to 1.0, higher is more stable)
-        let memory_variance = samples.iter()
+        let memory_variance = samples
+            .iter()
             .map(|s| (s.used_mb - average_memory).powi(2))
-            .sum::<f64>() / samples.len() as f64;
+            .sum::<f64>()
+            / samples.len() as f64;
         let memory_stability_score = (100.0 / (memory_variance.sqrt() + 1.0)).min(1.0);
 
         // Detect potential memory leaks
@@ -382,7 +395,11 @@ impl LongRunningAgentSimulator {
         println!("\n🧠 Long-Running Agent Memory Profiling Results");
         println!("═════════════════════════════════════════════════════════════════");
         println!("Test: {}", results.test_name);
-        println!("Duration: {:?} ({} samples)", results.total_duration, results.samples.len());
+        println!(
+            "Duration: {:?} ({} samples)",
+            results.total_duration,
+            results.samples.len()
+        );
 
         println!("\n📊 Memory Usage Summary:");
         println!("  Initial Memory: {:.1} MB", results.initial_memory_mb);
@@ -392,8 +409,18 @@ impl LongRunningAgentSimulator {
 
         println!("\n📈 Memory Characteristics:");
         println!("  Growth Rate: {:.2} MB/hour", results.memory_growth_rate);
-        println!("  Stability Score: {:.2}/1.0", results.memory_stability_score);
-        println!("  Leak Detected: {}", if results.leak_detected { "❌ YES" } else { "✅ NO" });
+        println!(
+            "  Stability Score: {:.2}/1.0",
+            results.memory_stability_score
+        );
+        println!(
+            "  Leak Detected: {}",
+            if results.leak_detected {
+                "❌ YES"
+            } else {
+                "✅ NO"
+            }
+        );
 
         println!("\n🗑️ Garbage Collection:");
         if let Some(final_sample) = results.samples.last() {
@@ -402,44 +429,76 @@ impl LongRunningAgentSimulator {
         }
 
         println!("\n⚡ Performance Impact:");
-        println!("  Performance Score: {:.2}/1.0", results.performance_impact_score);
+        println!(
+            "  Performance Score: {:.2}/1.0",
+            results.performance_impact_score
+        );
 
         // Memory usage over time analysis
         if results.samples.len() > 10 {
             println!("\n📉 Memory Usage Timeline (last 10 samples):");
             let recent_samples = &results.samples[results.samples.len() - 10..];
             for (i, sample) in recent_samples.iter().enumerate() {
-                println!("    Sample {}: {:.1}MB used, {} ops active", 
-                         results.samples.len() - 10 + i + 1,
-                         sample.used_mb,
-                         sample.active_operations);
+                println!(
+                    "    Sample {}: {:.1}MB used, {} ops active",
+                    results.samples.len() - 10 + i + 1,
+                    sample.used_mb,
+                    sample.active_operations
+                );
             }
         }
 
         // Overall assessment
         println!("\n🎯 Memory Health Assessment:");
         if results.leak_detected {
-            println!("❌ MEMORY LEAK DETECTED - Growth rate: {:.2} MB/hour", results.memory_growth_rate);
+            println!(
+                "❌ MEMORY LEAK DETECTED - Growth rate: {:.2} MB/hour",
+                results.memory_growth_rate
+            );
         } else if results.memory_growth_rate > 5.0 {
-            println!("⚠️ HIGH MEMORY GROWTH - Growth rate: {:.2} MB/hour", results.memory_growth_rate);
+            println!(
+                "⚠️ HIGH MEMORY GROWTH - Growth rate: {:.2} MB/hour",
+                results.memory_growth_rate
+            );
         } else if results.memory_growth_rate < 1.0 {
-            println!("✅ STABLE MEMORY USAGE - Growth rate: {:.2} MB/hour", results.memory_growth_rate);
+            println!(
+                "✅ STABLE MEMORY USAGE - Growth rate: {:.2} MB/hour",
+                results.memory_growth_rate
+            );
         } else {
-            println!("✅ ACCEPTABLE MEMORY USAGE - Growth rate: {:.2} MB/hour", results.memory_growth_rate);
+            println!(
+                "✅ ACCEPTABLE MEMORY USAGE - Growth rate: {:.2} MB/hour",
+                results.memory_growth_rate
+            );
         }
 
         if results.peak_memory_mb > 500.0 {
-            println!("⚠️ HIGH PEAK MEMORY - Consider optimization: {:.1} MB", results.peak_memory_mb);
+            println!(
+                "⚠️ HIGH PEAK MEMORY - Consider optimization: {:.1} MB",
+                results.peak_memory_mb
+            );
         } else if results.peak_memory_mb > 200.0 {
-            println!("ℹ️ MODERATE PEAK MEMORY - Monitor usage: {:.1} MB", results.peak_memory_mb);
+            println!(
+                "ℹ️ MODERATE PEAK MEMORY - Monitor usage: {:.1} MB",
+                results.peak_memory_mb
+            );
         } else {
-            println!("✅ EFFICIENT MEMORY USAGE - Peak: {:.1} MB", results.peak_memory_mb);
+            println!(
+                "✅ EFFICIENT MEMORY USAGE - Peak: {:.1} MB",
+                results.peak_memory_mb
+            );
         }
 
         if results.memory_stability_score < 0.5 {
-            println!("⚠️ UNSTABLE MEMORY PATTERN - Score: {:.2}", results.memory_stability_score);
+            println!(
+                "⚠️ UNSTABLE MEMORY PATTERN - Score: {:.2}",
+                results.memory_stability_score
+            );
         } else {
-            println!("✅ STABLE MEMORY PATTERN - Score: {:.2}", results.memory_stability_score);
+            println!(
+                "✅ STABLE MEMORY PATTERN - Score: {:.2}",
+                results.memory_stability_score
+            );
         }
     }
 }
@@ -463,7 +522,10 @@ mod memory_profiling_tests {
         };
 
         let simulator = LongRunningAgentSimulator::new(config);
-        let results = simulator.run_memory_profiling().await.expect("Profiling should complete");
+        let results = simulator
+            .run_memory_profiling()
+            .await
+            .expect("Profiling should complete");
 
         // Memory usage requirements
         assert!(
@@ -515,7 +577,10 @@ mod memory_profiling_tests {
         };
 
         let simulator = LongRunningAgentSimulator::new(config);
-        let results = simulator.run_memory_profiling().await.expect("Profiling should complete");
+        let results = simulator
+            .run_memory_profiling()
+            .await
+            .expect("Profiling should complete");
 
         // With GC disabled and work simulation enabled, we should see memory growth
         assert!(
@@ -537,7 +602,10 @@ mod memory_profiling_tests {
             "Should have sufficient samples for analysis"
         );
 
-        println!("Memory growth detected: {:.2} MB/hour", results.memory_growth_rate);
+        println!(
+            "Memory growth detected: {:.2} MB/hour",
+            results.memory_growth_rate
+        );
         println!("Leak detection working: {}", results.leak_detected);
 
         println!("✅ Memory leak detection test completed successfully");
@@ -558,7 +626,10 @@ mod memory_profiling_tests {
         };
 
         let simulator = LongRunningAgentSimulator::new(config);
-        let results = simulator.run_memory_profiling().await.expect("Profiling should complete");
+        let results = simulator
+            .run_memory_profiling()
+            .await
+            .expect("Profiling should complete");
 
         // With GC enabled, memory growth should be controlled
         assert!(
@@ -608,7 +679,10 @@ mod memory_profiling_tests {
         };
 
         let simulator = LongRunningAgentSimulator::new(config);
-        let results = simulator.run_memory_profiling().await.expect("Profiling should complete");
+        let results = simulator
+            .run_memory_profiling()
+            .await
+            .expect("Profiling should complete");
 
         // Should have many samples for stability analysis
         assert!(
@@ -639,8 +713,14 @@ mod memory_profiling_tests {
             results.performance_impact_score
         );
 
-        println!("Memory stability score: {:.2}/1.0", results.memory_stability_score);
-        println!("Performance impact score: {:.2}/1.0", results.performance_impact_score);
+        println!(
+            "Memory stability score: {:.2}/1.0",
+            results.memory_stability_score
+        );
+        println!(
+            "Performance impact score: {:.2}/1.0",
+            results.performance_impact_score
+        );
 
         println!("✅ Memory stability analysis test completed successfully");
     }
@@ -660,24 +740,48 @@ mod memory_profiling_tests {
         };
 
         let simulator = LongRunningAgentSimulator::new(config);
-        let results = simulator.run_memory_profiling().await.expect("Profiling should complete");
+        let results = simulator
+            .run_memory_profiling()
+            .await
+            .expect("Profiling should complete");
 
         println!("\n📊 Extended Operation Memory Baseline:");
         println!("  Initial Memory: {:.1} MB", results.initial_memory_mb);
         println!("  Peak Memory: {:.1} MB", results.peak_memory_mb);
         println!("  Final Memory: {:.1} MB", results.final_memory_mb);
         println!("  Average Memory: {:.1} MB", results.average_memory_mb);
-        println!("  Memory Growth Rate: {:.2} MB/hour", results.memory_growth_rate);
-        println!("  Memory Stability Score: {:.2}/1.0", results.memory_stability_score);
-        println!("  GC Efficiency Score: {:.2}/1.0", results.gc_efficiency_score);
-        println!("  Performance Impact Score: {:.2}/1.0", results.performance_impact_score);
+        println!(
+            "  Memory Growth Rate: {:.2} MB/hour",
+            results.memory_growth_rate
+        );
+        println!(
+            "  Memory Stability Score: {:.2}/1.0",
+            results.memory_stability_score
+        );
+        println!(
+            "  GC Efficiency Score: {:.2}/1.0",
+            results.gc_efficiency_score
+        );
+        println!(
+            "  Performance Impact Score: {:.2}/1.0",
+            results.performance_impact_score
+        );
         println!("  Leak Detected: {}", results.leak_detected);
 
         // Baseline validation
-        assert!(results.peak_memory_mb < 500.0, "Baseline peak memory too high");
-        assert!(results.memory_growth_rate < 100.0, "Baseline growth rate too high");
+        assert!(
+            results.peak_memory_mb < 500.0,
+            "Baseline peak memory too high"
+        );
+        assert!(
+            results.memory_growth_rate < 100.0,
+            "Baseline growth rate too high"
+        );
         assert!(!results.leak_detected, "Baseline should not have leaks");
-        assert!(results.memory_stability_score > 0.1, "Baseline stability too low");
+        assert!(
+            results.memory_stability_score > 0.1,
+            "Baseline stability too low"
+        );
 
         println!("✅ Extended operation memory baseline established successfully");
     }

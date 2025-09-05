@@ -53,7 +53,6 @@ pub enum StuckAgentPattern {
     LandedButNotFreed { agent_id: String, issue: u64 },
 }
 
-
 #[derive(Default)]
 pub struct AgentStateMachine {
     pub agent_id: String,
@@ -423,7 +422,6 @@ impl AgentStateMachine {
             .await
             .map_err(|e| StateError::ValidationError(format!("Recovery failed: {e:?}")))
     }
-
 
     // Note: Validation methods will be added via extension trait to avoid circular dependencies
     // /// Validate this agent's state against external GitHub/Git reality

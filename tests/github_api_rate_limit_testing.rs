@@ -27,7 +27,7 @@ impl Default for RateLimitTestConfig {
         Self {
             test_name: "github_api_rate_limit_test".to_string(),
             test_duration: Duration::from_secs(180), // 3 minutes
-            initial_requests_per_minute: 60,          // Start with 1 req/sec
+            initial_requests_per_minute: 60,         // Start with 1 req/sec
             simulate_rate_limits: true,
             simulate_secondary_limits: true,
             track_recovery_metrics: true,
@@ -53,10 +53,10 @@ pub struct ApiRequest {
 #[derive(Debug, Clone, PartialEq)]
 pub enum RateLimitType {
     None,
-    Primary,      // Main rate limit (5000/hour)
-    Secondary,    // Secondary rate limit (abuse detection)
-    Search,       // Search API specific limits
-    GraphQL,      // GraphQL API limits
+    Primary,   // Main rate limit (5000/hour)
+    Secondary, // Secondary rate limit (abuse detection)
+    Search,    // Search API specific limits
+    GraphQL,   // GraphQL API limits
 }
 
 /// Rate limit test results
@@ -128,7 +128,7 @@ impl Default for RateLimitState {
             primary_reset_time: None,
             secondary_limited: false,
             secondary_reset_time: None,
-            search_remaining: 30,    // GitHub's search limit per minute
+            search_remaining: 30, // GitHub's search limit per minute
             search_reset_time: None,
             consecutive_rate_limits: 0,
         }
@@ -166,9 +166,14 @@ impl GitHubApiRateLimitSimulator {
     }
 
     pub async fn run_rate_limit_test(&self) -> Result<RateLimitTestResults, String> {
-        println!("🌐 Starting GitHub API rate limit test: {}", self.config.test_name);
-        println!("   Duration: {:?}, Initial rate: {} req/min", 
-                 self.config.test_duration, self.config.initial_requests_per_minute);
+        println!(
+            "🌐 Starting GitHub API rate limit test: {}",
+            self.config.test_name
+        );
+        println!(
+            "   Duration: {:?}, Initial rate: {} req/min",
+            self.config.test_duration, self.config.initial_requests_per_minute
+        );
 
         let start_time = Instant::now();
 
@@ -214,7 +219,7 @@ impl GitHubApiRateLimitSimulator {
 
         tokio::spawn(async move {
             let mut request_id = 0;
-            
+
             loop {
                 let current_rate_value = *current_rate.read().await;
                 let interval_ms = if current_rate_value > 0 {
@@ -235,14 +240,15 @@ impl GitHubApiRateLimitSimulator {
                 };
 
                 let request_start = Instant::now();
-                
+
                 // Check rate limits and simulate request
                 let (success, rate_limited, rate_limit_type) = {
                     let mut state = rate_limit_state.lock().await;
                     Self::simulate_api_request_with_limits(&mut state, endpoint, simulate_limits)
                 };
 
-                let request_duration = request_start.elapsed() + Duration::from_millis(50 + fastrand::u64(0..=100));
+                let request_duration =
+                    request_start.elapsed() + Duration::from_millis(50 + fastrand::u64(0..=100));
 
                 // Handle rate limiting
                 if rate_limited {
@@ -271,7 +277,11 @@ impl GitHubApiRateLimitSimulator {
                     rate_limit_type,
                     remaining_quota: Some(rate_limit_state.lock().await.primary_remaining),
                     reset_time: rate_limit_state.lock().await.primary_reset_time,
-                    retry_after: if rate_limited { Some(Duration::from_secs(60)) } else { None },
+                    retry_after: if rate_limited {
+                        Some(Duration::from_secs(60))
+                    } else {
+                        None
+                    },
                 };
 
                 requests.write().await.push(api_request);
@@ -351,12 +361,17 @@ impl GitHubApiRateLimitSimulator {
                 let state = rate_limit_state.lock().await;
                 let current_rate_value = *current_rate.read().await;
 
-                println!("   Rate limit status: {} requests remaining, current rate: {}/min", 
-                         state.primary_remaining, current_rate_value);
+                println!(
+                    "   Rate limit status: {} requests remaining, current rate: {}/min",
+                    state.primary_remaining, current_rate_value
+                );
 
                 // Log if we're hitting rate limits frequently
                 if state.consecutive_rate_limits > 2 {
-                    println!("   ⚠️ Consecutive rate limits detected: {}", state.consecutive_rate_limits);
+                    println!(
+                        "   ⚠️ Consecutive rate limits detected: {}",
+                        state.consecutive_rate_limits
+                    );
                 }
             }
         })
@@ -377,7 +392,8 @@ impl GitHubApiRateLimitSimulator {
                 let recent_requests = {
                     let all_requests = requests.read().await;
                     let cutoff_time = Instant::now() - Duration::from_secs(60); // Last minute
-                    all_requests.iter()
+                    all_requests
+                        .iter()
                         .filter(|req| req.timestamp > cutoff_time)
                         .cloned()
                         .collect::<Vec<_>>()
@@ -387,12 +403,15 @@ impl GitHubApiRateLimitSimulator {
                     continue;
                 }
 
-                let recent_rate_limited = recent_requests.iter()
+                let recent_rate_limited = recent_requests
+                    .iter()
                     .filter(|req| req.rate_limited)
                     .count();
-                let success_rate = recent_requests.iter()
+                let success_rate = recent_requests
+                    .iter()
                     .filter(|req| req.success && !req.rate_limited)
-                    .count() as f64 / recent_requests.len() as f64;
+                    .count() as f64
+                    / recent_requests.len() as f64;
 
                 let mut strategy = adaptive_strategy.write().await;
                 let mut rate = current_rate.write().await;
@@ -403,7 +422,10 @@ impl GitHubApiRateLimitSimulator {
                     let new_rate = (*rate as f64 * 0.8) as usize; // Reduce by 20%
                     *rate = new_rate.max(10); // Minimum 10 requests per minute
                     strategy.strategy_changes += 1;
-                    println!("   🔄 Adaptive strategy: Reduced rate to {}/min due to rate limits", *rate);
+                    println!(
+                        "   🔄 Adaptive strategy: Reduced rate to {}/min due to rate limits",
+                        *rate
+                    );
                 } else if success_rate > 0.95 && recent_rate_limited == 0 {
                     // High success rate - try increasing rate
                     let new_rate = (*rate as f64 * 1.1) as usize; // Increase by 10%
@@ -415,8 +437,9 @@ impl GitHubApiRateLimitSimulator {
 
                 // Track optimal rate discovery
                 if success_rate > 0.95 && recent_rate_limited == 0 {
-                    if strategy.optimal_rate_discovered.is_none() || 
-                       strategy.optimal_rate_discovered.unwrap() < *rate {
+                    if strategy.optimal_rate_discovered.is_none()
+                        || strategy.optimal_rate_discovered.unwrap() < *rate
+                    {
                         strategy.optimal_rate_discovered = Some(*rate);
                     }
                 }
@@ -426,37 +449,39 @@ impl GitHubApiRateLimitSimulator {
 
     async fn generate_test_results(&self, total_duration: Duration) -> RateLimitTestResults {
         let requests = self.requests.read().await.clone();
-        
+
         // Calculate rate limit encounters
         let mut rate_limit_encounters = HashMap::new();
         for request in &requests {
             if request.rate_limited {
-                *rate_limit_encounters.entry(request.rate_limit_type.clone()).or_insert(0) += 1;
+                *rate_limit_encounters
+                    .entry(request.rate_limit_type.clone())
+                    .or_insert(0) += 1;
             }
         }
 
         // Calculate recovery metrics
         let recovery_metrics = self.calculate_recovery_metrics(&requests).await;
-        
+
         // Calculate throughput metrics
-        let throughput_metrics = self.calculate_throughput_metrics(&requests, total_duration).await;
-        
+        let throughput_metrics = self
+            .calculate_throughput_metrics(&requests, total_duration)
+            .await;
+
         // Calculate adaptive strategy metrics
         let adaptive_strategy_metrics = self.calculate_adaptive_strategy_metrics().await;
 
         // Calculate efficiency score
         let efficiency_score = self.calculate_efficiency_score(
-            &throughput_metrics, 
+            &throughput_metrics,
             &recovery_metrics,
-            &adaptive_strategy_metrics
+            &adaptive_strategy_metrics,
         );
 
         // Generate recommendations
-        let recommendations = self.generate_recommendations(
-            &requests,
-            &rate_limit_encounters,
-            &throughput_metrics
-        ).await;
+        let recommendations = self
+            .generate_recommendations(&requests, &rate_limit_encounters, &throughput_metrics)
+            .await;
 
         RateLimitTestResults {
             test_name: self.config.test_name.clone(),
@@ -472,7 +497,10 @@ impl GitHubApiRateLimitSimulator {
         }
     }
 
-    async fn calculate_recovery_metrics(&self, requests: &[ApiRequest]) -> RateLimitRecoveryMetrics {
+    async fn calculate_recovery_metrics(
+        &self,
+        requests: &[ApiRequest],
+    ) -> RateLimitRecoveryMetrics {
         let mut recovery_events = Vec::new();
         let mut last_rate_limit_time = None;
 
@@ -499,9 +527,18 @@ impl GitHubApiRateLimitSimulator {
         }
 
         let total_recovery_events = recovery_events.len();
-        let average_recovery_time = recovery_events.iter().sum::<Duration>() / recovery_events.len() as u32;
-        let fastest_recovery_time = recovery_events.iter().min().copied().unwrap_or(Duration::ZERO);
-        let slowest_recovery_time = recovery_events.iter().max().copied().unwrap_or(Duration::ZERO);
+        let average_recovery_time =
+            recovery_events.iter().sum::<Duration>() / recovery_events.len() as u32;
+        let fastest_recovery_time = recovery_events
+            .iter()
+            .min()
+            .copied()
+            .unwrap_or(Duration::ZERO);
+        let slowest_recovery_time = recovery_events
+            .iter()
+            .max()
+            .copied()
+            .unwrap_or(Duration::ZERO);
 
         let total_rate_limits = requests.iter().filter(|r| r.rate_limited).count();
         let recovery_success_rate = if total_rate_limits > 0 {
@@ -527,9 +564,19 @@ impl GitHubApiRateLimitSimulator {
         }
     }
 
-    async fn calculate_throughput_metrics(&self, requests: &[ApiRequest], total_duration: Duration) -> ThroughputMetrics {
-        let successful_requests = requests.iter().filter(|r| r.success && !r.rate_limited).count();
-        let failed_requests = requests.iter().filter(|r| !r.success || r.rate_limited).count();
+    async fn calculate_throughput_metrics(
+        &self,
+        requests: &[ApiRequest],
+        total_duration: Duration,
+    ) -> ThroughputMetrics {
+        let successful_requests = requests
+            .iter()
+            .filter(|r| r.success && !r.rate_limited)
+            .count();
+        let failed_requests = requests
+            .iter()
+            .filter(|r| !r.success || r.rate_limited)
+            .count();
         let total_requests = requests.len();
 
         let minutes = total_duration.as_secs_f64() / 60.0;
@@ -544,10 +591,11 @@ impl GitHubApiRateLimitSimulator {
         if !requests.is_empty() {
             let start_time = requests[0].timestamp;
             let mut window_start = start_time;
-            
+
             while window_start < requests.last().unwrap().timestamp {
                 let window_end = window_start + Duration::from_secs(60);
-                let requests_in_window = requests.iter()
+                let requests_in_window = requests
+                    .iter()
                     .filter(|r| r.timestamp >= window_start && r.timestamp < window_end)
                     .count();
                 peak_requests_per_minute = peak_requests_per_minute.max(requests_in_window as f64);
@@ -572,7 +620,7 @@ impl GitHubApiRateLimitSimulator {
 
     async fn calculate_adaptive_strategy_metrics(&self) -> AdaptiveStrategyMetrics {
         let strategy = self.adaptive_strategy.read().await;
-        
+
         AdaptiveStrategyMetrics {
             strategy_changes: strategy.strategy_changes,
             optimal_request_rate_found: strategy.optimal_rate_discovered,
@@ -593,7 +641,8 @@ impl GitHubApiRateLimitSimulator {
     ) -> f64 {
         // Weighted efficiency score (0.0 to 1.0, higher is better)
         let throughput_score = throughput.efficiency_ratio;
-        let recovery_score = recovery.recovery_success_rate * recovery.adaptive_backoff_effectiveness;
+        let recovery_score =
+            recovery.recovery_success_rate * recovery.adaptive_backoff_effectiveness;
         let adaptive_score = adaptive.strategy_effectiveness_score;
 
         (throughput_score * 0.5) + (recovery_score * 0.3) + (adaptive_score * 0.2)
@@ -651,12 +700,14 @@ impl GitHubApiRateLimitSimulator {
         // Peak usage recommendations
         if throughput.peak_requests_per_minute > 100.0 {
             recommendations.push(
-                "Peak request rate exceeds sustainable levels. Implement request queuing.".to_string()
+                "Peak request rate exceeds sustainable levels. Implement request queuing."
+                    .to_string(),
             );
         }
 
         if recommendations.is_empty() {
-            recommendations.push("API usage patterns appear efficient. Continue monitoring.".to_string());
+            recommendations
+                .push("API usage patterns appear efficient. Continue monitoring.".to_string());
         }
 
         recommendations
@@ -670,11 +721,26 @@ impl GitHubApiRateLimitSimulator {
         println!("Total Requests: {}", results.requests.len());
 
         println!("\n📊 Throughput Metrics:");
-        println!("  Successful Requests: {}", results.throughput_metrics.successful_requests);
-        println!("  Failed Requests: {}", results.throughput_metrics.failed_requests);
-        println!("  Requests per Minute: {:.1}", results.throughput_metrics.requests_per_minute);
-        println!("  Peak Requests per Minute: {:.1}", results.throughput_metrics.peak_requests_per_minute);
-        println!("  Efficiency Ratio: {:.1}%", results.throughput_metrics.efficiency_ratio * 100.0);
+        println!(
+            "  Successful Requests: {}",
+            results.throughput_metrics.successful_requests
+        );
+        println!(
+            "  Failed Requests: {}",
+            results.throughput_metrics.failed_requests
+        );
+        println!(
+            "  Requests per Minute: {:.1}",
+            results.throughput_metrics.requests_per_minute
+        );
+        println!(
+            "  Peak Requests per Minute: {:.1}",
+            results.throughput_metrics.peak_requests_per_minute
+        );
+        println!(
+            "  Efficiency Ratio: {:.1}%",
+            results.throughput_metrics.efficiency_ratio * 100.0
+        );
 
         println!("\n⚠️ Rate Limit Encounters:");
         if results.rate_limit_encounters.is_empty() {
@@ -686,25 +752,55 @@ impl GitHubApiRateLimitSimulator {
         }
 
         println!("\n🔄 Recovery Metrics:");
-        println!("  Recovery Events: {}", results.recovery_metrics.total_recovery_events);
+        println!(
+            "  Recovery Events: {}",
+            results.recovery_metrics.total_recovery_events
+        );
         if results.recovery_metrics.total_recovery_events > 0 {
-            println!("  Average Recovery Time: {:?}", results.recovery_metrics.average_recovery_time);
-            println!("  Fastest Recovery: {:?}", results.recovery_metrics.fastest_recovery_time);
-            println!("  Slowest Recovery: {:?}", results.recovery_metrics.slowest_recovery_time);
-            println!("  Recovery Success Rate: {:.1}%", results.recovery_metrics.recovery_success_rate * 100.0);
-            println!("  Backoff Effectiveness: {:.2}", results.recovery_metrics.adaptive_backoff_effectiveness);
+            println!(
+                "  Average Recovery Time: {:?}",
+                results.recovery_metrics.average_recovery_time
+            );
+            println!(
+                "  Fastest Recovery: {:?}",
+                results.recovery_metrics.fastest_recovery_time
+            );
+            println!(
+                "  Slowest Recovery: {:?}",
+                results.recovery_metrics.slowest_recovery_time
+            );
+            println!(
+                "  Recovery Success Rate: {:.1}%",
+                results.recovery_metrics.recovery_success_rate * 100.0
+            );
+            println!(
+                "  Backoff Effectiveness: {:.2}",
+                results.recovery_metrics.adaptive_backoff_effectiveness
+            );
         }
 
         if results.config.enable_adaptive_strategies {
             println!("\n🎯 Adaptive Strategy Metrics:");
-            println!("  Strategy Changes: {}", results.adaptive_strategy_metrics.strategy_changes);
-            if let Some(optimal_rate) = results.adaptive_strategy_metrics.optimal_request_rate_found {
+            println!(
+                "  Strategy Changes: {}",
+                results.adaptive_strategy_metrics.strategy_changes
+            );
+            if let Some(optimal_rate) = results.adaptive_strategy_metrics.optimal_request_rate_found
+            {
                 println!("  Optimal Rate Found: {}/min", optimal_rate);
             }
-            println!("  Strategy Effectiveness: {:.2}", results.adaptive_strategy_metrics.strategy_effectiveness_score);
+            println!(
+                "  Strategy Effectiveness: {:.2}",
+                results
+                    .adaptive_strategy_metrics
+                    .strategy_effectiveness_score
+            );
         }
 
-        println!("\n📈 Overall Efficiency Score: {:.2}/1.0", results.efficiency_score);
+        println!(
+            "\n📈 Overall Efficiency Score: {:.2}/1.0",
+            results.efficiency_score
+        );
 
         println!("\n💡 Recommendations:");
         for (i, recommendation) in results.recommendations.iter().enumerate() {
@@ -713,11 +809,15 @@ impl GitHubApiRateLimitSimulator {
 
         // Assessment
         if results.efficiency_score >= 0.9 {
-            println!("\n✅ EXCELLENT - API usage is highly efficient with good rate limit handling");
+            println!(
+                "\n✅ EXCELLENT - API usage is highly efficient with good rate limit handling"
+            );
         } else if results.efficiency_score >= 0.7 {
             println!("\n✅ GOOD - API usage is efficient with acceptable rate limit handling");
         } else if results.efficiency_score >= 0.5 {
-            println!("\n⚠️ ACCEPTABLE - API usage needs optimization for better rate limit handling");
+            println!(
+                "\n⚠️ ACCEPTABLE - API usage needs optimization for better rate limit handling"
+            );
         } else {
             println!("\n❌ NEEDS IMPROVEMENT - API usage has significant rate limit issues");
         }
@@ -725,14 +825,15 @@ impl GitHubApiRateLimitSimulator {
 
     async fn generate_documentation(&self, results: &RateLimitTestResults) {
         let doc_content = self.create_rate_limit_documentation(results);
-        
+
         // In a real implementation, this would write to a file
         println!("\n📚 Generated Rate Limit Handling Documentation:");
         println!("{}", doc_content);
     }
 
     fn create_rate_limit_documentation(&self, results: &RateLimitTestResults) -> String {
-        format!(r#"# GitHub API Rate Limit Handling Documentation
+        format!(
+            r#"# GitHub API Rate Limit Handling Documentation
 
 ## Test Results Summary
 
@@ -818,7 +919,7 @@ Track these metrics for ongoing optimization:
 - API endpoint usage patterns
 
 Generated on: {}
-"#, 
+"#,
             results.test_name,
             results.total_duration,
             results.requests.len(),
@@ -826,7 +927,9 @@ Generated on: {}
             if results.rate_limit_encounters.is_empty() {
                 "No rate limits encountered during testing.".to_string()
             } else {
-                results.rate_limit_encounters.iter()
+                results
+                    .rate_limit_encounters
+                    .iter()
                     .map(|(t, c)| format!("- {:?}: {} encounters", t, c))
                     .collect::<Vec<_>>()
                     .join("\n")
@@ -836,14 +939,19 @@ Generated on: {}
             results.throughput_metrics.peak_requests_per_minute,
             results.throughput_metrics.efficiency_ratio * 100.0,
             if results.recovery_metrics.total_recovery_events > 0 {
-                format!("- Recovery Events: {}\n- Average Recovery Time: {:?}\n- Success Rate: {:.1}%",
+                format!(
+                    "- Recovery Events: {}\n- Average Recovery Time: {:?}\n- Success Rate: {:.1}%",
                     results.recovery_metrics.total_recovery_events,
                     results.recovery_metrics.average_recovery_time,
-                    results.recovery_metrics.recovery_success_rate * 100.0)
+                    results.recovery_metrics.recovery_success_rate * 100.0
+                )
             } else {
                 "No recovery events recorded.".to_string()
             },
-            results.adaptive_strategy_metrics.optimal_request_rate_found.unwrap_or(60),
+            results
+                .adaptive_strategy_metrics
+                .optimal_request_rate_found
+                .unwrap_or(60),
             chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")
         )
     }
@@ -868,7 +976,10 @@ mod rate_limit_tests {
         };
 
         let simulator = GitHubApiRateLimitSimulator::new(config);
-        let results = simulator.run_rate_limit_test().await.expect("Test should complete");
+        let results = simulator
+            .run_rate_limit_test()
+            .await
+            .expect("Test should complete");
 
         // Validate test results
         assert!(
@@ -921,7 +1032,10 @@ mod rate_limit_tests {
         };
 
         let simulator = GitHubApiRateLimitSimulator::new(config);
-        let results = simulator.run_rate_limit_test().await.expect("Test should complete");
+        let results = simulator
+            .run_rate_limit_test()
+            .await
+            .expect("Test should complete");
 
         // Validate adaptive strategies worked
         assert!(
@@ -939,12 +1053,20 @@ mod rate_limit_tests {
         }
 
         assert!(
-            results.adaptive_strategy_metrics.strategy_effectiveness_score > 0.2,
+            results
+                .adaptive_strategy_metrics
+                .strategy_effectiveness_score
+                > 0.2,
             "Strategy effectiveness too low: {:.2}",
-            results.adaptive_strategy_metrics.strategy_effectiveness_score
+            results
+                .adaptive_strategy_metrics
+                .strategy_effectiveness_score
         );
 
-        println!("Adaptive strategy made {} changes", results.adaptive_strategy_metrics.strategy_changes);
+        println!(
+            "Adaptive strategy made {} changes",
+            results.adaptive_strategy_metrics.strategy_changes
+        );
         if let Some(optimal) = results.adaptive_strategy_metrics.optimal_request_rate_found {
             println!("Optimal rate found: {}/min", optimal);
         }
@@ -967,7 +1089,10 @@ mod rate_limit_tests {
         };
 
         let simulator = GitHubApiRateLimitSimulator::new(config);
-        let results = simulator.run_rate_limit_test().await.expect("Test should complete");
+        let results = simulator
+            .run_rate_limit_test()
+            .await
+            .expect("Test should complete");
 
         // Should encounter rate limits with aggressive rate
         let total_rate_limits: usize = results.rate_limit_encounters.values().sum();
@@ -1000,14 +1125,23 @@ mod rate_limit_tests {
             results.recovery_metrics.adaptive_backoff_effectiveness
         );
 
-        println!("Recovery events: {}", results.recovery_metrics.total_recovery_events);
-        println!("Average recovery time: {:?}", results.recovery_metrics.average_recovery_time);
-        println!("Recovery success rate: {:.1}%", results.recovery_metrics.recovery_success_rate * 100.0);
+        println!(
+            "Recovery events: {}",
+            results.recovery_metrics.total_recovery_events
+        );
+        println!(
+            "Average recovery time: {:?}",
+            results.recovery_metrics.average_recovery_time
+        );
+        println!(
+            "Recovery success rate: {:.1}%",
+            results.recovery_metrics.recovery_success_rate * 100.0
+        );
 
         println!("✅ Rate limit recovery performance test completed successfully");
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_api_efficiency_baseline() {
         println!("🧪 Establishing API efficiency baseline");
 
@@ -1022,22 +1156,52 @@ mod rate_limit_tests {
         };
 
         let simulator = GitHubApiRateLimitSimulator::new(config);
-        let results = simulator.run_rate_limit_test().await.expect("Test should complete");
+        let results = simulator
+            .run_rate_limit_test()
+            .await
+            .expect("Test should complete");
 
         println!("\n📊 API Efficiency Baseline Established:");
-        println!("  Requests per Minute: {:.1}", results.throughput_metrics.requests_per_minute);
-        println!("  Peak Requests per Minute: {:.1}", results.throughput_metrics.peak_requests_per_minute);
-        println!("  Efficiency Ratio: {:.1}%", results.throughput_metrics.efficiency_ratio * 100.0);
-        println!("  Overall Efficiency Score: {:.2}/1.0", results.efficiency_score);
-        println!("  Rate Limit Encounters: {}", results.rate_limit_encounters.values().sum::<usize>());
+        println!(
+            "  Requests per Minute: {:.1}",
+            results.throughput_metrics.requests_per_minute
+        );
+        println!(
+            "  Peak Requests per Minute: {:.1}",
+            results.throughput_metrics.peak_requests_per_minute
+        );
+        println!(
+            "  Efficiency Ratio: {:.1}%",
+            results.throughput_metrics.efficiency_ratio * 100.0
+        );
+        println!(
+            "  Overall Efficiency Score: {:.2}/1.0",
+            results.efficiency_score
+        );
+        println!(
+            "  Rate Limit Encounters: {}",
+            results.rate_limit_encounters.values().sum::<usize>()
+        );
 
         // Baseline validation
-        assert!(results.throughput_metrics.efficiency_ratio > 0.7, "Baseline efficiency too low");
-        assert!(results.efficiency_score > 0.5, "Baseline overall score too low");
-        assert!(results.requests.len() >= 30, "Baseline should have sufficient requests");
+        assert!(
+            results.throughput_metrics.efficiency_ratio > 0.7,
+            "Baseline efficiency too low"
+        );
+        assert!(
+            results.efficiency_score > 0.5,
+            "Baseline overall score too low"
+        );
+        assert!(
+            results.requests.len() >= 30,
+            "Baseline should have sufficient requests"
+        );
 
         // Recommendations should be provided
-        assert!(!results.recommendations.is_empty(), "Should provide recommendations");
+        assert!(
+            !results.recommendations.is_empty(),
+            "Should provide recommendations"
+        );
 
         println!("💡 Baseline Recommendations:");
         for (i, rec) in results.recommendations.iter().enumerate() {

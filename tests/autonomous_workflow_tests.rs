@@ -16,12 +16,11 @@ use my_little_soda::{
         integration::IntegrationConfig,
         persistence::PersistentWorkflowState,
         workflow_state_machine::WorkProgress,
-        AgentId, BlockerType, CIFailure, CheckpointReason, CompletedWork,
-        ConflictInfo, Issue, PersistenceConfig, Priority, PullRequest,
+        AgentId, BlockerType, CIFailure, CheckpointReason, CompletedWork, ConflictInfo, Issue,
+        PersistenceConfig, Priority, PullRequest,
     },
     AutonomousCoordinator, AutonomousErrorRecovery, AutonomousEvent, AutonomousWorkflowMachine,
-    AutonomousWorkflowState, CoordinationConfig, GitHubClient,
-    StatePersistenceManager,
+    AutonomousWorkflowState, CoordinationConfig, GitHubClient, StatePersistenceManager,
 };
 
 /// Test the complete autonomous workflow from start to finish

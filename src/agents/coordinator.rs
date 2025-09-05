@@ -5,8 +5,6 @@ use crate::agent_lifecycle::{AgentEvent, AgentStateMachine};
 #[cfg(feature = "autonomous")]
 use crate::autonomous::CheckpointReason;
 #[cfg(feature = "autonomous")]
-use crate::config::config;
-#[cfg(feature = "autonomous")]
 use crate::autonomous::ContinuityStatus;
 #[cfg(feature = "autonomous")]
 use crate::autonomous::PersistenceConfig;
@@ -16,6 +14,8 @@ use crate::autonomous::ResumeAction;
 use crate::autonomous::WorkContinuityConfig as AutonomousWorkContinuityConfig;
 #[cfg(feature = "autonomous")]
 use crate::autonomous::WorkContinuityManager;
+#[cfg(feature = "autonomous")]
+use crate::config::config;
 use crate::github::{GitHubActions, GitHubClient, GitHubError};
 #[cfg(feature = "metrics")]
 use crate::metrics::MetricsTracker;
@@ -32,8 +32,8 @@ use tracing::{info, warn, Instrument};
 #[allow(dead_code)] // Architectural enum variants - data fields reserved for future use
 pub enum AgentState {
     Available,
-    Assigned(String),         // GitHub issue URL
-    Working(String),          // GitHub issue URL
+    Assigned(String), // GitHub issue URL
+    Working(String),  // GitHub issue URL
 }
 
 #[derive(Debug, Clone)]
@@ -401,7 +401,6 @@ impl AgentCoordinator {
         }.instrument(span).await
     }
 
-
     /// Generate descriptive branch name from issue title
     fn generate_descriptive_branch_name(
         &self,
@@ -475,15 +474,12 @@ impl AgentCoordinator {
         let mut utilization = HashMap::new();
         let current_assignment = self.current_assignment.lock().await;
         let is_assigned = current_assignment.is_some();
-        
+
         // Single agent: 0 or 1 assignment
         utilization.insert("agent001".to_string(), (if is_assigned { 1 } else { 0 }, 1));
-        
+
         utilization
     }
-
-
-
 
     /// Handle agent completing work - triggers state machine transition to landed state
     pub async fn complete_work(&self, agent_id: &str) -> Result<(), GitHubError> {
@@ -574,7 +570,6 @@ impl AgentCoordinator {
         Ok(())
     }
 
-
     pub async fn trigger_bundling_workflow_with_ci_mode(
         &self,
         force: bool,
@@ -618,8 +613,6 @@ impl AgentCoordinator {
 
         Ok(())
     }
-
-
 
     /// Get current bundling status for operational visibility
     async fn get_bundling_status(&self) -> Option<BundlingStatus> {
@@ -665,7 +658,10 @@ impl AgentCoordinator {
                 ),
                 backup_interval_minutes: config.agents.work_continuity.backup_interval_minutes,
                 max_recovery_attempts: config.agents.work_continuity.max_recovery_attempts,
-                validation_timeout_seconds: config.agents.work_continuity.validation_timeout_seconds,
+                validation_timeout_seconds: config
+                    .agents
+                    .work_continuity
+                    .validation_timeout_seconds,
                 force_fresh_start_after_hours: config
                     .agents
                     .work_continuity
@@ -766,7 +762,10 @@ impl AgentCoordinator {
 
         // Validate agent_id is agent001 (single agent system)
         if agent_id != "agent001" {
-            warn!("Only agent001 is supported in single-agent mode, got: {}", agent_id);
+            warn!(
+                "Only agent001 is supported in single-agent mode, got: {}",
+                agent_id
+            );
             return Ok(());
         }
 
@@ -814,7 +813,10 @@ impl AgentCoordinator {
 
         // Validate agent_id is agent001 (single agent system)
         if agent_id != "agent001" {
-            warn!("Only agent001 is supported in single-agent mode, got: {}", agent_id);
+            warn!(
+                "Only agent001 is supported in single-agent mode, got: {}",
+                agent_id
+            );
             return Ok(());
         }
 
@@ -868,12 +870,15 @@ impl std::fmt::Debug for AgentCoordinator {
         debug_struct
             .field("github_client", &"GitHubClient")
             .field("current_assignment", &"Arc<Mutex<Option<u64>>>");
-        
+
         #[cfg(feature = "metrics")]
         debug_struct.field("metrics_tracker", &"MetricsTracker");
-        
+
         debug_struct
-            .field("agent_state_machine", &"Arc<Mutex<StateMachine<AgentStateMachine>>>")
+            .field(
+                "agent_state_machine",
+                &"Arc<Mutex<StateMachine<AgentStateMachine>>>",
+            )
             .finish()
     }
 }

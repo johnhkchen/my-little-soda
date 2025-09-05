@@ -1,14 +1,14 @@
 /// File system operations abstraction for testing
-/// 
+///
 /// This module provides a trait-based abstraction over file system operations
 /// that can be easily mocked in tests using the `mockall` crate.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rust,no_run
 /// use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
 /// use std::sync::Arc;
-/// 
+///
 /// #[tokio::main]
 /// async fn main() -> anyhow::Result<()> {
 ///     let fs_ops: Arc<dyn FileSystemOperations> = Arc::new(StandardFileSystem);
@@ -27,9 +27,9 @@
 ///     Ok(())
 /// }
 /// ```
-/// 
+///
 /// # Testing with Mocks
-/// 
+///
 /// ```rust
 /// #[cfg(test)]
 /// mod tests {
@@ -37,7 +37,7 @@
 ///     use crate::fs::MockFileSystemOperations;
 ///     use mockall::predicate::eq;
 ///     use std::sync::Arc;
-/// 
+///
 ///     #[tokio::test]
 ///     async fn test_with_mocked_filesystem() {
 ///         let mut mock_fs = MockFileSystemOperations::new();
@@ -69,17 +69,17 @@ use std::path::Path;
 use mockall::{automock, predicate::*};
 
 /// Trait for file system operations that can be mocked in tests
-/// 
+///
 /// This trait abstracts common file system operations to enable easy testing
 /// through mocking. All methods are designed to be mockable using the `mockall` crate.
 #[cfg_attr(any(test, feature = "testing"), automock)]
 #[async_trait::async_trait]
 pub trait FileSystemOperations: Send + Sync {
     /// Create a directory and all its parent directories
-    /// 
+    ///
     /// # Arguments
     /// * `path` - The directory path to create
-    /// 
+    ///
     /// # Examples
     /// ```rust,no_run
     /// # use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
@@ -91,13 +91,13 @@ pub trait FileSystemOperations: Send + Sync {
     /// # }
     /// ```
     async fn create_dir_all(&self, path: &str) -> Result<()>;
-    
+
     /// Write data to a file, creating the file if it doesn't exist
-    /// 
+    ///
     /// # Arguments
     /// * `path` - The file path to write to
     /// * `contents` - The data to write to the file
-    /// 
+    ///
     /// # Examples
     /// ```rust,no_run
     /// # use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
@@ -110,12 +110,12 @@ pub trait FileSystemOperations: Send + Sync {
     /// ```
     #[allow(dead_code)]
     async fn write(&self, path: &str, contents: &[u8]) -> Result<()>;
-    
+
     /// Check if a path exists
-    /// 
+    ///
     /// # Arguments
     /// * `path` - The path to check for existence
-    /// 
+    ///
     /// # Examples
     /// ```rust,no_run
     /// # use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
@@ -125,13 +125,13 @@ pub trait FileSystemOperations: Send + Sync {
     /// }
     /// ```
     fn exists(&self, path: &str) -> bool;
-    
+
     /// Execute a command and return its output
-    /// 
+    ///
     /// # Arguments
     /// * `program` - The program to execute
     /// * `args` - Command line arguments
-    /// 
+    ///
     /// # Examples
     /// ```rust,no_run
     /// # use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
@@ -143,21 +143,22 @@ pub trait FileSystemOperations: Send + Sync {
     /// # Ok(())
     /// # }
     /// ```
-    async fn execute_command(&self, program: &str, args: &[String]) -> Result<std::process::Output>;
+    async fn execute_command(&self, program: &str, args: &[String])
+        -> Result<std::process::Output>;
 }
 
 /// Standard implementation that uses actual file system operations
-/// 
+///
 /// This is the production implementation of `FileSystemOperations` that performs
 /// real file system operations. Use this in production code and switch to
 /// `MockFileSystemOperations` in tests.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```rust,no_run
 /// use my_little_soda::fs::{FileSystemOperations, StandardFileSystem};
 /// use std::sync::Arc;
-/// 
+///
 /// let fs_ops: Arc<dyn FileSystemOperations> = Arc::new(StandardFileSystem);
 /// // Use fs_ops for file operations in your application
 /// ```
@@ -168,16 +169,20 @@ impl FileSystemOperations for StandardFileSystem {
     async fn create_dir_all(&self, path: &str) -> Result<()> {
         tokio::fs::create_dir_all(path).await.map_err(Into::into)
     }
-    
+
     async fn write(&self, path: &str, contents: &[u8]) -> Result<()> {
         tokio::fs::write(path, contents).await.map_err(Into::into)
     }
-    
+
     fn exists(&self, path: &str) -> bool {
         Path::new(path).exists()
     }
-    
-    async fn execute_command(&self, program: &str, args: &[String]) -> Result<std::process::Output> {
+
+    async fn execute_command(
+        &self,
+        program: &str,
+        args: &[String],
+    ) -> Result<std::process::Output> {
         let output = tokio::process::Command::new(program)
             .args(args)
             .output()

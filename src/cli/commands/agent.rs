@@ -164,14 +164,18 @@ async fn diagnose_single_agent(agent_id: &str, router: &crate::agents::AgentRout
         match github_client.fetch_issue(issue).await {
             Ok(github_issue) => {
                 println!("    ✅ Issue exists on GitHub");
-                
+
                 // Check if issue is assigned to the expected user
                 if let Some(assignee) = &github_issue.assignee {
-                    if let Ok(current_user) = github_client.issues.octocrab().current().user().await {
+                    if let Ok(current_user) = github_client.issues.octocrab().current().user().await
+                    {
                         if assignee.login == current_user.login {
                             println!("    ✅ Issue is assigned to current user");
                         } else {
-                            println!("    ❌ Issue is assigned to {} instead of {}", assignee.login, current_user.login);
+                            println!(
+                                "    ❌ Issue is assigned to {} instead of {}",
+                                assignee.login, current_user.login
+                            );
                         }
                     } else {
                         println!("    ⚠️  Cannot verify user assignment (GitHub API error)");
@@ -179,15 +183,19 @@ async fn diagnose_single_agent(agent_id: &str, router: &crate::agents::AgentRout
                 } else {
                     println!("    ⚠️  Issue is not assigned to anyone");
                 }
-                
+
                 // Check if issue has the agent label
                 let agent_label = state_machine.agent_id();
-                if github_issue.labels.iter().any(|label| label.name == agent_label) {
+                if github_issue
+                    .labels
+                    .iter()
+                    .any(|label| label.name == agent_label)
+                {
                     println!("    ✅ Issue has agent label: {agent_label}");
                 } else {
                     println!("    ❌ Issue missing agent label: {agent_label}");
                 }
-                
+
                 // Check if issue is still open
                 if github_issue.state == octocrab::models::IssueState::Open {
                     println!("    ✅ Issue is open");
@@ -227,7 +235,7 @@ async fn diagnose_single_agent(agent_id: &str, router: &crate::agents::AgentRout
             Ok(output) => {
                 if output.status.success() {
                     println!("    ✅ Branch exists locally in Git");
-                    
+
                     // Check if local branch is ahead/behind remote
                     if let Ok(remote_output) = tokio::process::Command::new("git")
                         .args(["rev-list", "--count", &format!("origin/{branch}..{branch}")])
@@ -238,7 +246,10 @@ async fn diagnose_single_agent(agent_id: &str, router: &crate::agents::AgentRout
                             if let Ok(ahead_count) = String::from_utf8(remote_output.stdout) {
                                 let ahead_count = ahead_count.trim();
                                 if ahead_count != "0" {
-                                    println!("    ✅ Local branch is {} commits ahead of remote", ahead_count);
+                                    println!(
+                                        "    ✅ Local branch is {} commits ahead of remote",
+                                        ahead_count
+                                    );
                                 } else {
                                     println!("    ✅ Local branch is up to date with remote");
                                 }
@@ -258,25 +269,29 @@ async fn diagnose_single_agent(agent_id: &str, router: &crate::agents::AgentRout
     println!();
     println!("🔧 Diagnostic Results:");
     println!("  • State machine is properly initialized");
-    
+
     // Count validation issues from the output above
     // This is a simple approach - in a real implementation you might want to track validation state
     if state_machine.current_issue().is_some() || state_machine.current_branch().is_some() {
         println!("  • GitHub/Git validation completed");
         println!("  • See validation details above for any issues found");
-        
+
         if state_machine.current_issue().is_some() && state_machine.current_branch().is_some() {
             println!();
             println!("🛠️  Common Fixes:");
             println!("  • If issue validation failed: Check GitHub issue exists and is properly assigned");
             println!("  • If branch validation failed: Run 'git push origin <branch>' to sync with GitHub");
-            println!("  • For assignment issues: Use 'gh issue edit <issue> --assignee <username>'");
-            println!("  • For missing agent labels: Use 'gh issue edit <issue> --add-label <agent>'");
+            println!(
+                "  • For assignment issues: Use 'gh issue edit <issue> --assignee <username>'"
+            );
+            println!(
+                "  • For missing agent labels: Use 'gh issue edit <issue> --add-label <agent>'"
+            );
         }
     } else {
         println!("  • No active work to validate");
     }
-    
+
     println!();
     println!("💡 Agent appears to be in a consistent state");
 
@@ -392,7 +407,9 @@ async fn recover_single_agent(
 
         println!();
         println!("⚠️  Automatic recovery not yet fully implemented");
-        println!("💡 Use 'my-little-soda agent force-reset --agent {agent_id}' for immediate reset");
+        println!(
+            "💡 Use 'my-little-soda agent force-reset --agent {agent_id}' for immediate reset"
+        );
     } else {
         println!("🔧 Attempting automatic recovery...");
 

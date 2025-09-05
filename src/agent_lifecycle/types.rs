@@ -40,18 +40,6 @@ pub enum PreFlightIssue {
     },
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 /// Parse agent branch pattern (agent001/123 or agent001/123-description)
 #[allow(dead_code)]
 pub fn parse_agent_branch(branch: &str) -> Option<(String, u64)> {
@@ -75,7 +63,6 @@ pub fn parse_agent_branch(branch: &str) -> Option<(String, u64)> {
     }
     None
 }
-
 
 /// Validation for agent states
 impl AgentState {

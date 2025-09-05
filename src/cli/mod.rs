@@ -82,7 +82,11 @@ pub enum Commands {
         #[arg(long, help = "Show what would be created without making changes")]
         dry_run: bool,
         /// Enable verbose authentication debugging
-        #[arg(long, short = 'v', help = "Show detailed authentication detection and validation steps")]
+        #[arg(
+            long,
+            short = 'v',
+            help = "Show detailed authentication detection and validation steps"
+        )]
         verbose: bool,
     },
     /// Reset all agents to idle state by removing agent labels from issues

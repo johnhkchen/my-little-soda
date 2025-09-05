@@ -68,8 +68,11 @@ impl InitCommandBenchmarkRunner {
     }
 
     pub async fn run_benchmark(&mut self) -> Result<InitPerformanceBenchmarkResults, String> {
-        println!("🏁 Starting init command performance benchmark: {}", self.config.test_name);
-        
+        println!(
+            "🏁 Starting init command performance benchmark: {}",
+            self.config.test_name
+        );
+
         // Setup test environment
         self.setup_test_environment().await?;
         let overall_start = Instant::now();
@@ -79,7 +82,7 @@ impl InitCommandBenchmarkRunner {
         self.simulate_initialization_phase().await?;
         let initialization_duration = init_start.elapsed();
 
-        // Phase 2: Repository Analysis  
+        // Phase 2: Repository Analysis
         let analysis_start = Instant::now();
         self.simulate_repository_analysis().await?;
         let analysis_duration = analysis_start.elapsed();
@@ -120,65 +123,73 @@ impl InitCommandBenchmarkRunner {
     }
 
     async fn setup_test_environment(&mut self) -> Result<(), String> {
-        self.temp_dir = Some(
-            TempDir::new().map_err(|e| format!("Failed to create temp directory: {}", e))?
-        );
-        
+        self.temp_dir =
+            Some(TempDir::new().map_err(|e| format!("Failed to create temp directory: {}", e))?);
+
         // Simulate repository structure with many files/issues
         self.create_simulated_repository_structure().await?;
-        
+
         Ok(())
     }
 
     async fn create_simulated_repository_structure(&self) -> Result<(), String> {
         if let Some(temp_dir) = &self.temp_dir {
             let repo_path = temp_dir.path();
-            
+
             // Create directory structure
             std::fs::create_dir_all(repo_path.join("src")).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(repo_path.join("tests")).map_err(|e| e.to_string())?;
             std::fs::create_dir_all(repo_path.join("docs")).map_err(|e| e.to_string())?;
-            
+
             // Create simulated files (proportional to configured count)
             let files_per_dir = self.config.simulated_file_count / 3;
             for i in 0..files_per_dir {
                 let src_file = repo_path.join("src").join(format!("module_{}.rs", i));
                 let test_file = repo_path.join("tests").join(format!("test_{}.rs", i));
                 let doc_file = repo_path.join("docs").join(format!("doc_{}.md", i));
-                
-                std::fs::write(&src_file, format!("// Module {}\npub fn function_{}() {{}}", i, i))
-                    .map_err(|e| e.to_string())?;
-                std::fs::write(&test_file, format!("#[test]\nfn test_{}() {{assert!(true);}}", i))
-                    .map_err(|e| e.to_string())?;
-                std::fs::write(&doc_file, format!("# Documentation {}\nContent for doc {}", i, i))
-                    .map_err(|e| e.to_string())?;
+
+                std::fs::write(
+                    &src_file,
+                    format!("// Module {}\npub fn function_{}() {{}}", i, i),
+                )
+                .map_err(|e| e.to_string())?;
+                std::fs::write(
+                    &test_file,
+                    format!("#[test]\nfn test_{}() {{assert!(true);}}", i),
+                )
+                .map_err(|e| e.to_string())?;
+                std::fs::write(
+                    &doc_file,
+                    format!("# Documentation {}\nContent for doc {}", i, i),
+                )
+                .map_err(|e| e.to_string())?;
             }
-            
+
             // Initialize git repository if enabled
             if self.config.enable_git_simulation {
                 self.initialize_git_repository(repo_path).await?;
             }
         }
-        
+
         Ok(())
     }
 
     async fn initialize_git_repository(&self, repo_path: &std::path::Path) -> Result<(), String> {
         // Simulate git initialization (in real implementation, this would use git2 or command)
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         // Create .git directory structure simulation
         std::fs::create_dir_all(repo_path.join(".git")).map_err(|e| e.to_string())?;
-        
+
         Ok(())
     }
 
     async fn simulate_initialization_phase(&self) -> Result<(), String> {
         println!("  Phase 1: Initialization (simulating startup and environment setup)");
-        
+
         // Simulate startup overhead
         tokio::time::sleep(Duration::from_millis(200)).await;
-        
+
         // Simulate environment validation
         for check in 0..10 {
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -186,46 +197,48 @@ impl InitCommandBenchmarkRunner {
                 println!("    Environment check {}/10", check + 1);
             }
         }
-        
+
         Ok(())
     }
 
     async fn simulate_repository_analysis(&self) -> Result<(), String> {
-        println!("  Phase 2: Repository Analysis (simulating {} issues, {} PRs)", 
-                 self.config.simulated_issue_count, self.config.simulated_pr_count);
-        
+        println!(
+            "  Phase 2: Repository Analysis (simulating {} issues, {} PRs)",
+            self.config.simulated_issue_count, self.config.simulated_pr_count
+        );
+
         // Simulate analyzing large numbers of issues
         let issue_batches = (self.config.simulated_issue_count + 99) / 100;
         for batch in 0..issue_batches {
             // Each batch takes some time to process
             let batch_time = Duration::from_millis(50 + fastrand::u64(0..=50));
             tokio::time::sleep(batch_time).await;
-            
+
             if batch % 5 == 0 {
                 println!("    Analyzed {} issues", (batch + 1) * 100);
             }
         }
-        
+
         // Simulate PR analysis
         let pr_analysis_time = Duration::from_millis(self.config.simulated_pr_count as u64 * 2);
         tokio::time::sleep(pr_analysis_time).await;
-        
+
         // Simulate file system analysis
-        let file_analysis_time = Duration::from_millis(self.config.simulated_file_count as u64 / 10);
+        let file_analysis_time =
+            Duration::from_millis(self.config.simulated_file_count as u64 / 10);
         tokio::time::sleep(file_analysis_time).await;
-        
+
         Ok(())
     }
 
     async fn simulate_configuration_generation(&self) -> Result<(), String> {
         println!("  Phase 3: Configuration Generation");
-        
+
         // Simulate generating configuration based on repository analysis
-        let config_generation_time = Duration::from_millis(
-            100 + (self.config.simulated_issue_count as u64 / 100)
-        );
+        let config_generation_time =
+            Duration::from_millis(100 + (self.config.simulated_issue_count as u64 / 100));
         tokio::time::sleep(config_generation_time).await;
-        
+
         // Simulate writing configuration files
         if let Some(temp_dir) = &self.temp_dir {
             let config_path = temp_dir.path().join("my-little-soda.toml");
@@ -245,34 +258,35 @@ enable_caching = true
                 self.config.simulated_pr_count,
                 self.config.simulated_file_count
             );
-            
-            tokio::fs::write(&config_path, config_content).await
+
+            tokio::fs::write(&config_path, config_content)
+                .await
                 .map_err(|e| format!("Failed to write config: {}", e))?;
         }
-        
+
         Ok(())
     }
 
     async fn simulate_validation_phase(&self) -> Result<(), String> {
         println!("  Phase 4: Validation");
-        
+
         // Simulate validating the generated configuration
         tokio::time::sleep(Duration::from_millis(200)).await;
-        
+
         // Simulate running validation checks
         let validation_checks = vec![
             "Configuration syntax",
-            "Repository compatibility", 
+            "Repository compatibility",
             "GitHub API connectivity",
             "File permissions",
             "Git repository status",
         ];
-        
+
         for (i, check) in validation_checks.iter().enumerate() {
             tokio::time::sleep(Duration::from_millis(50)).await;
             println!("    Validated: {}", check);
         }
-        
+
         Ok(())
     }
 
@@ -281,7 +295,7 @@ enable_caching = true
         let base_memory = 50.0; // 50MB base
         let issue_memory = self.config.simulated_issue_count as f64 * 0.1; // 0.1MB per issue
         let file_memory = self.config.simulated_file_count as f64 * 0.05; // 0.05MB per file
-        
+
         base_memory + issue_memory + file_memory
     }
 
@@ -289,8 +303,12 @@ enable_caching = true
         // Estimate file operations performed during init
         let config_files = 3; // my-little-soda.toml, .gitignore, etc.
         let analysis_operations = self.config.simulated_file_count; // Reading existing files
-        let git_operations = if self.config.enable_git_simulation { 10 } else { 0 };
-        
+        let git_operations = if self.config.enable_git_simulation {
+            10
+        } else {
+            0
+        };
+
         config_files + analysis_operations + git_operations
     }
 
@@ -308,7 +326,7 @@ enable_caching = true
             let issue_calls = (self.config.simulated_issue_count + 99) / 100; // Paginated
             let pr_calls = (self.config.simulated_pr_count + 99) / 100;
             let repo_info_calls = 5; // Repository metadata
-            
+
             issue_calls + pr_calls + repo_info_calls
         } else {
             0
@@ -322,29 +340,33 @@ enable_caching = true
         (base_success - complexity_penalty).max(0.8)
     }
 
-    fn calculate_performance_score(&self, mut results: InitPerformanceBenchmarkResults) -> InitPerformanceBenchmarkResults {
+    fn calculate_performance_score(
+        &self,
+        mut results: InitPerformanceBenchmarkResults,
+    ) -> InitPerformanceBenchmarkResults {
         // Performance score calculation (0.0 to 1.0, higher is better)
-        
+
         // Time efficiency (target: <300s for 1000 issues)
         let time_score = if results.total_duration.as_secs() < 300 {
             1.0
         } else {
             (300.0 / results.total_duration.as_secs() as f64).max(0.1)
         };
-        
+
         // Memory efficiency (target: <200MB for 1000 issues)
         let memory_score = if results.memory_usage_peak_mb < 200.0 {
             1.0
         } else {
             (200.0 / results.memory_usage_peak_mb).max(0.1)
         };
-        
+
         // Success rate component
         let success_score = results.success_rate;
-        
+
         // Overall weighted score
-        results.performance_score = (time_score * 0.4) + (memory_score * 0.3) + (success_score * 0.3);
-        
+        results.performance_score =
+            (time_score * 0.4) + (memory_score * 0.3) + (success_score * 0.3);
+
         results
     }
 
@@ -352,26 +374,43 @@ enable_caching = true
         println!("\n📊 Init Command Performance Benchmark Results");
         println!("═══════════════════════════════════════════════════════════════");
         println!("Test: {}", results.test_name);
-        println!("Configuration: {} issues, {} PRs, {} files", 
-                 results.config.simulated_issue_count,
-                 results.config.simulated_pr_count,
-                 results.config.simulated_file_count);
+        println!(
+            "Configuration: {} issues, {} PRs, {} files",
+            results.config.simulated_issue_count,
+            results.config.simulated_pr_count,
+            results.config.simulated_file_count
+        );
 
         println!("\n⏱️ Timing Breakdown:");
         println!("  Total Duration: {:?}", results.total_duration);
-        println!("  Initialization: {:?}", results.initialization_phase_duration);
-        println!("  Repository Analysis: {:?}", results.repository_analysis_duration);
-        println!("  Configuration Generation: {:?}", results.configuration_generation_duration);
+        println!(
+            "  Initialization: {:?}",
+            results.initialization_phase_duration
+        );
+        println!(
+            "  Repository Analysis: {:?}",
+            results.repository_analysis_duration
+        );
+        println!(
+            "  Configuration Generation: {:?}",
+            results.configuration_generation_duration
+        );
         println!("  Validation: {:?}", results.validation_phase_duration);
 
         println!("\n📈 Performance Metrics:");
-        println!("  Peak Memory Usage: {:.1} MB", results.memory_usage_peak_mb);
+        println!(
+            "  Peak Memory Usage: {:.1} MB",
+            results.memory_usage_peak_mb
+        );
         println!("  File Operations: {}", results.file_operations_count);
         println!("  Git Operations: {}", results.git_operations_count);
         println!("  API Operations: {}", results.api_operations_count);
         println!("  Success Rate: {:.1}%", results.success_rate * 100.0);
 
-        println!("\n🎯 Performance Score: {:.2}/1.0", results.performance_score);
+        println!(
+            "\n🎯 Performance Score: {:.2}/1.0",
+            results.performance_score
+        );
 
         // Performance assessment
         if results.performance_score >= 0.8 {
@@ -416,7 +455,10 @@ mod init_performance_tests {
         };
 
         let mut runner = InitCommandBenchmarkRunner::new(config);
-        let results = runner.run_benchmark().await.expect("Benchmark should complete");
+        let results = runner
+            .run_benchmark()
+            .await
+            .expect("Benchmark should complete");
 
         // Performance requirements validation
         assert!(
@@ -480,7 +522,10 @@ mod init_performance_tests {
             };
 
             let mut runner = InitCommandBenchmarkRunner::new(config);
-            let results = runner.run_benchmark().await.expect("Benchmark should complete");
+            let results = runner
+                .run_benchmark()
+                .await
+                .expect("Benchmark should complete");
 
             scalability_results.push((
                 scale_name,
@@ -494,8 +539,10 @@ mod init_performance_tests {
         // Analyze scalability characteristics
         println!("\n📊 Init Command Scalability Analysis:");
         for (scale_name, issue_count, duration, score, memory) in &scalability_results {
-            println!("  {} ({} issues): {:?}, Score: {:.2}, Memory: {:.1}MB", 
-                     scale_name, issue_count, duration, score, memory);
+            println!(
+                "  {} ({} issues): {:?}, Score: {:.2}, Memory: {:.1}MB",
+                scale_name, issue_count, duration, score, memory
+            );
         }
 
         // Validate scalability characteristics
@@ -525,7 +572,8 @@ mod init_performance_tests {
             assert!(
                 *score > 0.3,
                 "{} scale performance score too low: {:.2}",
-                scale_name, score
+                scale_name,
+                score
             );
         }
 
@@ -547,11 +595,15 @@ mod init_performance_tests {
         };
 
         let mut runner = InitCommandBenchmarkRunner::new(config);
-        let results = runner.run_benchmark().await.expect("Benchmark should complete");
+        let results = runner
+            .run_benchmark()
+            .await
+            .expect("Benchmark should complete");
 
         // Memory efficiency requirements
-        let memory_per_issue = results.memory_usage_peak_mb / results.config.simulated_issue_count as f64;
-        
+        let memory_per_issue =
+            results.memory_usage_peak_mb / results.config.simulated_issue_count as f64;
+
         assert!(
             memory_per_issue < 0.2, // <0.2MB per issue
             "Memory per issue too high: {:.3} MB/issue",
@@ -590,20 +642,47 @@ mod init_performance_tests {
         };
 
         let mut runner = InitCommandBenchmarkRunner::new(baseline_config);
-        let results = runner.run_benchmark().await.expect("Benchmark should complete");
+        let results = runner
+            .run_benchmark()
+            .await
+            .expect("Benchmark should complete");
 
         // Establish baseline thresholds for regression detection
         println!("\n📊 Performance Baseline Established:");
-        println!("  Total Duration Baseline: {:?} (target: <300s)", results.total_duration);
-        println!("  Memory Usage Baseline: {:.1} MB (target: <300MB)", results.memory_usage_peak_mb);
-        println!("  Performance Score Baseline: {:.2} (target: >0.5)", results.performance_score);
-        println!("  Success Rate Baseline: {:.1}% (target: >90%)", results.success_rate * 100.0);
+        println!(
+            "  Total Duration Baseline: {:?} (target: <300s)",
+            results.total_duration
+        );
+        println!(
+            "  Memory Usage Baseline: {:.1} MB (target: <300MB)",
+            results.memory_usage_peak_mb
+        );
+        println!(
+            "  Performance Score Baseline: {:.2} (target: >0.5)",
+            results.performance_score
+        );
+        println!(
+            "  Success Rate Baseline: {:.1}% (target: >90%)",
+            results.success_rate * 100.0
+        );
 
         // Phase timing baselines
-        println!("  Initialization Phase: {:?}", results.initialization_phase_duration);
-        println!("  Analysis Phase: {:?}", results.repository_analysis_duration);
-        println!("  Configuration Phase: {:?}", results.configuration_generation_duration);
-        println!("  Validation Phase: {:?}", results.validation_phase_duration);
+        println!(
+            "  Initialization Phase: {:?}",
+            results.initialization_phase_duration
+        );
+        println!(
+            "  Analysis Phase: {:?}",
+            results.repository_analysis_duration
+        );
+        println!(
+            "  Configuration Phase: {:?}",
+            results.configuration_generation_duration
+        );
+        println!(
+            "  Validation Phase: {:?}",
+            results.validation_phase_duration
+        );
 
         // Operations count baselines
         println!("  File Operations: {}", results.file_operations_count);
