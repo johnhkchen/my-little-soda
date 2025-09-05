@@ -109,9 +109,6 @@ impl PopCommand {
             match result {
                 Ok(Some(task)) => {
                     println!("✅");
-                    print!("🌿 Creating work branch... ");
-                    std::io::Write::flush(&mut std::io::stdout()).unwrap();
-                    println!("✅");
                     println!();
                     println!("✅ Successfully popped task:");
                     println!("  📋 Issue #{}: {}", task.issue.number, task.issue.title);
@@ -119,8 +116,7 @@ impl PopCommand {
                     println!("  🌿 Branch: {}", task.branch_name);
                     println!("  🔗 URL: {}", task.issue.html_url);
                     println!();
-                    println!("🚀 Ready to work! Issue assigned and branch created/targeted.");
-                    println!("   Next: git checkout {}", task.branch_name);
+                    println!("🚀 Ready to work! Issue assigned and branch created/checked out.");
                     Ok(())
                 }
                 Ok(None) => {

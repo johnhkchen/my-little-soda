@@ -39,17 +39,32 @@ impl AssignmentOperations {
 
     pub async fn create_agent_branch(
         &self,
-        github_client: &GitHubClient,
+        _github_client: &GitHubClient,
         agent_id: &str,
         issue_number: u64,
         issue_title: &str,
     ) -> Result<String, GitHubError> {
         let branch_name = self.generate_branch_name(agent_id, issue_number, issue_title);
 
-        match github_client.create_branch(&branch_name, "main").await {
+        // Create local branch using git2 operations
+        let git_ops = Git2Operations::new(".")
+            .map_err(|e| GitHubError::ConfigNotFound(format!("Failed to initialize git operations: {}", e)))?;
+        
+        // Create the branch locally from main
+        match git_ops.create_branch(&branch_name, "main") {
             Ok(()) => {
-                println!("✅ Branch '{branch_name}' created successfully");
-                Ok(branch_name)
+                // Immediately checkout the new branch so agent can start working
+                match git_ops.checkout_branch(&branch_name) {
+                    Ok(()) => {
+                        println!("✅ Branch '{branch_name}' created successfully");
+                        Ok(branch_name)
+                    }
+                    Err(e) => {
+                        tracing::warn!("Branch checkout failed for {}: {:?}", branch_name, e);
+                        println!("⚠️  Branch created but checkout failed for '{branch_name}', you may need to checkout manually");
+                        Ok(branch_name)
+                    }
+                }
             }
             Err(e) => {
                 tracing::warn!("Branch creation failed for {}: {:?}", branch_name, e);
