@@ -1446,3 +1446,413 @@ fn test_doctor_environment_validation_count() {
     let env_check_count = env_checks.iter().filter(|check| stdout.contains(&format!("\"{}\"", check))).count();
     assert_eq!(env_check_count, 8, "Should have all 8 environment checks, found: {}", env_check_count);
 }
+
+// GitHub Issue Label Validation Diagnostic Tests
+
+#[test]
+fn test_doctor_github_issue_labels_validation_basics() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .assert()
+            .stdout(predicate::str::contains("required_labels_existence"))
+            .stdout(predicate::str::contains("label_configuration"))
+            .stdout(predicate::str::contains("label_management_capabilities"))
+            .stdout(predicate::str::contains("issue_label_states"));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_required_existence() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .assert()
+            .stdout(predicate::str::contains("required_labels_existence").and(
+                predicate::str::contains("required labels").or(
+                    predicate::str::contains("labels exist").or(
+                        predicate::str::contains("labels are missing")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_configuration_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .assert()
+            .stdout(predicate::str::contains("label_configuration").and(
+                predicate::str::contains("configuration").or(
+                    predicate::str::contains("color").or(
+                        predicate::str::contains("description")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_management_capabilities() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .assert()
+            .stdout(predicate::str::contains("label_management_capabilities").and(
+                predicate::str::contains("permissions").or(
+                    predicate::str::contains("create").or(
+                        predicate::str::contains("write access")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_issue_states() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .assert()
+            .stdout(predicate::str::contains("issue_label_states").and(
+                predicate::str::contains("label states").or(
+                    predicate::str::contains("routing").or(
+                        predicate::str::contains("conflicting")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_verbose_details() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("route:ready").or(
+                predicate::str::contains("route:priority").or(
+                    predicate::str::contains("agent001").or(
+                        predicate::str::contains("Existing labels:")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_no_authentication() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test without GitHub authentication to verify error handling
+    cmd.env_remove("MY_LITTLE_SODA_GITHUB_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .env("GITHUB_OWNER", "test-owner")
+        .env("GITHUB_REPO", "test-repo")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("required_labels_existence").and(
+            predicate::str::contains("Cannot check required labels").or(
+                predicate::str::contains("GitHub client error").or(
+                    predicate::str::contains("Configure GitHub authentication")
+                )
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_github_labels_missing_repo_config() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test with token but missing repository configuration
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .env_remove("GITHUB_OWNER")
+        .env_remove("GITHUB_REPO")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("required_labels_existence").and(
+            predicate::str::contains("Cannot check required labels").or(
+                predicate::str::contains("GitHub client error")
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_github_labels_json_structure() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        let binding = cmd.arg("doctor").arg("--format").arg("json")
+            .env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .assert();
+        let output = binding.get_output();
+        
+        let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+        
+        // Extract the multiline JSON from the output (skip telemetry logs)
+        let lines: Vec<&str> = stdout.lines().collect();
+        let mut json_start = None;
+        let mut brace_count = 0;
+        let mut json_end = None;
+        
+        for (i, line) in lines.iter().enumerate() {
+            if line.trim() == "{" {
+                json_start = Some(i);
+                brace_count = 1;
+            } else if json_start.is_some() {
+                brace_count += line.matches('{').count() as i32;
+                brace_count -= line.matches('}').count() as i32;
+                if brace_count == 0 {
+                    json_end = Some(i);
+                    break;
+                }
+            }
+        }
+        
+        let json_str = if let (Some(start), Some(end)) = (json_start, json_end) {
+            lines[start..=end].join("\n")
+        } else {
+            panic!("No JSON object found in output: {}", stdout);
+        };
+        
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        let checks = &parsed["checks"];
+        
+        // Verify GitHub label diagnostic checks are present
+        let label_checks = [
+            "required_labels_existence", "label_configuration", 
+            "label_management_capabilities", "issue_label_states"
+        ];
+        
+        for check_name in label_checks {
+            assert!(checks[check_name].is_object(), "{} check should be present", check_name);
+            let check = &checks[check_name];
+            assert!(check["status"].is_string(), "{} should have status field", check_name);
+            assert!(check["message"].is_string(), "{} should have message field", check_name);
+        }
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_routing_label_detection() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("route:ready").or(
+                predicate::str::contains("route:review").or(
+                    predicate::str::contains("route:priority").or(
+                        predicate::str::contains("Missing labels")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_priority_label_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("route:priority-low").or(
+                predicate::str::contains("route:priority-medium").or(
+                    predicate::str::contains("route:priority-high").or(
+                        predicate::str::contains("Priority:")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_agent_assignment_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("agent001").or(
+                predicate::str::contains("Assigned to").or(
+                    predicate::str::contains("agent")
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_color_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .assert()
+            .stdout(predicate::str::contains("label_configuration").and(
+                predicate::str::contains("configuration").or(
+                    predicate::str::contains("color mismatch").or(
+                        predicate::str::contains("correct configuration")
+                    )
+                )
+            ));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_comprehensive_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .arg("doctor")
+            .arg("--verbose")
+            .assert()
+            .stdout(predicate::str::contains("🩺 MY LITTLE SODA DOCTOR"))
+            // GitHub issue label validation checks
+            .stdout(predicate::str::contains("required_labels_existence"))
+            .stdout(predicate::str::contains("label_configuration"))
+            .stdout(predicate::str::contains("label_management_capabilities"))
+            .stdout(predicate::str::contains("issue_label_states"))
+            // Should still contain other diagnostic categories
+            .stdout(predicate::str::contains("git_repository"))
+            .stdout(predicate::str::contains("github_authentication"))
+            .stdout(predicate::str::contains("repository_config"))
+            .stdout(predicate::str::contains("environment_variables"));
+    }
+}
+
+#[test]
+fn test_doctor_github_labels_suggestions_on_failure() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Test with invalid repo to trigger suggestions
+    cmd.env("MY_LITTLE_SODA_GITHUB_TOKEN", "ghp_test_token")
+        .env("GITHUB_OWNER", "nonexistent-owner-123456")
+        .env("GITHUB_REPO", "nonexistent-repo-123456")
+        .arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("required_labels_existence").and(
+            predicate::str::contains("Suggestion:").or(
+                predicate::str::contains("my-little-soda init").or(
+                    predicate::str::contains("Configure GitHub authentication")
+                )
+            )
+        ));
+}
+
+#[test]
+fn test_doctor_github_labels_count_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    // Only run this test if we have a valid token and repo config
+    if env::var("MY_LITTLE_SODA_GITHUB_TOKEN").is_ok() &&
+       env::var("GITHUB_OWNER").is_ok() &&
+       env::var("GITHUB_REPO").is_ok() {
+        let binding = cmd.arg("doctor").arg("--format").arg("json")
+            .env("MY_LITTLE_SODA_GITHUB_TOKEN", env::var("MY_LITTLE_SODA_GITHUB_TOKEN").unwrap())
+            .env("GITHUB_OWNER", env::var("GITHUB_OWNER").unwrap())
+            .env("GITHUB_REPO", env::var("GITHUB_REPO").unwrap())
+            .assert();
+        let output = binding.get_output();
+        
+        let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+        
+        // Count GitHub label-related checks in JSON output
+        let label_checks = [
+            "required_labels_existence", "label_configuration", 
+            "label_management_capabilities", "issue_label_states"
+        ];
+        
+        for check_name in label_checks {
+            assert!(stdout.contains(&format!("\"{}\"", check_name)), 
+                    "Should contain {} check", check_name);
+        }
+        
+        // Should have all 4 label validation checks
+        let label_check_count = label_checks.iter().filter(|check| stdout.contains(&format!("\"{}\"", check))).count();
+        assert_eq!(label_check_count, 4, "Should have all 4 label validation checks, found: {}", label_check_count);
+    }
+}

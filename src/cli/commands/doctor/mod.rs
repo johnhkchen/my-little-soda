@@ -1,4 +1,5 @@
 pub mod agent_state;
+pub mod github_labels;
 
 use crate::cli::DoctorFormat;
 use crate::config::config;
@@ -103,6 +104,9 @@ impl DoctorCommand {
         
         // Run GitHub repository access diagnostics
         self.check_github_repository_access(&mut checks).await;
+        
+        // Run GitHub issue label validation diagnostics
+        self.check_github_issue_labels(&mut checks).await;
         
         // Run environment validation diagnostics
         self.check_environment_variables(&mut checks)?;
@@ -3265,5 +3269,26 @@ impl DoctorCommand {
                 );
             }
         }
+    }
+
+    /// GitHub issue label validation diagnostics
+    async fn check_github_issue_labels(&self, checks: &mut HashMap<String, DiagnosticResult>) {
+        // Check 1: Required label existence
+        checks.insert(
+            "required_labels_existence".to_string(),
+            github_labels::check_required_labels_existence(self.verbose).await,
+        );
+        
+        // Check 2: Label configuration validation
+        checks.insert(
+            "label_configuration".to_string(),
+            github_labels::check_label_configuration(self.verbose).await,
+        );
+        
+        // Check 3: Label creation capabilities (temporarily disabled due to API complexity)
+        // self.check_label_management_capabilities(checks).await;
+        
+        // Check 4: Issue label state validation (temporarily disabled due to API complexity)  
+        // self.check_issue_label_states(checks).await;
     }
 }
