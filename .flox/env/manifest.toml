@@ -44,65 +44,57 @@ gcc.pkg-path = "gcc"
 ## -------------------------------------------------------------------
 [vars]
 MY_LITTLE_SODA_ENV = "development"
-MY_LITTLE_SODA_CONFIG_DIR = "$FLOX_ENV_PROJECT/.my-little-soda"
-RUST_LOG = "debug"
+RUST_LOG = "info"
 RUST_BACKTRACE = "1"
 
-# Phoenix Observability Configuration
+# Phoenix Observability Configuration  
 PHOENIX_PORT = "6006"
 OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4317"
 
-# GitHub Integration (will be set from credential files)
-GITHUB_TOKEN_FILE = "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_token"
-GITHUB_OWNER_FILE = "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_owner"
-GITHUB_REPO_FILE = "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_repo"
-
 
 ## Activation Hook ---------------------------------------------------
-##  Initialize My Little Soda development environment
+##  Initialize My Little Soda development environment with smart binary linking
 ## -------------------------------------------------------------------
 [hook]
 on-activate = '''
   echo "🚀 Activating My Little Soda Development Environment"
   
-  # Create credential directories if they don't exist
-  mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/credentials"
-  mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/config"
-  mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/cache"
+  # Smart binary linking - choose newer of debug vs release
+  mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/bin"
   
-  # Set up credential files with placeholders if they don't exist
-  if [ ! -f "$GITHUB_TOKEN_FILE" ]; then
-    echo "YOUR_GITHUB_TOKEN_HERE" > "$GITHUB_TOKEN_FILE"
-    echo "📝 Created GitHub token placeholder at: $GITHUB_TOKEN_FILE"
+  debug_bin="$FLOX_ENV_PROJECT/target/debug/my-little-soda"
+  release_bin="$FLOX_ENV_PROJECT/target/release/my-little-soda"
+  symlink="$FLOX_ENV_PROJECT/.my-little-soda/bin/my-little-soda"
+  
+  # Determine which binary to use
+  target_bin=""
+  if [ -f "$debug_bin" ] && [ -f "$release_bin" ]; then
+    # Both exist - choose newer one
+    if [ "$debug_bin" -nt "$release_bin" ]; then
+      target_bin="$debug_bin"
+      build_type="debug"
+    else
+      target_bin="$release_bin"  
+      build_type="release"
+    fi
+  elif [ -f "$debug_bin" ]; then
+    target_bin="$debug_bin"
+    build_type="debug"
+  elif [ -f "$release_bin" ]; then
+    target_bin="$release_bin"
+    build_type="release"
   fi
   
-  if [ ! -f "$GITHUB_OWNER_FILE" ]; then
-    echo "your-github-username" > "$GITHUB_OWNER_FILE" 
-    echo "📝 Created GitHub owner placeholder at: $GITHUB_OWNER_FILE"
+  # Create symlink to chosen binary
+  if [ -n "$target_bin" ]; then
+    ln -sf "$target_bin" "$symlink"
+    echo "🔗 Linked my-little-soda -> target/$build_type/my-little-soda (newer)"
+  else
+    echo "⚠️  No my-little-soda binary found. Run 'cargo build' or 'cargo build --release'"
   fi
   
-  if [ ! -f "$GITHUB_REPO_FILE" ]; then
-    echo "your-repo-name" > "$GITHUB_REPO_FILE"
-    echo "📝 Created GitHub repo placeholder at: $GITHUB_REPO_FILE"
-  fi
-  
-  # Important: Unset conflicting GITHUB_TOKEN that interferes with gh CLI
-  unset GITHUB_TOKEN
-  
-  # Create symlink to debug build for development
-  if [ -f "$FLOX_ENV_PROJECT/target/debug/my-little-soda" ]; then
-    mkdir -p "$FLOX_ENV_PROJECT/.my-little-soda/bin"
-    ln -sf "$FLOX_ENV_PROJECT/target/debug/my-little-soda" "$FLOX_ENV_PROJECT/.my-little-soda/bin/my-little-soda"
-    echo "🔗 Created symlink: my-little-soda -> target/debug/my-little-soda"
-  fi
-  
-  # Warn about credential setup
-  if [ -f "$GITHUB_TOKEN_FILE" ] && [ "$(cat "$GITHUB_TOKEN_FILE" | tr -d '\n')" = "YOUR_GITHUB_TOKEN_HERE" ]; then
-    echo "⚠️  GitHub token is still a placeholder - run 'cargo run' for setup instructions"
-  fi
-  
-  echo "✅ My Little Soda environment ready! Run 'cargo run' to see onboarding instructions."
-  echo "💡 Use 'gh auth status' to check GitHub CLI authentication"
+  echo "✅ My Little Soda environment ready!"
+  echo "💡 Auto-detection enabled - works in any GitHub repo with 'gh auth login'"
 '''
 
 
@@ -111,36 +103,13 @@ on-activate = '''
 ## -------------------------------------------------------------------
 [profile]
 common = '''
-  # Set My Little Soda-specific GitHub token from file (if exists and valid)
-  if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_token" ]; then
-    token_content="$(cat "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_token" | tr -d '\n')"
-    if [ "$token_content" != "YOUR_GITHUB_TOKEN_HERE" ] && [ -n "$token_content" ]; then
-      export MY_LITTLE_SODA_GITHUB_TOKEN="$token_content"
-    fi
-  fi
-  
-  # Set GitHub owner and repo from files (if exists and valid)
-  if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_owner" ]; then
-    owner_content="$(cat "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_owner" | tr -d '\n')"
-    if [ "$owner_content" != "your-github-username" ] && [ -n "$owner_content" ]; then
-      export GITHUB_OWNER="$owner_content"
-    fi
-  fi
-  
-  if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_repo" ]; then
-    repo_content="$(cat "$FLOX_ENV_PROJECT/.my-little-soda/credentials/github_repo" | tr -d '\n')"
-    if [ "$repo_content" != "your-repo-name" ] && [ -n "$repo_content" ]; then
-      export GITHUB_REPO="$repo_content"
-    fi
-  fi
-  
-  # Ensure GITHUB_TOKEN doesn't interfere with gh CLI
-  unset GITHUB_TOKEN
-  
-  # Add my-little-soda debug build to PATH if symlink exists
+  # Add my-little-soda to PATH (symlink points to newer build automatically)
   if [ -f "$FLOX_ENV_PROJECT/.my-little-soda/bin/my-little-soda" ]; then
     export PATH="$FLOX_ENV_PROJECT/.my-little-soda/bin:$PATH"
   fi
+  
+  # Clear any GITHUB_TOKEN that might interfere with gh CLI auto-detection
+  unset GITHUB_TOKEN
 '''
 ## Shell-specific customizations such as setting aliases go here:
 # bash = ...

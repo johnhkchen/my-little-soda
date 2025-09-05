@@ -365,7 +365,7 @@ impl GitHubClient {
     }
 
     fn read_config() -> Result<(String, String), GitHubError> {
-        // First try environment variables (set by flox)
+        // First try environment variables
         let env_owner = std::env::var("GITHUB_OWNER").unwrap_or_default();
         let env_repo = std::env::var("GITHUB_REPO").unwrap_or_default();
 
@@ -375,6 +375,11 @@ impl GitHubClient {
             && env_repo != "your-repo-name"
         {
             return Ok((env_owner, env_repo));
+        }
+
+        // Try to auto-detect from git remote
+        if let Ok(repo_info) = Self::try_git_auto_detection() {
+            return Ok((repo_info.owner, repo_info.repo));
         }
 
         // Fall back to file-based configuration
@@ -407,6 +412,23 @@ impl GitHubClient {
         }
 
         Ok((owner, repo))
+    }
+
+    /// Try to auto-detect GitHub repository information from git remote
+    fn try_git_auto_detection() -> Result<crate::git::GitHubRepoInfo, GitHubError> {
+        use crate::git::{Git2Operations, GitOperations};
+        
+        let git_ops = Git2Operations::new(".").map_err(|_| {
+            GitHubError::ConfigNotFound("Not a git repository or git repository not accessible".to_string())
+        })?;
+        
+        let repo_info = git_ops.get_github_repo_info(None).map_err(|_| {
+            GitHubError::ConfigNotFound("Could not read git remote information".to_string())
+        })?;
+        
+        repo_info.ok_or_else(|| {
+            GitHubError::ConfigNotFound("No GitHub remote found in git repository".to_string())
+        })
     }
 
     /// Enhanced error handling utility for GitHub API calls with rate limit detection

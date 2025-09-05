@@ -38,6 +38,9 @@ pub trait GitOperations {
     /// Delete branch (replaces `git branch -D`)
     #[allow(dead_code)]
     fn delete_branch(&self, branch: &str, force: bool) -> Result<()>;
+
+    /// Get GitHub repository information from remote URL
+    fn get_github_repo_info(&self, remote_name: Option<&str>) -> Result<Option<GitHubRepoInfo>>;
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +50,12 @@ pub struct CommitInfo {
     pub message: String,
     pub author: String,
     pub timestamp: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct GitHubRepoInfo {
+    pub owner: String,
+    pub repo: String,
 }
 
 /// Implementation of GitOperations using git2
@@ -339,6 +348,60 @@ impl GitOperations for Git2Operations {
             .with_context(|| format!("Failed to delete branch '{branch_name}'"))?;
 
         Ok(())
+    }
+
+    fn get_github_repo_info(&self, remote_name: Option<&str>) -> Result<Option<GitHubRepoInfo>> {
+        let remote_name = remote_name.unwrap_or("origin");
+        
+        let remote = match self.repo.find_remote(remote_name) {
+            Ok(remote) => remote,
+            Err(_) => return Ok(None), // Remote not found
+        };
+        
+        let url = match remote.url() {
+            Some(url) => url,
+            None => return Ok(None), // No URL for remote
+        };
+        
+        // Parse GitHub URL (both SSH and HTTPS formats)
+        Self::parse_github_url(url)
+    }
+}
+
+impl Git2Operations {
+    /// Parse a GitHub URL and extract owner/repo information
+    /// Handles both SSH (git@github.com:owner/repo.git) and HTTPS (https://github.com/owner/repo.git) formats
+    fn parse_github_url(url: &str) -> Result<Option<GitHubRepoInfo>> {
+        // Handle SSH format: git@github.com:owner/repo.git
+        if url.starts_with("git@github.com:") {
+            let path = url.strip_prefix("git@github.com:").unwrap();
+            let path = path.strip_suffix(".git").unwrap_or(path);
+            
+            let parts: Vec<&str> = path.split('/').collect();
+            if parts.len() == 2 {
+                return Ok(Some(GitHubRepoInfo {
+                    owner: parts[0].to_string(),
+                    repo: parts[1].to_string(),
+                }));
+            }
+        }
+        
+        // Handle HTTPS format: https://github.com/owner/repo.git
+        if url.starts_with("https://github.com/") {
+            let path = url.strip_prefix("https://github.com/").unwrap();
+            let path = path.strip_suffix(".git").unwrap_or(path);
+            
+            let parts: Vec<&str> = path.split('/').collect();
+            if parts.len() >= 2 {
+                return Ok(Some(GitHubRepoInfo {
+                    owner: parts[0].to_string(),
+                    repo: parts[1].to_string(),
+                }));
+            }
+        }
+        
+        // Not a recognized GitHub URL
+        Ok(None)
     }
 }
 

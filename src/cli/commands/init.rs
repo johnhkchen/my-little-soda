@@ -653,12 +653,7 @@ impl InitCommand {
         let github_client =
             GitHubClient::new().map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
-        let octocrab = Octocrab::builder()
-            .personal_token(
-                std::env::var("GITHUB_TOKEN")
-                    .or_else(|_| std::env::var("MY_LITTLE_SODA_GITHUB_TOKEN"))?,
-            )
-            .build()?;
+        let octocrab = github_client.issues.octocrab();
 
         for label in &labels {
             print!("🏷️  Creating label '{}' ", label.name);
