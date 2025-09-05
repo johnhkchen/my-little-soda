@@ -112,8 +112,81 @@ fn test_doctor_dependency_checks() {
     
     cmd.arg("doctor")
         .assert()
-        .stdout(predicate::str::contains("git_available"))
-        .stdout(predicate::str::contains("gh_available"));
+        .stdout(predicate::str::contains("rust_toolchain"))
+        .stdout(predicate::str::contains("cargo_functionality"))
+        .stdout(predicate::str::contains("git_installation"))
+        .stdout(predicate::str::contains("github_cli"))
+        .stdout(predicate::str::contains("github_connectivity"))
+        .stdout(predicate::str::contains("system_resources"));
+}
+
+#[test]
+fn test_doctor_prerequisite_rust_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.arg("doctor").arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("rust_toolchain"))
+        .stdout(predicate::str::contains("cargo_functionality"));
+}
+
+#[test] 
+fn test_doctor_prerequisite_git_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.arg("doctor").arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("git_installation"))
+        .stdout(predicate::str::contains("Git is available"));
+}
+
+#[test]
+fn test_doctor_prerequisite_github_cli_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("github_cli"));
+}
+
+#[test]
+fn test_doctor_prerequisite_connectivity_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.arg("doctor")
+        .assert()
+        .stdout(predicate::str::contains("github_connectivity"));
+}
+
+#[test]
+fn test_doctor_prerequisite_system_resources_validation() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    cmd.arg("doctor").arg("--verbose")
+        .assert()
+        .stdout(predicate::str::contains("system_resources"))
+        .stdout(predicate::str::contains("System resources"));
+}
+
+#[test]
+fn test_doctor_prerequisite_json_output() {
+    let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
+    
+    let binding = cmd.arg("doctor").arg("--format").arg("json")
+        .assert();
+    let output = binding.get_output();
+    
+    let stdout = String::from_utf8(output.stdout.clone()).unwrap();
+    let json_result: serde_json::Result<serde_json::Value> = serde_json::from_str(&stdout);
+    assert!(json_result.is_ok(), "Doctor should produce valid JSON output");
+    
+    let json = json_result.unwrap();
+    assert!(json["checks"]["rust_toolchain"].is_object());
+    assert!(json["checks"]["cargo_functionality"].is_object());
+    assert!(json["checks"]["git_installation"].is_object());
+    assert!(json["checks"]["github_cli"].is_object());
+    assert!(json["checks"]["github_connectivity"].is_object());
+    assert!(json["checks"]["system_resources"].is_object());
 }
 
 #[test]
