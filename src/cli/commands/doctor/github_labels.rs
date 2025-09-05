@@ -93,8 +93,11 @@ pub async fn check_required_labels_existence(verbose: bool) -> DiagnosticResult 
             let required_labels = get_required_labels();
             let octocrab = client.issues.octocrab();
             
-            match octocrab.issues(client.owner(), client.repo()).list_labels_for_repo().send().await {
-                Ok(labels_page) => {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(10), 
+                octocrab.issues(client.owner(), client.repo()).list_labels_for_repo().send()
+            ).await {
+                Ok(Ok(labels_page)) => {
                     let mut missing_labels = Vec::new();
                     let mut existing_labels = Vec::new();
                     
@@ -126,12 +129,20 @@ pub async fn check_required_labels_existence(verbose: bool) -> DiagnosticResult 
                         }
                     }
                 }
+                Ok(Err(_)) => {
+                    DiagnosticResult {
+                        status: DiagnosticStatus::Fail,
+                        message: "Cannot access repository labels".to_string(),
+                        details: Some("GitHub API error when listing labels".to_string()),
+                        suggestion: Some("Check GitHub authentication and repository access".to_string()),
+                    }
+                }
                 Err(_) => {
                     DiagnosticResult {
                         status: DiagnosticStatus::Fail,
                         message: "Cannot access repository labels".to_string(),
-                        details: Some("Failed to list repository labels".to_string()),
-                        suggestion: Some("Configure GitHub authentication to check labels".to_string()),
+                        details: Some("Request timed out when accessing repository labels".to_string()),
+                        suggestion: Some("Check network connectivity and GitHub authentication".to_string()),
                     }
                 }
             }
@@ -154,8 +165,11 @@ pub async fn check_label_configuration(verbose: bool) -> DiagnosticResult {
             let required_labels = get_required_labels();
             let octocrab = client.issues.octocrab();
             
-            match octocrab.issues(client.owner(), client.repo()).list_labels_for_repo().send().await {
-                Ok(labels_page) => {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(10), 
+                octocrab.issues(client.owner(), client.repo()).list_labels_for_repo().send()
+            ).await {
+                Ok(Ok(labels_page)) => {
                     let mut configuration_issues = Vec::new();
                     let mut valid_labels = Vec::new();
                     
@@ -206,12 +220,20 @@ pub async fn check_label_configuration(verbose: bool) -> DiagnosticResult {
                         }
                     }
                 }
+                Ok(Err(_)) => {
+                    DiagnosticResult {
+                        status: DiagnosticStatus::Fail,
+                        message: "Cannot validate label configuration".to_string(),
+                        details: Some("GitHub API error when listing labels".to_string()),
+                        suggestion: Some("Check GitHub authentication and repository access".to_string()),
+                    }
+                }
                 Err(_) => {
                     DiagnosticResult {
                         status: DiagnosticStatus::Fail,
                         message: "Cannot validate label configuration".to_string(),
-                        details: Some("Failed to access repository labels".to_string()),
-                        suggestion: Some("Configure GitHub authentication to validate labels".to_string()),
+                        details: Some("Request timed out when accessing repository labels".to_string()),
+                        suggestion: Some("Check network connectivity and GitHub authentication".to_string()),
                     }
                 }
             }
@@ -333,8 +355,11 @@ pub async fn check_repository_write_permissions(verbose: bool) -> DiagnosticResu
             let octocrab = client.issues.octocrab();
             
             // Check repository permissions by attempting to get repository info
-            match octocrab.repos(client.owner(), client.repo()).get().await {
-                Ok(repo) => {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(10),
+                octocrab.repos(client.owner(), client.repo()).get()
+            ).await {
+                Ok(Ok(repo)) => {
                     let permissions = repo.permissions.as_ref();
                     let has_write_access = permissions
                         .map(|p| p.push || p.maintain || p.admin)
@@ -363,12 +388,20 @@ pub async fn check_repository_write_permissions(verbose: bool) -> DiagnosticResu
                         }
                     }
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     DiagnosticResult {
                         status: DiagnosticStatus::Fail,
                         message: "Cannot check repository permissions".to_string(),
-                        details: Some(format!("Repository access error: {}", e)),
-                        suggestion: Some("Verify GitHub token has repository access permissions".to_string()),
+                        details: Some(format!("GitHub API error: {}", e)),
+                        suggestion: Some("Check GitHub authentication and repository access".to_string()),
+                    }
+                }
+                Err(_) => {
+                    DiagnosticResult {
+                        status: DiagnosticStatus::Fail,
+                        message: "Cannot check repository permissions".to_string(),
+                        details: Some("Request timed out when accessing repository".to_string()),
+                        suggestion: Some("Check network connectivity and GitHub authentication".to_string()),
                     }
                 }
             }

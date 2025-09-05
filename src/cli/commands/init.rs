@@ -382,7 +382,7 @@ impl InitCommand {
         }
 
         // Test the enhanced GitHub client which now includes fallback mechanisms
-        let github_client = match GitHubClient::new() {
+        let github_client = match GitHubClient::with_verbose(self.verbose) {
             Ok(client) => {
                 if self.verbose {
                     println!("   ✅ VERBOSE: GitHub API client created successfully");
@@ -651,7 +651,7 @@ impl InitCommand {
         }
 
         let github_client =
-            GitHubClient::new().map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
+            GitHubClient::with_verbose(self.verbose).map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
         let octocrab = github_client.issues.octocrab();
 
@@ -908,7 +908,7 @@ impl InitCommand {
             std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
             let github_client =
-                GitHubClient::new().map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
+                GitHubClient::with_verbose(self.verbose).map_err(|e| anyhow!("Failed to create GitHub client: {}", e))?;
 
             // Try to fetch a few issues to test API access
             match github_client.fetch_issues().await {

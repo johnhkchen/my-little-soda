@@ -34,7 +34,7 @@ impl BundleManager {
         })?;
 
         let git_ops = GitOperations::new()?;
-        let github_client = GitHubClient::new()?;
+        let github_client = GitHubClient::with_verbose(false)?;
 
         let bundle_manager = Self {
             git_ops,

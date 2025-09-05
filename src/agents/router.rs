@@ -22,7 +22,7 @@ pub struct AgentRouter {
 
 impl AgentRouter {
     pub async fn new() -> Result<Self, GitHubError> {
-        let github_client = GitHubClient::new()?;
+        let github_client = GitHubClient::with_verbose(false)?;
         let coordinator = AgentCoordinator::new().await?;
 
         // Initialize work continuity for agent001

@@ -110,7 +110,12 @@ impl AgentStateDiagnostic {
 
     /// Initialize with agent coordinator for enhanced diagnostics
     pub async fn with_coordinator(mut self) -> Result<Self, GitHubError> {
-        self.agent_coordinator = Some(AgentCoordinator::new().await?);
+        self.with_coordinator_verbose(false).await
+    }
+
+    /// Initialize with agent coordinator for enhanced diagnostics with verbose control
+    pub async fn with_coordinator_verbose(mut self, verbose: bool) -> Result<Self, GitHubError> {
+        self.agent_coordinator = Some(AgentCoordinator::with_verbose(verbose).await?);
         Ok(self)
     }
 

@@ -12,7 +12,8 @@ pub fn init_telemetry() -> Result<()> {
             tracing_subscriber::fmt::layer()
                 .json()
                 .with_current_span(true)
-                .with_span_list(true),
+                .with_span_list(true)
+                .with_writer(std::io::stderr), // Write to stderr instead of stdout
         )
         .with(
             tracing_subscriber::EnvFilter::from_default_env()

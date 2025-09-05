@@ -110,7 +110,7 @@ impl ActionsCommand {
         println!("====================================");
         println!();
 
-        let client = GitHubClient::new()?;
+        let client = GitHubClient::with_verbose(self.verbose)?;
 
         print!("🔍 Fetching recent workflow runs... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();
@@ -195,7 +195,7 @@ impl ActionsCommand {
         println!("==================================");
         println!();
 
-        let client = GitHubClient::new()?;
+        let client = GitHubClient::with_verbose(self.verbose)?;
 
         print!("🔍 Fetching workflow run details... ");
         std::io::Write::flush(&mut std::io::stdout()).unwrap();

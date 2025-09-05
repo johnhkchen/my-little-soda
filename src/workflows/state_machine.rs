@@ -60,7 +60,7 @@ pub struct StateMachine {
 #[allow(dead_code)] // State machine functionality for future workflow management
 impl StateMachine {
     pub async fn new() -> Result<Self, GitHubError> {
-        let github_client = GitHubClient::new()?;
+        let github_client = GitHubClient::with_verbose(false)?;
         let coordinator = AgentCoordinator::new().await?;
 
         Ok(Self {

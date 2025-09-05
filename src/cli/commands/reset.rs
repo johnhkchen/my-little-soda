@@ -26,7 +26,7 @@ impl ResetCommand {
         println!();
 
         // Initialize GitHub client
-        match GitHubClient::new() {
+        match GitHubClient::with_verbose(false) {
             Ok(client) => {
                 println!(
                     "✅ GitHub client initialized for {}/{}",

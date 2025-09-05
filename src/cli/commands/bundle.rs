@@ -179,7 +179,7 @@ impl BundleCommand {
         }
 
         // Check GitHub connectivity
-        match crate::github::GitHubClient::new() {
+        match crate::github::GitHubClient::with_verbose(self.verbose) {
             Ok(_) => println!("✅ GitHub API: Connected"),
             Err(e) => println!("❌ GitHub API: {e}"),
         }

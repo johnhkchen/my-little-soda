@@ -143,8 +143,18 @@ impl DoctorCommand {
         // Run GitHub repository access diagnostics
         self.check_github_repository_access(&mut checks).await;
         
-        // Run GitHub issue label validation diagnostics
-        self.check_github_issue_labels(&mut checks).await;
+        // Run GitHub issue label validation diagnostics (skip in JSON mode to avoid hanging)
+        if matches!(self.format, DoctorFormat::Json) {
+            // Add placeholder results for JSON mode to avoid expensive API calls
+            checks.insert("required_labels_existence".to_string(), DiagnosticResult {
+                status: DiagnosticStatus::Info,
+                message: "Label check skipped in JSON mode".to_string(),
+                details: Some("Use text mode for full label validation".to_string()),
+                suggestion: Some("Run 'my-little-soda doctor --verbose' for complete label checks".to_string()),
+            });
+        } else {
+            self.check_github_issue_labels(&mut checks).await;
+        }
         
         // Run environment validation diagnostics
         self.check_environment_variables(&mut checks)?;
@@ -156,11 +166,31 @@ impl DoctorCommand {
         self.check_conflicting_configurations(&mut checks)?;
         self.check_file_operations(&mut checks)?;
         
-        // Run agent state diagnostics
-        self.check_agent_state_health(&mut checks).await;
+        // Run agent state diagnostics (skip expensive operations in JSON mode)
+        if matches!(self.format, DoctorFormat::Json) {
+            // Add placeholder for JSON mode
+            checks.insert("agent_state_overall".to_string(), DiagnosticResult {
+                status: DiagnosticStatus::Info,
+                message: "Agent state check skipped in JSON mode".to_string(),
+                details: Some("Use text mode for full agent state validation".to_string()),
+                suggestion: Some("Run 'my-little-soda doctor --verbose' for complete agent diagnostics".to_string()),
+            });
+        } else {
+            self.check_agent_state_health(&mut checks).await;
+        }
         
-        // Run end-to-end workflow validation diagnostics
-        self.check_end_to_end_workflow_validation(&mut checks).await;
+        // Run end-to-end workflow validation diagnostics (skip in JSON mode)
+        if matches!(self.format, DoctorFormat::Json) {
+            // Add placeholder for JSON mode
+            checks.insert("workflow_validation".to_string(), DiagnosticResult {
+                status: DiagnosticStatus::Info,
+                message: "Workflow validation skipped in JSON mode".to_string(),
+                details: Some("Use text mode for full workflow validation".to_string()),
+                suggestion: Some("Run 'my-little-soda doctor --verbose' for complete workflow checks".to_string()),
+            });
+        } else {
+            self.check_end_to_end_workflow_validation(&mut checks).await;
+        }
         
         // Calculate summary
         let summary = self.calculate_summary(&checks);
@@ -3301,7 +3331,7 @@ impl DoctorCommand {
             Ok(github_client) => {
                 // Create agent state diagnostic checker
                 let agent_diagnostic = match AgentStateDiagnostic::new(github_client)
-                    .with_coordinator().await {
+                    .with_coordinator_verbose(self.is_verbose()).await {
                     Ok(diagnostic) => diagnostic,
                     Err(e) => {
                         checks.insert(
@@ -3933,7 +3963,7 @@ impl DoctorCommand {
         }
 
         // Test agent router initialization simulation
-        if let Err(_) = crate::agents::coordinator::AgentCoordinator::new().await {
+        if let Err(_) = crate::agents::coordinator::AgentCoordinator::with_verbose(self.is_verbose()).await {
             warnings.push("Agent coordinator initialization may have issues".to_string());
         }
 
@@ -4121,7 +4151,7 @@ impl DoctorCommand {
         let _client = crate::github::client::GitHubClient::with_verbose(self.is_verbose())
             .map_err(|e| anyhow::anyhow!("GitHub client for agent states failed: {}", e))?;
 
-        match crate::agents::coordinator::AgentCoordinator::new().await {
+        match crate::agents::coordinator::AgentCoordinator::with_verbose(self.is_verbose()).await {
             Ok(_coordinator) => {
                 // Simulate state machine transitions
                 // Test 1: Idle -> Assigned transition

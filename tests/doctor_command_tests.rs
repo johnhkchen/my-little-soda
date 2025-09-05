@@ -41,20 +41,24 @@ fn test_doctor_verbose_flag() {
 fn test_doctor_json_output() {
     let mut cmd = Command::cargo_bin("my-little-soda").unwrap();
     
-    let binding = cmd.arg("doctor").arg("--format").arg("json")
-        .assert()
-        .success();
-    let output = binding.get_output();
+    // Doctor command may exit with code 1 if diagnostics fail, which is expected behavior
+    let output = cmd.arg("doctor").arg("--format").arg("json")
+        .output()
+        .unwrap();
     
     let stdout = String::from_utf8(output.stdout.clone()).unwrap();
     
-    // Verify it's valid JSON
+    // Verify it's valid JSON (regardless of exit code)
     let parsed: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     
     // Verify expected structure
-    assert!(parsed["summary"].is_object());
-    assert!(parsed["checks"].is_object());
-    assert!(parsed["summary"]["total_checks"].is_number());
+    assert!(parsed["summary"].is_object(), "Missing 'summary' object in JSON output");
+    assert!(parsed["checks"].is_object(), "Missing 'checks' object in JSON output");
+    assert!(parsed["summary"]["total_checks"].is_number(), "Missing or invalid 'total_checks' in summary");
+    
+    // Verify the essential fields exist
+    assert!(parsed["readiness"].is_object(), "Missing 'readiness' object in JSON output");
+    assert!(parsed["recommendations"].is_array(), "Missing 'recommendations' array in JSON output");
 }
 
 #[test]

@@ -50,11 +50,17 @@ pub struct AgentCoordinator {
     // Work continuity manager for persistent state across restarts
     #[cfg(feature = "autonomous")]
     work_continuity: Arc<Mutex<Option<WorkContinuityManager>>>,
+    // Verbose mode for debugging output
+    verbose: bool,
 }
 
 impl AgentCoordinator {
     pub async fn new() -> Result<Self, GitHubError> {
-        let github_client = GitHubClient::new()?;
+        Self::with_verbose(true).await
+    }
+
+    pub async fn with_verbose(verbose: bool) -> Result<Self, GitHubError> {
+        let github_client = GitHubClient::with_verbose(verbose)?;
         #[cfg(feature = "metrics")]
         let metrics_tracker = MetricsTracker::new();
 
@@ -69,6 +75,7 @@ impl AgentCoordinator {
             agent_state_machine: Arc::new(Mutex::new(agent_state_machine)),
             #[cfg(feature = "autonomous")]
             work_continuity: Arc::new(Mutex::new(None)),
+            verbose,
         })
     }
 
@@ -114,7 +121,9 @@ impl AgentCoordinator {
         }
 
         let available_count = agents.len();
-        println!("📊 Available agents: {available_count} of 1 total");
+        if self.verbose {
+            println!("📊 Available agents: {available_count} of 1 total");
+        }
 
         // Show bundling status in verbose mode for operational visibility
         if let Some(bundling_info) = bundling_status {
@@ -573,6 +582,11 @@ impl AgentCoordinator {
 
     /// Get current bundling status for operational visibility
     async fn get_bundling_status(&self) -> Option<BundlingStatus> {
+        // Skip expensive bundling status checks in non-verbose mode
+        if !self.verbose {
+            return None;
+        }
+
         use crate::train_schedule::TrainSchedule;
 
         // Get queued branches ready for bundling
