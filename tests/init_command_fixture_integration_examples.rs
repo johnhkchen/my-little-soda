@@ -3,10 +3,12 @@
 /// These examples showcase the integration utilities and provide templates for common testing scenarios.
 /// Use these patterns as a starting point for comprehensive init command test coverage.
 
-use crate::tests::fixtures::init_integration::{
+mod fixtures;
+
+use fixtures::init_integration::{
     InitCommandTestEnvironment, InitCommandBatchTester, TestScenario, assertions
 };
-use crate::tests::fixtures::repository_states::{RepositoryStateFixture, RepositoryFixtureLoader};
+use fixtures::repository_states::{RepositoryStateFixture, RepositoryFixtureLoader};
 
 /// Example 1: Basic fixture usage - test init on empty repository
 #[tokio::test]

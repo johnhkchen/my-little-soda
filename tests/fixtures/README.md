@@ -13,7 +13,9 @@ The fixture system provides:
 ## Quick Start
 
 ```rust
-use crate::tests::fixtures::init_integration::{
+mod fixtures;
+
+use fixtures::init_integration::{
     InitCommandTestEnvironment, TestScenario, assertions
 };
 

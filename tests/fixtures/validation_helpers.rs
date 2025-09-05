@@ -620,7 +620,7 @@ impl CleanupValidationReport {
 macro_rules! validate_fixture {
     ($fixture:expr) => {
         {
-            use crate::tests::fixtures::validation_helpers::RepositoryStateValidator;
+            use super::validation_helpers::RepositoryStateValidator;
             let report = RepositoryStateValidator::validate_fixture_consistency(&$fixture)?;
             assert!(report.passed, "Fixture validation failed: {}", report.summary());
             report
@@ -632,7 +632,7 @@ macro_rules! validate_fixture {
 macro_rules! validate_init_result {
     ($result:expr, $post_init:expr, $fixture:expr, $scenario:expr) => {
         {
-            use crate::tests::fixtures::validation_helpers::InitCommandValidator;
+            use super::validation_helpers::InitCommandValidator;
             let report = InitCommandValidator::validate_comprehensive_result(
                 &$result, &$post_init, &$fixture, $scenario
             )?;

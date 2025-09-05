@@ -3,16 +3,22 @@
 /// This module demonstrates how to migrate existing init command tests to use the comprehensive
 /// fixture system, providing better coverage and more realistic test scenarios.
 
-use crate::cli::commands::init::InitCommand;
-use crate::fs::MockFileSystemOperations;
-use crate::tests::fixtures::init_integration::{
+// Commented out unused imports:
+// use my_little_soda::cli::commands::init::InitCommand;
+// use my_little_soda::fs::MockFileSystemOperations;
+
+mod fixtures;
+
+use fixtures::init_integration::{
     InitCommandTestEnvironment, InitCommandBatchTester, TestScenario, assertions
 };
-use crate::tests::fixtures::repository_states::{RepositoryStateFixture, RepositoryFixtureLoader};
-use crate::tests::fixtures::validation_helpers::{RepositoryStateValidator, InitCommandValidator};
-use mockall::predicate::*;
-use std::process::{Output, ExitStatus};
-use std::sync::Arc;
+use fixtures::repository_states::{RepositoryStateFixture, RepositoryFixtureLoader};
+use fixtures::validation_helpers::{RepositoryStateValidator, InitCommandValidator};
+use std::process::ExitStatus;
+// Commented out unused imports:
+// use mockall::predicate::*;
+// use std::process::Output;
+// use std::sync::Arc;
 
 // Helper functions for mock setup
 fn create_successful_exit_status() -> ExitStatus {
@@ -43,7 +49,7 @@ async fn test_init_on_empty_repository_with_fixture() {
     assertions::assert_init_succeeds_for_clean_repo(&result, "empty_repository");
     
     // Validate post-init state
-    let post_init = env.validate_post_init_state(true).await
+    let post_init = env.validate_post_init_state(true)
         .expect("Failed to validate post-init state");
     assertions::assert_post_init_validation_passes(&post_init, "empty_repository");
 }
@@ -185,7 +191,7 @@ async fn test_error_conditions_with_fixture_validation() {
         
         let result = env.run_and_validate_init(1, false, true).await
             .expect("Failed to run init command");
-        let post_init = env.validate_post_init_state(true).await
+        let post_init = env.validate_post_init_state(true)
             .expect("Failed to validate post-init state");
         
         // Use comprehensive validation
@@ -225,7 +231,7 @@ async fn test_migration_example_old_vs_new_pattern() {
     // More sophisticated validation than simple success/failure
     assertions::assert_result_matches_expectation(&result, "empty_repository");
     
-    let post_init = env.validate_post_init_state(true).await
+    let post_init = env.validate_post_init_state(true)
         .expect("Failed to validate post-init state");
     assertions::assert_post_init_validation_passes(&post_init, "empty_repository");
     
@@ -358,7 +364,7 @@ async fn test_fixture_extensibility() {
             ("custom_config.toml".to_string(), "custom = true\n".to_string()),
             (".gitignore".to_string(), "target/\n*.log\ncustom/\n".to_string()),
         ]),
-        git_config: crate::tests::fixtures::repository_states::GitConfig::default(),
+        git_config: fixtures::repository_states::GitConfig::default(),
         existing_my_little_soda_config: None,
     };
     
