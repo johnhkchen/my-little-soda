@@ -1,5 +1,27 @@
 /target
 
+# Build artifacts and intermediate files
+*.o
+*.rcgu.o
+*.rlib
+*.d
+
+# Test and debug artifacts
+core
+core.*
+*.tmp
+*.swp
+*~
+*.bak
+.DS_Store
+
+# Rust/Cargo specific
+Cargo.lock.orig
+**/*.rs.bk
+
+# Logs
+*.log
+
 # My Little Soda credentials and sensitive configuration
 .my-little-soda/credentials/
 .my-little-soda/cache/
@@ -16,3 +38,6 @@
 .env.local
 .env.development
 .my-little-soda/
+
+# Flox environment logs (but keep tracked files)
+.flox/log/

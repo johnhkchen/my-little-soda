@@ -281,11 +281,89 @@ This architectural constraint is fundamental to My Little Soda's value propositi
 - Tests may create helper functions to reduce duplication while maintaining clarity.
 - Test function names should spell “cannot” and “dont” without apostrophes, following Rust naming conventions.
 
+## Build Artifact Management
+
+### Overview
+
+My Little Soda generates significant build artifacts during development and CI/CD processes. Proper management prevents repository bloat and ensures clean version control.
+
+### Cleanup Policies
+
+#### Automated Cleanup
+- **Target Directory**: The `target/` directory can grow to 25GB+ and is automatically ignored via `.gitignore`
+- **Build Artifacts**: All `.o`, `.rcgu.o`, `.rlib`, and `.d` files are ignored and cleaned automatically
+- **Temporary Files**: Test artifacts, swap files, and backup files are automatically cleaned
+
+#### Manual Cleanup
+Run the cleanup script when needed:
+```bash
+./scripts/cleanup-build-artifacts.sh
+```
+
+#### CI/CD Integration
+- Build artifacts are not persisted between CI runs
+- Essential binaries are rebuilt from clean state for each deployment
+- Cleanup verification is integrated into the test pipeline
+
+### File Categories
+
+#### Always Clean
+- `target/` directory (Rust build output)
+- Root-level `.o` and `.rcgu.o` files (compiler artifacts)  
+- Temporary files (`.tmp`, `.swp`, `*~`, `.bak`)
+- Log files (`.flox/log/*.log`)
+- Core dumps (`core`, `core.*`)
+
+#### Always Preserve
+- `Cargo.lock` (dependency lockfile)
+- `.flox/` environment configuration (tracked files)
+- Source code and documentation
+- Test fixtures and configuration files
+
+#### Size Targets
+- **Pre-cleanup**: ~26GB (with build artifacts)
+- **Post-cleanup**: ~8-10MB (clean repository)
+- **Target reduction**: 95%+ size reduction
+
+### Development Workflow Integration
+
+#### Before Commits
+```bash
+# Optional: Clean build artifacts before committing
+./scripts/cleanup-build-artifacts.sh
+
+# Standard workflow continues
+git add .
+git commit -m "Your commit message"
+```
+
+#### After Major Builds
+```bash
+# After running extensive tests or builds
+cargo test --all-features
+./scripts/cleanup-build-artifacts.sh
+```
+
+### Troubleshooting
+
+If the repository size grows unexpectedly:
+1. Check for new build artifact types: `du -sh * | sort -rh`
+2. Verify `.gitignore` patterns are working: `git status --ignored`
+3. Run cleanup script: `./scripts/cleanup-build-artifacts.sh`
+4. Update `.gitignore` if new patterns are needed
+
+### Maintenance Schedule
+
+- **Daily**: Automatic cleanup via `.gitignore`
+- **Weekly**: Manual cleanup script execution (development)
+- **Release**: Mandatory cleanup verification before releases
+- **Quarterly**: Review and update cleanup policies
+
 ## Additional Rust-Specific Recommendations
 
 - Use `clippy` for additional code quality checks.
 - Follow `rustfmt` formatting standards.
-- Leverage Rust’s ownership system to prevent common bugs.
+- Leverage Rust's ownership system to prevent common bugs.
 - Use `Result<T, E>` for recoverable errors and `panic!` for unrecoverable ones.
 - Prefer `&str` over `String` for function parameters when possible.
 - Use appropriate collection types (`Vec`, `HashMap`, `BTreeMap`) for specific use cases.
